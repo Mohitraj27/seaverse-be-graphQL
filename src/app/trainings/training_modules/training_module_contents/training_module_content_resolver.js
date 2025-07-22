@@ -25,11 +25,28 @@ const notificationiconEnum = require("../../../notifications/notification_icon.j
 const { TrainingProgress } = require("../../../training-registrations/training-progress/training_progress_model");
 const { OverallTrainingProgress } = require("../../../training-registrations/overall-course-progress/overall_progress_model");
 const { default: mongoose } = require("mongoose");
+const { decrypt } = require("../../../../util/encryption_helper");
 
 const axios = require('axios');
 const FormData = require('form-data');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
+const { exec } = require('child_process');
+const util = require('util');
+const execPromise = util.promisify(exec);
+
+const { v4: uuidv4 } = require('uuid');
+
+const { SQSClient, SendMessageCommand } = require('@aws-sdk/client-sqs');
+
+const sqsClient = new SQSClient({
+    region: process.env.SQS_AWS_REGION,
+    credentials: {
+        accessKeyId: process.env.SQS_AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.SQS_AWS_SECRET_ACCESS_KEY,
+    },
+});
 
 function escapeRegex(str) {
     return str.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&");
@@ -84,12 +101,10 @@ module.exports.queries = {
         }
 
         if (search) {
-            const escapedSearch = escapeRegex(search);
-            filterConditions['title.value'] = { $regex: escapedSearch, $options: "i" };
+            // const escapedSearch = escapeRegex(search);
+            filterConditions['title.value'] = { $regex: search?.trim(), $options: "i" };
         }
-
         const totalCountBeforePagination = await TrainingModuleContent.countDocuments(filterConditions);
-
         const skip = pageInput?.skip ?? 0;
         const limitContent = pageInput?.limit ?? 50;
 
@@ -251,9 +266,28 @@ module.exports.queries = {
                 totalCount: 0,
             };
         }
+        const decryptedContents = contents?.contents?.map((content) => {
+            const decryptedCreatedBy = {
+                ...content.createdBy,
+                firstName: content.createdBy.firstName !== 'Unknown' ? decrypt(content.createdBy.firstName) : 'Unknown',
+                lastName: content.createdBy.lastName && content.createdBy.lastName !== 'User' ? decrypt(content.createdBy.lastName) : 'User',
+            };
+            const decryptedUpdatedBy = {
+                ...content.updatedBy,
+                firstName: content.updatedBy.firstName !== 'Unknown' ? decrypt(content.updatedBy.firstName) : 'Unknown',
+                lastName: content.updatedBy.lastName && content.updatedBy.lastName !== 'User' ? decrypt(content.updatedBy.lastName) : 'User',
+            };
+            return {
+                ...content,
+                createdBy: decryptedCreatedBy,
+                updatedBy: decryptedUpdatedBy,
+            };
+        });
+
+
 
         return {
-            contents: contents.contents,
+            contents: decryptedContents,
             totalCount: totalCountBeforePagination,
         };
     },
@@ -311,7 +345,11 @@ module.exports.queries = {
             courseNames: courseNames
         }
 
-    }
+    },
+    getPresignedUrl: async ({ fileName, fileType }, context) => {
+        const { subscriberId } = AuthUser(context);
+        return await TrainingModuleContentHelper.getPresignedUrlHelper(fileName, fileType, subscriberId);
+    },
 };
 
 module.exports.mutations = {
@@ -583,9 +621,9 @@ module.exports.mutations = {
             isUpdated: { $ne: true },
             ...(Array.isArray(ids) && ids.length > 0 ? { _id: { $in: ids } } : {}),
         };
-        if(currentStatus){
+        if (currentStatus) {
             filter.contentStatus = currentStatus;
-        }   
+        }
 
         const contents = await TrainingModuleContent.find(filter);
 
@@ -611,77 +649,57 @@ module.exports.mutations = {
 
             if (currentStatus === Content_status.PUBLISHED && newStatus === Content_status.DRAFT) {
                 invalidUpdates.push({
-                    id: id,
-                    reason: "Content not found."
+                    id: content._id,
+                    reason: "Published to Draft is not allowed directly. Must move to Retired first."
                 });
                 continue;
             }
 
-            const validUpdate = (() => {
-                if (content.contentStatus === Content_status.PUBLISHED && newStatus === Content_status.DRAFT) {
-                    invalidUpdates.push({
-                        name: title,
-                        reason: "Published to Draft is not allowed directly. Must move to Retired first."
-                    });
-                    return false;
-                }
-                if (content.contentStatus === Content_status.PUBLISHED && newStatus === Content_status.RETIRED) {
-                    return true;
-                }
-                if (content.contentStatus === Content_status.DRAFT && newStatus === Content_status.PUBLISHED) {
-                    return true;
-                }
-                if (content.contentStatus === Content_status.RETIRED && newStatus === Content_status.PUBLISHED) {
-                    return true;
-                }
+            if (!validStatusTransitions[currentStatus]?.includes(newStatus)) {
                 invalidUpdates.push({
-                    id: id,
-                    reason: `No valid transition from ${content.contentStatus} to ${newStatus}.`
+                    id: content._id,
+                    reason: `No valid transition from ${currentStatus} to ${newStatus}.`
                 });
-                return false;
-            })();
-
-            if (!validUpdate) {
                 continue;
             }
 
-            content.contentStatus = newStatus;
-            content.updatedBy = userId;
-            content.updatedAt = new Date();
-            content.modifiedDate = new Date();
-            await content.save();
+            bulkOps.push({
+                updateOne: {
+                    filter: { _id: content._id },
+                    update: {
+                        $set: {
+                            contentStatus: newStatus,
+                            updatedBy: userId,
+                            updatedAt: new Date(),
+                            modifiedDate: new Date()
+                        }
+                    }
+                }
+            });
 
-            updatedContents.push(content);
-            //content status update notification
-            /*  await NotificationHelper.createNotificationhelper({
-                 subscriber: subscriberId,
-                 titleValue: `Content Status Updated`,
-                 messageValue: `The status of the training module content ${content.title[0]?.value} has been updated to ${newStatus} by the ${userInfo?.firstName} ${userInfo?.lastName}.`,
-                 notificationType: NotificationType.TRAINING_MODULE_CONTENT_STATUS_UPDATED,
-                 notifyAllAdmin: true,
-                 affected: [
-                     {
-                         targetRef: "TrainingModuleContent",
-                         target: content._id,
-                     },
-                 ],
-                 status: 'SENT',
-                 icon: notificationiconEnum.SUCCESS,
-                 createdBy: userId,
-             }); */
+            updatedContents.push({
+                _id: content._id,
+                title: content.title,
+                previousStatus: currentStatus,
+                newStatus
+            });
+        }
+
+        if (bulkOps.length > 0) {
+            await TrainingModuleContent.bulkWrite(bulkOps);
         }
 
         return {
             success: invalidUpdates.length === 0,
             message: invalidUpdates.length === 0
-                ? `All content statuses updated to ${newStatus}.`
+                ? `All applicable content statuses updated to ${newStatus}.`
                 : `Some content statuses could not be updated.`,
             updatedContents,
             invalidUpdates
         };
     },
 
-    deleteTrainingModuleContentByIDs: async ({ ids , currentStatus }, context) => {
+    deleteTrainingModuleContentByIDs: async ({ ids, currentStatus }, context) => {
         const { userId, subscriberId, userInfo } = AuthUser(context);
         const invalidDeletes = [];
         const successfullyDeleted = [];
@@ -699,7 +717,7 @@ module.exports.mutations = {
                 const contents = await TrainingModuleContent.find({
                     subscriber: subscriberId,
                     contentStatus: currentStatus,
-                    isDeleted: { $ne: true }, 
+                    isDeleted: { $ne: true },
                 });
                 if (contents.length === 0) {
                     return {
@@ -824,9 +842,9 @@ module.exports.mutations = {
             const scormFile = scorm ? await scorm : null;
             const thumbnailFile = thumbnail ? await thumbnail : null;
             const imageFile = image ? await image : null;
-            const videoFile = videos ? await videos : null;
+            const videoFile = null;
             const audioFile = audio ? await audio : null;
-            const fileFile = file ? await file : null;
+            // const fileFile = file ? await file : null;
             const subtitlesFile = subtitles ? await subtitles : null;
 
             const allowedFileFormats = ['pdf', 'ppt', 'pptx', 'jpg', 'jpeg', 'png', 'mp3', 'mp4', 'wav', 'zip', 'srt', 'vtt'];
@@ -848,29 +866,22 @@ module.exports.mutations = {
                 throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid image file format');
             }
 
-            if (videoFile && !validateFileFormat(videoFile)) {
-                throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid video file format');
-            }
+            // if (videoFile && !validateFileFormat(videoFile)) {
+            //     throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid video file format');
+            // }
 
             if (audioFile && !validateFileFormat(audioFile)) {
                 throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid audio file format');
             }
 
-            if (fileFile && !validateFileFormat(fileFile)) {
-                throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid file format');
-            }
+            // if (fileFile && !validateFileFormat(fileFile)) {
+            //     throw CustomError(ErrorName.INVALID_FILE_FORMAT, 'Invalid file format');
+            // }
 
             if (!input.contentStatus || input.contentStatus === Content_status.DRAFT) {
                 input.contentStatus = input?.contentType !== ContentType.QUIZ ? Content_status.PUBLISHED : Content_status.DRAFT;
             }
 
-            // if (input.duration) {
-            //     const durationStyleChecked = TrainingModuleContentHelper.checkDurationStyle(input.duration);
-            //     if (!durationStyleChecked) {
-            //         throw CustomError(ErrorName.INVALID_DURATION_FORMAT);
-            //     }
-            //     input.duration = Math.round(TrainingModuleContentHelper.convertDurationToMinutes(input.duration));
-            // }
             let contentTypeNotification = '';
             if (thumbnail) {
                 const thumbnailUrl = await UploadHelper.uploadImage({
@@ -884,15 +895,15 @@ module.exports.mutations = {
             }
 
             if (videos?.length) {
-                const videoUrls = await Promise.all(videos.map(async (v) => {
-                    const videoUrl = await UploadHelper.uploadVideo({
-                        data: v,
-                        folderName: `video-content`,
-                        fileName: `video_${Date.now()}_${v?.filename?.split('.')?.[0]}`,
-                        uploadType: UploadHelper.uploadType.trainingContentVideo,
-                    });
-                    return videoUrl;
-                }));
+                // const videoUrls = await Promise.all(videos.map(async (v) => {
+                //     const videoUrl = await UploadHelper.uploadVideo({
+                //         data: v,
+                //         folderName: `video-content`,
+                //         fileName: `video_${Date.now()}_${v?.filename?.split('.')?.[0]}`,
+                //         uploadType: UploadHelper.uploadType.trainingContentVideo,
+                //     });
+                //     return videoUrl;
+                // }));
 
                 const subtitleUrls = await Promise.all((subtitles || []).map(async (s, i) => {
                     const subtitleUrl = await UploadHelper.uploadSubtitle({
@@ -904,13 +915,16 @@ module.exports.mutations = {
                     return subtitleUrl;
                 }));
 
-                const vData = videoUrls.map((v, i) => {
+                console.log('videos');
+                console.log(videos);
+
+                const vData = videos.map((v, i) => {
                     const meta = videoMetas?.[i] || {};
                     const subtitleRefs = meta.subtitles || [];
 
                     const mappedSubtitles = subtitleRefs.map(ref => {
                         const subtitleUrl = subtitleUrls[ref.index];
-                        return subtitleUrl ? { lang: ref.lang, url: subtitleUrl } : null;
+                        return subtitleUrl ? { lang: ref.lang.replace(/\.srt$/, ""), url: subtitleUrl } : null;
                     }).filter(Boolean);
 
                     return {
@@ -953,37 +967,67 @@ module.exports.mutations = {
                 contentTypeNotification = 'Image';
             }
 
-            if (file) {
+            if (file && (file.endsWith('.pptx') || file.endsWith('.ppt'))) {
 
-                const uploadedFile = await file;
-                const updatedPptToPdf = await uploadPpt(uploadedFile);
+                const fetchedFile = await AwsHelper.fetchFile(file);
 
-                let pdfFileUrl;
-                if (updatedPptToPdf?.pdfBuffer) {
-                    pdfFileUrl = await UploadHelper.uploadDocument({
-                        data: updatedPptToPdf.pdfBuffer,
-                        folderName: 'file-content',
-                        fileName: `converted_${Date.now()}_${updatedPptToPdf.originalName}`,
-                        uploadType: UploadHelper.uploadType.trainingContentFile,
-                    });
 
-                    if (pdfFileUrl) {
-                        input.files = [{ url: pdfFileUrl }];
-                        input.contentType = 'PDF'
-                        contentTypeNotification = 'Document';
+                const tempPptPath = path.join(os.tmpdir(), `temp_${Date.now()}.pptx`);
+
+
+
+                const outputDir = path.join(os.tmpdir(), 'converted_pdfs');
+
+                const response = await axios.get(fetchedFile, { responseType: 'arraybuffer' });
+                fs.writeFileSync(tempPptPath, response.data);
+
+
+                if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir);
+
+
+                const command = `libreoffice --headless --convert-to pdf --outdir "${outputDir}" "${tempPptPath}"`;
+
+                try {
+                    const { stdout, stderr } = await execPromise(command);
+                    if (stderr) console.warn('Conversion stderr:', stderr);
+
+                    fs.unlinkSync(tempPptPath);
+
+                    const pdfFileName = path.basename(tempPptPath, path.extname(tempPptPath)) + '.pdf';
+                    const pdfFilePath = path.join(outputDir, pdfFileName);
+
+                    if (!fs.existsSync(pdfFilePath)) {
+                        throw CustomError(ErrorName.FAILED, 'PDF not found after conversion');
                     }
-                } else {
-                    const fileUrl = await UploadHelper.uploadDocument({
-                        data: file,
-                        folderName: `file-content`,
-                        fileName: `file_${Date.now()}_${fileFile?.filename?.split('.')?.[0]}`,
+                    let cleanPdfFileName = pdfFileName.replace(/\.pdf\.pdf$/, '.pdf');
+                    console.log('Converted PDF file name:', cleanPdfFileName);
+                    // Step 3: Upload PDF to S3
+                    const fileBuffer = fs.readFileSync(pdfFilePath);
+                    let uploadedUrl = await UploadHelper.uploadDocument({
+                        data: fileBuffer,
+                        folderName: 'file-content',
+                        fileName: `file_${Date.now()}_${cleanPdfFileName}`,
                         uploadType: UploadHelper.uploadType.trainingContentFile,
                     });
-                    input.files = [{ url: fileUrl }];
-                    contentTypeNotification = 'Document';
+
+                    fs.unlinkSync(pdfFilePath);
+
+                    if (uploadedUrl) {
+
+                        input.files = [{ url: uploadedUrl }];
+                    }
+
+                } catch (error) {
+                    console.error('❌ Conversion or upload error:', error.message || error);
+                    throw CustomError(ErrorName.FAILED, 'Failed to convert PPT to PDF or upload the file');
                 }
 
-
+                contentTypeNotification = 'Document';
+            }
+            else if (file) {
+                input.files = [{
+                    url: file,
+                }];
             }
 
             const contentData = {
@@ -992,9 +1036,12 @@ module.exports.mutations = {
                 updatedBy: userId,
             };
 
+
+
             const savedContent = await DbTransactionHelper.performDbTransaction(async session => {
                 const savedContent = new TrainingModuleContent({
                     ...contentData,
+                    contentType: input.contentType === "PPT" ? "PDF" : input.contentType,
                     subscriber: subscriberId,
                     UID: await TrainingModuleContentHelper.generateContentUID({ subscriberId, session })
                 })
@@ -1023,6 +1070,78 @@ module.exports.mutations = {
                 ],
                 createdBy: userInfo,
             });
+
+            // If video is present, compress it and replace the original video URL using SQS
+            console.log('savedContent');
+            console.log(savedContent);
+
+            if (savedContent.videos && savedContent.videos.length > 0) {
+                const videoUrls = savedContent?.videos.map(video => video.url);
+
+                if (videoUrls && videoUrls.length > 0) {
+
+                    const jobId = uuidv4();
+
+                    async function compressVideoJob(jobData) {
+                        try {
+                            if (!jobData || !jobData.jobId) {
+                                throw new Error('Invalid job data: missing jobId');
+                            }
+
+                            const params = {
+                                QueueUrl: process.env.SQS_VIDEO_COMPRESSION_QUEUE_URL,
+                                MessageBody: JSON.stringify(jobData),
+                            };
+
+                            // // 👉 If FIFO queue:
+                            // if (process.env.SQS_QUEUE_TYPE === 'FIFO') {
+                            //     params.MessageGroupId = 'course-enrollment'; // Required for FIFO
+                            //     params.MessageDeduplicationId = `${jobData.jobId}-${Date.now()}`; // Ensure unique
+                            // }
+
+                            const data = await sqsClient.send(new SendMessageCommand(params));
+
+                            console.log(`📋 Job sent to SQS: ${data.MessageId}`);
+                            return { id: data.MessageId };
+                        } catch (error) {
+                            console.error('❌ Failed to send job to SQS:', error);
+                            throw error;
+                        }
+                    }
+
+
+
+                    async function publishVideoCompression(videoUrls, jobId, context) {
+                        // Input validation
+                        if (!videoUrls || videoUrls.length === 0) {
+                            console.warn('⚠️ No video URL found!');
+                            return { success: false, reason: 'No videos found' };
+                        }
+
+
+                        console.log(`🚀 Publishing ${videoUrls.length} videos to compress`);
+
+                        const job = await compressVideoJob({
+                            jobId: jobId,
+                            savedContent,
+                            context,
+                            timestamp: new Date().toISOString()
+                        });
+
+
+                        return job;
+                    }
+
+
+
+                    await publishVideoCompression(videoUrls, jobId, context);
+
+                }
+
+            }
+
+
+
             /* await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `New  Content Created`,
@@ -1039,6 +1158,7 @@ module.exports.mutations = {
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             }); */
+
             return savedContent;
         } catch (error) {
             console.error("Error in createTrainingModuleContent:", error);
@@ -1203,18 +1323,14 @@ module.exports.mutations = {
         }
 
 
-
-
-
-
         const usedInCourses = await TrainingContentBridge.find({ trainingContent: existingContent._id, isDeleted: false });
 
         const scormFile = scorm ? await scorm : null;
         const thumbnailFile = thumbnail ? await thumbnail : null;
         const imageFile = image ? await image : null;
-        const videoFiles = videos ? await videos : null;
+        const videoFiles = videos ? videos : null;
         const audioFile = audio ? await audio : null;
-        const fileFile = file ? await file : null;
+        const fileFile = file ? file : null;
 
         const allowedFileFormats = ['pdf', 'ppt', 'pptx', 'jpg', 'jpeg', 'png', 'mp3', 'mp4', 'wav', 'zip'];
 
@@ -1238,7 +1354,7 @@ module.exports.mutations = {
         let updateData = {
             title: input.title,
             description: input.description,
-            contentType: input.contentType,
+            contentType: input.contentType === "PPT" ? "PDF" : input.contentType,
             contentStatus: input.contentStatus,
             duration: input.duration,
             displayPosition: input.displayPosition,
@@ -1340,15 +1456,15 @@ module.exports.mutations = {
                         return null;
                     }
 
-                    const videoUrl = await UploadHelper.uploadVideo({
-                        data: videoFile,
-                        folderName: `video-content`,
-                        fileName: `video_${Date.now()}_${videoFile?.filename?.split('.')?.[0]}`,
-                        uploadType: UploadHelper.uploadType.trainingContentVideo,
-                    });
+                    // const videoUrl = await UploadHelper.uploadVideo({
+                    //     data: videoFile,
+                    //     folderName: `video-content`,
+                    //     fileName: `video_${Date.now()}_${videoFile?.filename?.split('.')?.[0]}`,
+                    //     uploadType: UploadHelper.uploadType.trainingContentVideo,
+                    // });
 
                     return {
-                        url: videoUrl,
+                        url: videoFile,
                         meta: videoMeta
                     };
                 })
@@ -1473,22 +1589,102 @@ module.exports.mutations = {
             isUpdated = true;
             isMediaUpdated = true;
         }
+      
+        if (file && (file.endsWith('.pptx') || file.endsWith('.ppt'))) {
 
-        if (file) {
-            const fileUrl = await UploadHelper.uploadDocument({
-                data: file,
-                folderName: `file-content-${existingContent._id}`,
-                fileName: `file_${Date.now()}_${fileFile?.filename?.split('.')?.[0]}`,
-                uploadType: UploadHelper.uploadType.trainingContentFile,
-            });
-            updateData.files = [{ url: fileUrl }];
-            updateData.images = [];
-            updateData.audios = [];
-            updateData.videos = [];
-            updateData.scorm = null;
-            isUpdated = true;
-            isMediaUpdated = true;
+            const fetchedFile = await AwsHelper.fetchFile(file);
+
+
+            const tempPptPath = path.join(os.tmpdir(), `temp_${Date.now()}.pptx`);
+
+
+
+            const outputDir = path.join(os.tmpdir(), 'converted_pdfs');
+
+            const response = await axios.get(fetchedFile, { responseType: 'arraybuffer' });
+            fs.writeFileSync(tempPptPath, response.data);
+
+
+            if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir);
+
+
+            const command = `libreoffice --headless --convert-to pdf --outdir "${outputDir}" "${tempPptPath}"`;
+
+            try {
+                const { stdout, stderr } = await execPromise(command);
+                if (stderr) console.warn('Conversion stderr:', stderr);
+
+                fs.unlinkSync(tempPptPath);
+
+                const pdfFileName = path.basename(tempPptPath, path.extname(tempPptPath)) + '.pdf';
+                const pdfFilePath = path.join(outputDir, pdfFileName);
+                console.log(outputDir, pdfFileName, "pdfFilePath")
+
+                if (!fs.existsSync(pdfFilePath)) {
+                    throw CustomError(ErrorName.FAILED, 'PDF not found after conversion');
+                }
+
+                // Step 3: Upload PDF to S3
+                let cleanPdfFileName = pdfFileName.replace(/\.pdf\.pdf$/, '.pdf');
+
+
+                const fileBuffer = fs.readFileSync(pdfFilePath);
+                let uploadedUrl = await UploadHelper.uploadDocument({
+                    data: fileBuffer,
+                    folderName: 'file-content',
+                    fileName: `file_${Date.now()}_${cleanPdfFileName}`,
+                    uploadType: UploadHelper.uploadType.trainingContentFile,
+                });
+
+                fs.unlinkSync(pdfFilePath);
+
+                if (uploadedUrl) {
+
+                    // input.files = [{ url: uploadedUrl }];
+
+                    updateData.files = [{ url: uploadedUrl }];
+                    updateData.contentType = "PDF";
+                    updateData.images = [];
+                    updateData.audios = [];
+                    updateData.videos = [];
+                    updateData.scorm = null;
+                    isUpdated = true;
+                    isMediaUpdated = true;
+                }
+
+            } catch (error) {
+                console.error('❌ Conversion or upload error:', error.message || error);
+                throw CustomError(ErrorName.FAILED, 'Failed to convert PPT to PDF or upload the file');
+            }
+
+            contentTypeNotification = 'Document';
         }
+        else if (file) {
+            updateData.files = [{
+                url: file,
+            }];
+        }
+
+
+
+
+
+
+        // if (file) {
+        //     const fileUrl = await UploadHelper.uploadDocument({
+        //         data: file,
+        //         folderName: `file-content-${existingContent._id}`,
+        //         fileName: `file_${Date.now()}_${fileFile?.filename?.split('.')?.[0]}`,
+        //         uploadType: UploadHelper.uploadType.trainingContentFile,
+        //     });
+        //     updateData.files = [{ url: fileUrl }];
+        //     updateData.images = [];
+        //     updateData.audios = [];
+        //     updateData.videos = [];
+        //     updateData.scorm = null;
+        //     isUpdated = true;
+        //     isMediaUpdated = true;
+        // }
 
         if (scorm) {
             const courseInfo = await ScromHelper.uploadToScormCloud(scorm);
@@ -1551,6 +1747,71 @@ module.exports.mutations = {
             ],
             createdBy: userInfo,
         });
+
+        if (savedContent.videos && savedContent.videos.length > 0) {
+            const videoUrls = savedContent?.videos.map(video => video.url);
+
+            if (videoUrls && videoUrls.length > 0) {
+
+                const jobId = uuidv4();
+
+                async function compressVideoJob(jobData) {
+                    try {
+                        if (!jobData || !jobData.jobId) {
+                            throw new Error('Invalid job data: missing jobId');
+                        }
+
+                        const params = {
+                            QueueUrl: process.env.SQS_VIDEO_COMPRESSION_QUEUE_URL,
+                            MessageBody: JSON.stringify(jobData),
+                        };
+
+                        // // 👉 If FIFO queue:
+                        // if (process.env.SQS_QUEUE_TYPE === 'FIFO') {
+                        //     params.MessageGroupId = 'course-enrollment'; // Required for FIFO
+                        //     params.MessageDeduplicationId = `${jobData.jobId}-${Date.now()}`; // Ensure unique
+                        // }
+
+                        const data = await sqsClient.send(new SendMessageCommand(params));
+
+                        console.log(`📋 Job sent to SQS: ${data.MessageId}`);
+                        return { id: data.MessageId };
+                    } catch (error) {
+                        console.error('❌ Failed to send job to SQS:', error);
+                        throw error;
+                    }
+                }
+
+
+
+                async function publishVideoCompression(videoUrls, jobId, context) {
+                    // Input validation
+                    if (!videoUrls || videoUrls.length === 0) {
+                        console.warn('⚠️ No video URL found!');
+                        return { success: false, reason: 'No videos found' };
+                    }
+
+
+                    console.log(`🚀 Publishing ${videoUrls.length} videos to compress`);
+
+                    const job = await compressVideoJob({
+                        jobId: jobId,
+                        savedContent,
+                        context,
+                        timestamp: new Date().toISOString()
+                    });
+
+
+                    return job;
+                }
+
+
+
+                await publishVideoCompression(videoUrls, jobId, context);
+
+            }
+
+        }
 
         return {
             success: true,

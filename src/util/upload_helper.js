@@ -6,6 +6,7 @@ const streamifier = require('streamifier');
 const path = require("path");
 const fs = require('fs');
 const os = require('os');
+const { Readable } = require('stream');
 
 const fileType = {
     excel: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -57,6 +58,7 @@ const uploadType = {
     exportLearnersCoursesReportAsExcel: "exportLearnersCoursesReportAsExcel",
     exportCustomQuizReport: "exportCustomQuizReport",
     lessonZip: "lessonZip",
+    metadataJSON: "metadataJSON",
 };
 
 
@@ -97,6 +99,15 @@ const getPathFromType = ({ type, folder, filename }) => {
     else if (type === uploadType.exportLearnersCoursesReportAsExcel) return `${rootFolder}/export-reports/${folder}/${filename}`;
     else if (type === uploadType.exportCustomQuizReport) return `${rootFolder}/export-reports/Custom-Reports/${folder}/${filename}`;
     else if (type === uploadType.lessonZip) return `${rootFolder}/lessons/${folder}/${filename}`;
+    else if (type === uploadType.metadataJSON) return `${rootFolder}/metadatas/${folder}/${filename}`;
+};
+
+const isReadableStream = (value) => {
+    return value instanceof Readable || (
+        value &&
+        typeof value.pipe === 'function' &&
+        typeof value._read === 'function'
+    );
 };
 
 const isPromise = data => data !== undefined && data instanceof Promise;
@@ -224,7 +235,9 @@ const uploadJsonObject = async ({ jsonData, folderName, fileName, uploadType }) 
 
 module.exports = {
     uploadType,
+    fileType,
     uploadJsonObject,
+    uploadFile,
     uploadZip: async ({ data, folderName, fileName, uploadType }) => {
         if (typeof data === "object" && typeof data.pipe === "function") {
             const filePath = await uploadFile({
@@ -239,6 +252,10 @@ module.exports = {
         } else if (typeof data === "string") return data;
     },
     uploadVideo: async ({ data, folderName, fileName, uploadType }) => {
+        console.log('typeof data');
+        console.log(typeof data);
+        console.log('isPromise(data)');
+        console.log(isPromise(data));
         if (isPromise(data)) {
             const filePath = await uploadFile({
                 fileData: data,
@@ -249,6 +266,16 @@ module.exports = {
             });
 
             if (filePath) return filePath;
+        } else if (isReadableStream(data)) {
+            const filePath = await uploadFile({
+                fileData: data,
+                folderName,
+                fileName,
+                uploadType,
+                acceptedTypes: fileType.videos,
+            });
+
+            return filePath;
         } else if (typeof data === "string") return data;
     },
     uploadSubtitle: async ({ data, folderName, fileName, uploadType }) => {

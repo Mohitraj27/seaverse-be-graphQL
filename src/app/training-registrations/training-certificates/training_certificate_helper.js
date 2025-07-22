@@ -15,6 +15,7 @@ const { TrainingProgress } = require("../training-progress/training_progress_mod
 const { Training } = require("../../trainings/training_model");
 const { v4: uuidv4 } = require('uuid');
 const notificationiconEnum = require("../../notifications/notification_icon.json");
+const { decrypt } = require('../../../util/encryption_helper');
 const generateTrainingCertificateNumber = async ({ subscriberId, userId, session }) => {
     const currentYear = CurrentDateTime().utcDateTimeObj.year();
 
@@ -85,7 +86,7 @@ const sendCertificateGenerationNotification = async notificationsData => {
                 message: [
                     {
                         lang: "en",
-                        value: `Certificate has been generated for ${notificationData.userId.firstName} ${notificationData.userId.lastName} for completing ${trainingTitle} `,
+                        value: `Certificate has been generated for ${decrypt(notificationData.userId.firstName)} ${decrypt(notificationData.userId.lastName)} for completing ${trainingTitle} `,
                     },
                 ],
                 userMessage: [
@@ -110,8 +111,8 @@ const sendCertificateGenerationNotification = async notificationsData => {
                         infoType: "UPDATER_INFO",
                         infoData: {
                             _id: notificationData.createdBy._id,
-                            firstName: notificationData.createdBy.firstName,
-                            lastName: notificationData.createdBy.lastName,
+                            firstName: decrypt(notificationData.createdBy.firstName),
+                            lastName: notificationData.createdBy.lastName ? decrypt(notificationData.createdBy.lastName):'',
                         },
                     },
                     {
@@ -121,9 +122,9 @@ const sendCertificateGenerationNotification = async notificationsData => {
                             user: {
                                 _id: notificationData.trainingRegistration.employee?.user?._id,
                                 firstName:
-                                    notificationData.trainingRegistration.employee?.user?.firstName,
+                                    decrypt(notificationData.trainingRegistration.employee?.user?.firstName),
                                 lastName:
-                                    notificationData.trainingRegistration.employee?.user?.lastName,
+                                   notificationData.trainingRegistration.employee?.user?.lastName ? decrypt(notificationData.trainingRegistration.employee?.user?.lastName):'',
                             },
                         },
                     },

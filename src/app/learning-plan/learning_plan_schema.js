@@ -273,13 +273,31 @@ module.exports = {
         input SortUserInput {
             sortField: SortUserField!
             sortOrder: Int!
-        }   
+        }
+        type learningPlanUserList {
+            averageProgress: Float,
+            totalTrainings: Int,
+            completedTrainings: Int,
+            userId: ID,
+            status: TrainingProgressStatusEnum,
+            firstName: String,
+            lastName: String,
+            email: String,
+            lastLoginAt: String,
+            isRegistered: Boolean,
+            timeSpend: Float,
+        }
+
+            type LearningPlanUsersResponse {
+            users: [learningPlanUserList!]!
+            totalCount: Int!
+        }
     `,
     queries: `
         getLearningPlans(filterInput: LearningPlanFilterInput, pageInput: pageInput, status:[TrainingProgressStatusEnum],search: String):LearningPlanResponse!
         getLearningPlan(id: ID!,status:[TrainingProgressStatusEnum], lastActivity: lastModifiedEnum, search: String,filteredLearnerData: [String!], pageInput: pageInput): LearningPlan
         getUsersForLearningPlan(input: GetUsersForLearningPlanInput!): GetUsersForLearningPlanResponse
-        getUsersListforLearningPlan( id: ID!, status: [TrainingProgressStatusEnum],lastActivity: lastModifiedEnum,search: String, filteredLearnerData: [String!], pageInput: pageInput, sortInput: SortUserInput): [learningPlanUserResponse]
+        getUsersListforLearningPlan( id: ID!, status: [TrainingProgressStatusEnum],lastActivity: lastModifiedEnum,search: String, filteredLearnerData: [String!], pageInput: pageInput, sortInput: SortUserInput): LearningPlanUsersResponse!
     `,
     mutations: `
         createLearningPlan(input: LearningPlanInput!): LearningPlan!

@@ -29,18 +29,20 @@ const notificationiconEnum = require("../notifications/notification_icon.json");
 const Export = require("../user/exportUser/exportUser_model");
 const { Designation } = require("../designations/designation_model");
 const { generateRandomString } = require("./user-profile/user_profile_helper");
-const  SignUpOtp  = require('./SignUpOtp');
+const SignUpOtp = require('./SignUpOtp');
 const nodemailer = require("nodemailer");
 const SignupRequest = require('../signup-request/signup-request-model');
 const signupstatus = require('../signup-request/signup-status.json');
 const subscriptionHelper = require("../saas/subscriber/subscription/subscription_helper");
 const NotificationType = require('../notifications/notification_type.json');
-const {signUpVerifyEmailTemplate} = require('../email-template/signUpEmailVerification');
-const  ContentLanguage  = require('../trainings/training_modules/training_module_contents/content_languages/content_languages_model');
+const { signUpVerifyEmailTemplate } = require('../email-template/signUpEmailVerification');
+const ContentLanguage = require('../trainings/training_modules/training_module_contents/content_languages/content_languages_model');
 const mongoose = require('mongoose');
 const { consentsforLearnerInitalLogin } = require('../email-template/consentsforLearnerInitalLogin');
 const { sendConsentsforAllAdminsInitalLogin } = require('../email-template/consentsforAllAdminsInitalLogin');
 const { SubRole } = require("../user/sub-roles/sub_role_model");
+const { encrypt, decrypt } = require("../../util/encryption_helper");
+const { updateByQueryToElasticSearch, indexDocumenttoElasticSearch } = require("../../util/elastic_helper");
 module.exports.queries = {
     downloadNotification: async ({ input }, context) => {
 
@@ -188,7 +190,7 @@ module.exports.mutations = {
         try {
             const signUp = await DbTransactionHelper.performDbTransaction(async session => {
 
-                const { firstName, lastName, password, confirmPassword, email, country, TermsAndConditions } = input;
+                const { password, confirmPassword, country, TermsAndConditions, email, firstName, lastName } = input;
 
                 if (!password || !confirmPassword || !email) {
                     throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Required fields are missing");
@@ -203,9 +205,8 @@ module.exports.mutations = {
                         "Password must have at least one uppercase letter, one special character, one number and minimum 8 characters"
                     );
                 }
-                const lowerCaseEmail = email.toLowerCase();
 
-                const existingUser = await User.findOne({ email: lowerCaseEmail, isDeleted: false }).session(session);
+                const existingUser = await User.findOne({ email: encrypt(email?.toLowerCase()), isDeleted: false }).session(session);
 
                 if (existingUser) throw CustomError(ErrorName.ALREADY_EXIST, "Email entered already exists. Please log in to continue");
 
@@ -221,10 +222,10 @@ module.exports.mutations = {
                 const createUser = await User.create([
                     {
                         subscriber: subscriberId,
-                        firstName: firstName,
-                        lastName: lastName ?? null,
+                        firstName: encrypt(firstName.toLowerCase()),
+                        lastName: encrypt(lastName.toLowerCase()) ?? null,
                         password: encryptedPassword,
-                        email: lowerCaseEmail,
+                        email: encrypt(email?.toLowerCase()),
                         dummyPassword: dummyPassword,
                         isRegistered: false,
                         directSignup: true,
@@ -249,10 +250,59 @@ module.exports.mutations = {
                     UID: await EmployeeHelper.generateEmployeeUID({ subscriberId }),
                 });
                 if (!savedEmployee) throw CustomError(ErrorName.FAILED, "Employee creation failed!");
+
+                const document = {
+                    employeeId: savedEmployee._id?.toString(),
+                    UID: savedEmployee.UID,
+                    designation: savedEmployee.designation,
+                    empDesignation: savedEmployee.empDesignation?.toString(),
+                    bulkId: savedEmployee.bulkId,
+                    regType: savedEmployee.regType,
+                    isActive: savedEmployee.isActive,
+                    isDeleted: savedEmployee.isDeleted,
+                    subscriber: savedEmployee.subscriber?.toString(),
+                    createdAt: savedEmployee.createdAt,
+                    updatedAt: savedEmployee.updatedAt,
+
+                    // Nested user fields
+                    userId: savedEmployee.user?._id?.toString(),
+                    firstName: savedEmployee.user?.firstName,
+                    lastName: savedEmployee.user?.lastName,
+                    email: savedEmployee.user?.email,
+                    civilIdOrPassport: savedEmployee.user?.civilIdOrPassport,
+                    country: savedEmployee.user?.country,
+                    languagePreference: savedEmployee.user?.languagePreference,
+                    role: savedEmployee.user?.role,
+                    subRoles: savedEmployee.user?.subRoles,
+                    isVerified: savedEmployee.user?.isVerified,
+                    isRegistered: savedEmployee.user?.isRegistered,
+                    superAdmin: savedEmployee.user?.superAdmin,
+                    deleteRequest: savedEmployee.user?.deleteRequest,
+                    isDeleted_user: savedEmployee.user?.isDeleted,
+                    directSignup: savedEmployee.user?.directSignup,
+                    contentlanguages: savedEmployee.user?.contentlanguages,
+                    currentVessel: savedEmployee.user?.currentVessel?.toString(),
+                    vesselStatus: savedEmployee.user?.vesselStatus,
+                    isEmailNotification: savedEmployee.user?.isEmailNotification,
+                    isPushNotification: savedEmployee.user?.isPushNotification,
+                    lastLoginAt: savedEmployee.user?.lastLoginAt,
+                    isSignupAdminAprroved: savedEmployee.user?.isSignupAdminAprroved,
+                    userCreatedAt: savedEmployee.user?.createdAt,
+                    userUpdatedAt: savedEmployee.user?.updatedAt,
+                    isResetPasswordDialog: savedEmployee.user?.isResetPasswordDialog,
+                    indexedAt: new Date(),
+                };
+
+                try {
+                    await indexDocumenttoElasticSearch("users", savedEmployee?._id, document);
+                } catch (error) {
+                    throw CustomError(ErrorName.SIGNUP_FAILED, error.message);
+                }
+
                 const result = await SignupRequest.create([{
-                    firstName: firstName,
-                    lastName: lastName,
-                    email: lowerCaseEmail,
+                    firstName: encrypt(firstName.toLowerCase()),
+                    lastName: encrypt(lastName.toLowerCase()),
+                    email: encrypt(email?.toLowerCase()),
                     country: country,
                     signupStatus: signupstatus.PENDING,
                     userId: createUser[0]._id,
@@ -330,176 +380,163 @@ module.exports.mutations = {
     signIn: async ({ input }, context) => {
         try {
             const signIn = await DbTransactionHelper.performDbTransaction(async session => {
-
-                const emailOrCivilIdOrPassport = input.emailOrCivilIdOrPassport;
-                const password = input.password;
-                const deleteRequest = await User.find({email: input.emailOrCivilIdOrPassport,deleteRequest: true }).session(session);
-                if(deleteRequest?.length > 0){
-                    return CustomError(ErrorName.DELETE_REQUEST_PENDING,'Your account delete request is pending. Please contact your admin');
-                }
-                // for app signup
-                const fetchAppUser = await AppUser.findOne({
+                const encryptedEmail = encrypt(input.emailOrCivilIdOrPassport);
+              
+                const existingUser = await User.findOne({
                     $or: [
-                        { email: { $regex: new RegExp(`^${input.emailOrCivilIdOrPassport}$`, "i") } },
+                        { email: encryptedEmail },
                         { civilIdOrPassport: input.emailOrCivilIdOrPassport },
                     ],
+                    role: { $ne: Role.SAAS_ADMIN },
+                    isActive: true,
+                    isDeleted: { $ne: true },
+                }).populate({
+                    path: 'subRoles',
+                    select: '_id name permissions isActive isPredefined description isDefault primaryRole',
                 }).session(session);
 
-                if (fetchAppUser) {
-                    const valid = await CryptoHelper.compare(input.password, fetchAppUser.password);
+                if (!existingUser) {
+                    return CustomError(ErrorName.USER_NOT_FOUND);
+                }
 
-                    if (valid) {
+              
+                if (existingUser.deleteRequest === true) {
+                    return CustomError(ErrorName.DELETE_REQUEST_PENDING, 'Your account delete request is pending. Please contact your admin');
+                }
 
-                        const fetchUser = await User.findOne({ email: "testuser@example.com" }).session(session);
-                        if (!fetchUser) {
-                            return CustomError(ErrorName.USER_NOT_FOUND);
-                        }
-                        return await UserHelper.makeAuthUser(fetchUser);
-                    }
-                } else {
+             
+                const isPasswordValid = await CryptoHelper.compare(input.password, existingUser.password);
 
-                    // const expiredUser = await User.findOne({
-                    //     $or: [
-                    //         { email: { $regex: new RegExp(`^${input.emailOrCivilIdOrPassport}$`, "i") } },
-                    //         { civilIdOrPassport: input.emailOrCivilIdOrPassport },
-                    //     ],
-                    //     isDeleted: true,
-                    //     deleteRequest: true,
-                    //     isActive: false
-                    // }).session(session);
-                    // if (expiredUser) {
-                    //     expiredUser.isDeleted = false;
-                    //     expiredUser.isActive = true;
-                    //     expiredUser.deleteRequest = false;
-                    //     expiredUser.deleteRequestDate = null;
-                    //     expiredUser.reasonForDelete = null;
-                    //     await expiredUser.save({ session });
+             
+                if (!isPasswordValid) {
+                    return CustomError(ErrorName.WRONG_PASSWORD);
+                }
 
-                    //     await OverallTrainingProgress.updateMany(
-                    //         { user: expiredUser._id },
-                    //         {
-                    //             $set: {
-                    //                 isDeleted: false,
-                    //             }
-                    //         }
-                    //     ).session(session);
-                    // }
 
-                    const existingUser = await User.findOne({
-                        $or: [
-                            { email: { $regex: new RegExp(`^${input.emailOrCivilIdOrPassport}$`, "i") } },
-                            { civilIdOrPassport: input.emailOrCivilIdOrPassport },
-                        ],
-                        role: { $ne: Role.SAAS_ADMIN },
-                        isActive: true,
-                        isDeleted: { $ne: true },
-                    }).populate({
-                        path: 'subRoles',
-                        select: '_id name permissions isActive isPredefined description isDefault primaryRole',
-                    }).session(session);
+                if (input?.consents?.length > 0) {
+                    const termsAndConditionsInput = input.consents;
+                    const existingConditionsMap = new Map(
+                        existingUser.consents.map(tc => [tc._id.toString(), tc])
+                    );
 
-                    if (!existingUser) {
-                        return CustomError(ErrorName.USER_NOT_FOUND);
-                    }
-                    if (input?.consents?.length > 0) {
-                        const termsAndConditionsInput = input.consents;
-                        const existingConditionsMap = new Map(
-                          existingUser.consents.map(tc => [tc._id.toString(), tc])
-                        );
-                        termsAndConditionsInput.forEach(condition => {
-                          const inputConditionId = condition._id ? condition._id.toString() : null;
-                      
-                          if (inputConditionId && existingConditionsMap.has(inputConditionId)) {
-                            // Update existing condition
+                    termsAndConditionsInput.forEach(condition => {
+                        const inputConditionId = condition._id ? condition._id.toString() : null;
+
+                        if (inputConditionId && existingConditionsMap.has(inputConditionId)) {
+                        
                             const existingCondition = existingConditionsMap.get(inputConditionId);
                             existingCondition.message = condition.message;
                             existingCondition.consentType = consentTypes.INITIAL_LOGIN;
                             existingCondition.title = condition.title;
                             existingCondition.status = condition.status;
                             existingCondition.timestamp = condition.timestamp || new Date().toISOString();
-                          } else {
+                        } else {
                             existingUser.consents.push({
-                              _id: new mongoose.Types.ObjectId(),
-                              consentType: consentTypes.INITIAL_LOGIN, 
-                              message: condition.message,
-                              title: condition.title,
-                              status: condition.status,
-                              timestamp: condition.timestamp || new Date().toISOString(),
+                                _id: new mongoose.Types.ObjectId(),
+                                consentType: consentTypes.INITIAL_LOGIN,
+                                message: condition.message,
+                                title: condition.title,
+                                status: condition.status,
+                                timestamp: condition.timestamp || new Date().toISOString(),
                             });
-                          }
+                        }
+                    });
+
+                 
+                    if (input?.consents?.some(consent => consent.status === false)) {
+                        const decryptedUserEmail = decrypt(existingUser?.email);
+                        const decryptedUserFirstName = decrypt(existingUser?.firstName);
+
+                  
+                        await AwsHelper.sendEmail({
+                            receiverEmail: decryptedUserEmail,
+                            subject: `Your Sign In Was Not Complete`,
+                            htmlContent: consentsforLearnerInitalLogin({ firstName: decryptedUserFirstName }),
                         });
-                        if(input?.consents?.some(consent => consent.status === false)) {
-                           await AwsHelper.sendEmail({
-                                receiverEmail: existingUser?.email,
-                                subject: `Your Sign In Was Not Complete`,
-                                htmlContent: consentsforLearnerInitalLogin({ firstName: existingUser?.firstName }),
-                            });
-                            const adminSubRole = await SubRole.findOne({ name: 'ADMIN' }).select('_id');
-                            const adminUserEmails = await User.find({ subRoles: { $in: adminSubRole?._id } }, { email: 1, firstName: 1, lastName: 1 }).lean();
-                            const adminUsers = adminUserEmails.map(user => ({ email: user?.email, firstName: user?.firstName, lastName: user?.lastName }));
-                            await Promise.all(adminUsers.map(async user => await AwsHelper.sendEmail({
-                                receiverEmail: user?.email,
-                                subject: `Alert: Learner Rejected Terms and Conditions`,
-                                htmlContent: sendConsentsforAllAdminsInitalLogin({ adminFirstName: user?.firstName, learnerfirstName: existingUser?.firstName, learnerEmail: existingUser?.email } ),
-                            }))); 
-                        }
-                        await existingUser.save({ session });
-                      }                    
-                    const processValidUser = async () => {
-                        if (input.firebaseToken) {
-                            existingUser.firebaseTokens = [input.firebaseToken];
-                        }
 
-                        if (input.deviceId) {
-                            existingUser.deviceIds = [input.deviceId];
-                        }
+                        const adminSubRole = await SubRole.findOne({ name: 'ADMIN' }).select('_id');
+                        const adminUserEmails = await User.find(
+                            { subRoles: { $in: adminSubRole?._id } },
+                            { email: 1, firstName: 1, lastName: 1 }
+                        ).lean();
 
-                        existingUser.lastLoginAt = Moment().format();
-                        await existingUser.save({ session });
-                        return await UserHelper.makeAuthUser(existingUser);
-                    };
+                    
+                        const adminUsers = adminUserEmails?.map(user => ({
+                            email: decrypt(user?.email),
+                            firstName: decrypt(user?.firstName),
+                            lastName: user?.lastName ? decrypt(user?.lastName) : '',
+                        }));
 
-
-                    const valid = await CryptoHelper.compare(input.password, existingUser.password);
-
-                    if (valid) {
-                        return await processValidUser();
-                    } else if (existingUser.role === Role.EMPLOYEE) {
-
-                        const subscriberProfile = await SubscriberProfile.findOne({
-                            subscriber: existingUser.subscriber,
-                        }).lean().select("employeeMasterPassword").session(session);
-
-                        if (
-                            context.platform === Role.EMPLOYEE &&
-                            subscriberProfile?.employeeMasterPassword?.length
-                        ) {
-                            const valid = await CryptoHelper.compare(
-                                input.password,
-                                subscriberProfile.employeeMasterPassword
-                            );
-
-                            if (valid) {
-                                return await processValidUser();
-                            }
-                        }
-
-                        if (
-                            existingUser.isRegistered !== true &&
-                            existingUser.password === process.env.USER_DUMMY_PASSWORD
-                        ) {
-                            return CustomError(ErrorName.UNAUTHORIZED);
-                        }
+                        await Promise.all(adminUsers?.map(async user => await AwsHelper.sendEmail({
+                            receiverEmail: user?.email,
+                            subject: `Alert: Learner Rejected Terms and Conditions`,
+                            htmlContent: sendConsentsforAllAdminsInitalLogin({
+                                adminFirstName: decrypt(user?.firstName),
+                                learnerfirstName: decryptedUserFirstName,
+                                learnerEmail: decryptedUserEmail
+                            }),
+                        })));
                     }
                 }
 
-                
-                return CustomError(ErrorName.WRONG_PASSWORD);
+                return await UserHelper.makeAuthUser(existingUser);
             });
+
             return signIn;
 
         } catch (error) {
             throw new Error(error.message);
+        }
+    },
+
+    lastLoginAt: async ({ firebaseToken }, context) => {
+        const { userId } = AuthUser(context);
+        if (!userId) throw CustomError(ErrorName.UNAUTHORIZED, "User not authenticated");
+
+        const lastLoginAtTime = Moment().format();
+
+        try {
+            const updatePromises = [];
+
+            const mongoUpdate = {
+                lastLoginAt: lastLoginAtTime
+            };
+
+            if (firebaseToken) {
+                mongoUpdate.firebaseTokens = [firebaseToken];
+            }
+
+            updatePromises.push(
+                User.findByIdAndUpdate(userId, mongoUpdate, {
+                    new: false, 
+                    lean: true 
+                })
+            );
+
+           
+            updatePromises.push(
+                updateByQueryToElasticSearch(
+                    "users",
+                    "ctx._source.lastLoginAt = params.lastLoginAt",
+                    {
+                        match: {
+                            userId: userId.toString()
+                        }
+                    },
+                    {
+                        lastLoginAt: lastLoginAtTime
+                    }
+                )
+            );
+
+           
+            await Promise.all(updatePromises);
+
+            return "Last login time updated successfully";
+
+        } catch (error) {
+            console.error("Failed to update last login time:", error);
+            throw CustomError(ErrorName.FAILED, `Failed to update last login time: ${error.message}`);
         }
     },
     generateRefreshToken: async ({ token }) => {
@@ -596,7 +633,7 @@ module.exports.mutations = {
             const { country, email } = input;
             if (!email) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Email is required!");
             const lowercaseEmail = email.toLowerCase();
-            const existingUser = await User.findOne({ email:lowercaseEmail, isDeleted: false });
+            const existingUser = await User.findOne({ email: lowercaseEmail, isDeleted: false });
             if (existingUser) throw CustomError(ErrorName.USER_ALREADY_EXIST, "Email entered already exists!");
 
             const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}$/;
@@ -604,7 +641,7 @@ module.exports.mutations = {
                 throw CustomError(ErrorName.INVALID_EMAIL, "Invalid email format!");
 
             const generatedtoken = Crypto.randomBytes(16).toString("hex");
-            
+
             const otp = Math.floor(100000 + Math.random() * 900000);
             const html = `<div style="text-align: center;">
             <h2>Otp for Email Verification</h2>
@@ -650,7 +687,7 @@ module.exports.mutations = {
             const encryptedOtp = await CryptoHelper.hash(otp.toString(), 10);
             if (sendEmailResponse) {
                 await SignUpOtp.create({
-                    email : lowercaseEmail,
+                    email: lowercaseEmail,
                     otp: encryptedOtp,
                     generatedtoken: generatedtoken,
                     country: country
@@ -659,8 +696,8 @@ module.exports.mutations = {
             return {
                 status: true,
                 message: `OTP sent successfully to ${email}`,
-                generatedtoken:generatedtoken,
-                email:email,
+                generatedtoken: generatedtoken,
+                email: email,
                 country: country
             };
         } catch (error) {
@@ -671,13 +708,13 @@ module.exports.mutations = {
     verifyOTPSignup: async ({ input }) => {
         try {
             const { email, generatedtoken, otp } = input;
-            if (!otp || !generatedtoken ) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Otp or generated token is missing!");
+            if (!otp || !generatedtoken) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Otp or generated token is missing!");
             const savedOtp = await SignUpOtp.findOne({ generatedtoken });
-            if (!savedOtp) throw CustomError(ErrorName.OTP_EXPIRED,'OTP expired');
-            
+            if (!savedOtp) throw CustomError(ErrorName.OTP_EXPIRED, 'OTP expired');
+
             const isOtpValid = await CryptoHelper.compare(otp.toString(), savedOtp.otp);
-            if (!isOtpValid) throw CustomError(ErrorName.INVALID_OTP,'Invalid OTP');
-            
+            if (!isOtpValid) throw CustomError(ErrorName.INVALID_OTP, 'Invalid OTP');
+
             await SignUpOtp.deleteMany({ email });
             return {
                 status: true,
@@ -685,12 +722,12 @@ module.exports.mutations = {
                 email: savedOtp.email,
                 country: savedOtp.country
             };
-          
+
         } catch (error) {
             throw CustomError(ErrorName.OTP_VERIFICATION_FAILED, error.message);
         }
     },
-    updateProfileforCourseSetting:async({input},context)=>{
+    updateProfileforCourseSetting: async ({ input }, context) => {
         try {
             const { languagecode, userId } = input;
 
@@ -698,9 +735,9 @@ module.exports.mutations = {
 
             const user = await User.findOne({ _id: userId });
             if (!user) throw CustomError(ErrorName.USER_NOT_FOUND, "User not found");
-    
+
             let updatedLanguages = [];
-    
+
             if (languagecode && languagecode?.length > 0) {
                 const validLanguages = await ContentLanguage.find({
                     title: { $in: languagecode }
@@ -716,7 +753,7 @@ module.exports.mutations = {
             }
             user.contentlanguages = updatedLanguages;
             await user.save();
-    
+
             return {
                 status: true,
                 message: languagecode && languagecode?.length > 0
@@ -729,7 +766,7 @@ module.exports.mutations = {
     },
     switchNotifcation: async ({ input }, context) => {
         try {
-            const { userInfo,userId } = AuthUser(context); 
+            const { userInfo, userId } = AuthUser(context);
             const { isEmailNotification, isPushNotification } = input;
             const user = await User.findOne({ _id: userId });
             if (!user) throw CustomError(ErrorName.USER_NOT_FOUND, "User not found");
@@ -740,7 +777,7 @@ module.exports.mutations = {
                 user.isPushNotification = isPushNotification;
             }
             await user.save();
-            
+
             return {
                 status: true,
                 message: "Notification preferences updated successfully",

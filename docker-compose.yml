@@ -1,0 +1,43 @@
+
+
+services:
+  # Redis Service
+  # redis:
+  #   image: redis
+  #   container_name: redis
+  #   ports:
+  #     - "6379:6379"
+  #   networks:
+  #     - app-network
+
+  # Enrollment Worker 
+   # Enrollment Worker 
+  enrollment-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.enrollmentworker
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  # CSV Worker
+  csv-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.csvworker
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  # CSV Worker
+  video-compression:
+    build:
+      context: .
+      dockerfile: Dockerfile.videocompression
+    restart: unless-stopped
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge

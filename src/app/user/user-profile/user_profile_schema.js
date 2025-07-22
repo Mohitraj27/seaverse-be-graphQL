@@ -73,6 +73,7 @@ module.exports = {
         changePassword(input: PasswordUpdateInput!): String!
         forgetPassword(email: String!,consentsInput: [consentsInput!]): forgetPasswordRes!
         verifyResetPassword(token: String!): String!
+        deleteProfilePicture(url: String!): String!
         newPasswordAfterReset(input: newPasswordInput!): String!
         selfDeleteRequest(input: DeleteRequestInput!): String!
     `,

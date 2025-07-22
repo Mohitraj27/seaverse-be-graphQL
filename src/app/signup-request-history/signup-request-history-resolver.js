@@ -2,6 +2,7 @@ const HistorySignupRequest = require('./signup-request-history-model');
 const { CustomError } = require('../../util/error_helper');
 const { AuthUser,ErrorName } = require('../../util');
 const sortingFieldJSONData = require('../signup-request/sortingField.json');
+const { decrypt, encrypt } = require('../../util/encryption_helper');
 module.exports.queries = {
     getHistorySignupRequest: async ({ id, search, filterInput, pageInput }, context) => {
         const { subscriberId } = AuthUser(context);
@@ -21,11 +22,13 @@ module.exports.queries = {
             }
             let query = { isDeleted: false };
 
+            let encryptedSearch = search ? encrypt(search?.trim()?.toLowerCase()) : '';
+
             if (search) {
                 query.$or = [
-                    { email: { $regex: search, $options: 'i' } },
-                    { firstName: { $regex: search, $options: 'i' } },
-                    { lastName: { $regex: search, $options: 'i' } }
+                    { email: { $regex: encryptedSearch, $options: 'i' } },
+                    { firstName: { $regex: encryptedSearch, $options: 'i' } },
+                    { lastName: { $regex: encryptedSearch, $options: 'i' } }
                 ];
             }
 
@@ -44,8 +47,17 @@ module.exports.queries = {
                 .skip(skip)
                 .limit(limit);
             const totalCount = await HistorySignupRequest.countDocuments(query);
+                const decryptedItems = items?.map(item => {
+                    const obj = item.toObject();
+                    return {
+                        ...obj,
+                        firstName: decrypt(obj?.firstName),
+                        lastName: obj?.lastName ? decrypt(obj?.lastName) : '',
+                        email: decrypt(obj?.email?.trim())
+                    };
+                });
             return {
-                items,
+                items:decryptedItems,
                 totalCount
             };
         } catch (error) {

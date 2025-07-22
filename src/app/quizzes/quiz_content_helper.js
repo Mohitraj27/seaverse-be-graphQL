@@ -7,7 +7,7 @@ const NotificationHelper = require("../notifications/notification_helper");
 const CounterHelper = require("../counters/counter_helper");
 
 const NotificationType = require("../notifications/notification_type.json");
-
+const {decrypt } = require("../../util/encryption_helper");
 const uploadQuizContentImages = async ({ images, folderName }) => {
     const quizContentImages = [];
 
@@ -71,8 +71,8 @@ module.exports.QuizContentHelper = {
                         infoType: "UPDATER_INFO",
                         infoData: {
                             _id: notificationData.createdBy._id,
-                            firstName: notificationData.createdBy.firstName,
-                            lastName: notificationData.createdBy.lastName,
+                            firstName: decrypt(notificationData.createdBy.firstName),
+                            lastName: notificationData.createdBy.firstName ? decrypt(notificationData.createdBy.lastName): "",
                         },
                     },
                     {
@@ -91,14 +91,14 @@ module.exports.QuizContentHelper = {
                 notification.message = [
                     {
                         lang: "en",
-                        value: `Admin User "${notificationData.createdBy.firstName}" submitted the quiz "${quizContentTitle}" for approval`,
+                        value: `Admin User "${decrypt(notificationData.createdBy.firstName)}" submitted the quiz "${quizContentTitle}" for approval`,
                     },
                 ];
             } else {
                 notification.message = [
                     {
                         lang: "en",
-                        value: `Admin User "${notificationData.createdBy.firstName}" ${notificationData.action} "${quizContentTitle}" quiz`,
+                        value: `Admin User "${decrypt(notificationData.createdBy.firstName)}" ${notificationData.action} "${quizContentTitle}" quiz`,
                     },
                 ];
             }

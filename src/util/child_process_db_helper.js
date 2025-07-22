@@ -1,3 +1,4 @@
+require("dotenv").config();
 const { connect, connection, set } = require("mongoose");
 
 const connectDb = async () => {

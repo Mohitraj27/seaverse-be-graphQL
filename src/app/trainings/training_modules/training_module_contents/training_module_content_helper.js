@@ -4,6 +4,8 @@ const { CustomError, ErrorName, AuthUser, UploadHelper } = require("../../../../
 const { TrainingModuleContent } = require("./training_module_content_model");
 const CounterHelper = require("../../../counters/counter_helper");
 const { TrainingContentBridge } = require("../../training_content_bridge/training_content_model");
+const { S3Client, PutObjectCommand } = require("@aws-sdk/client-s3");
+const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
 
 const uploadTrainingModuleContentVideos = async ({ videos, folderName }) => {
     const trainingModuleContentVideos = [];
@@ -219,6 +221,40 @@ module.exports = {
 
         if (!savedTrainingModuleContent) throw CustomError(ErrorName.FAILED);
         return savedTrainingModuleContent;
+    },
+
+     getPresignedUrlHelper : async (fileName, fileType) => {
+        try {
+            
+    
+            if (!fileName || !fileType) {
+                throw CustomError(ErrorName.BAD_REQUEST, "Missing fileName or fileType");
+            } 
+           
+            const s3 = new S3Client({
+                region: process.env.AWS_REGION,
+                credentials: {
+                    accessKeyId: process.env.AWS_ACCESS_KEY,
+                    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+                },
+            });
+    
+            const videoFileKey = `training-contents/video-content/videos/${Date.now()}_${fileName}`;
+            const pptPdfFileKey = `training-contents/ppt-pdf-content/files/${Date.now()}_${fileName}`;
+    
+            const command = new PutObjectCommand({
+                Bucket: process.env.S3_BUCKET,
+                Key: fileType?.split("/")?.[0] === "video" ? videoFileKey : pptPdfFileKey,
+                ContentType: fileType,
+            });
+    
+            const url = await getSignedUrl(s3, command, { expiresIn: 60 * 5 });
+
+            return { url, key: fileType?.split("/")?.[0] === "video" ? videoFileKey : pptPdfFileKey };
+        } catch (err) {
+            console.error(err);
+            throw  CustomError(ErrorName.INTERNAL_SERVER_ERROR, "Failed to generate presigned URL");
+        }
     },
     createOrUpdateTrainingModuleContentInTrainingCreation: async ({ input, session }, context) => {
 

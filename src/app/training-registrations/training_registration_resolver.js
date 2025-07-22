@@ -49,9 +49,14 @@ const moduleResetNotificationEmail = require("../email-template/resetModule");
 const { sendNotifications } = require("../../util/firebase_helper");
 const AWS_HELPER = require("../../util/aws_helper");
 const { generateUniqueCertificateId, calculateExpiryDate } = require("./training-certificates/training_certificate_helper");
+const { decrypt, encrypt } = require("../../util/encryption_helper");
+const { updateCoursesCountAndProgressInElasticSearch } = require("./overall-course-progress/overall_progress_helper");
 module.exports.queries = {
     getTrainingRegistrations: async ({ input }, context) => {
-
+        if (input?.search) {
+            input.search = encrypt(input?.search);
+        }
+        console.log(input?.search, "input.search");
         const { subscriberId } = AuthUser(context);
         if (!input.training) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Training ID is required");
 
@@ -181,9 +186,19 @@ module.exports.queries = {
             directEnrollment: user.directEnrollment,
             adminMarkedAsCompleted: user.adminMarkedAsCompleted
         }));
+        const decryptedFormattedResults = formattedResults?.map(user => ({
+            id: user.id,
+            firstName: decrypt(user.firstName),
+            lastName: user?.lastName ? decrypt(user.lastName) : '',
+            email: decrypt(user.email),
+            status: user.status,
+            isRegistered: user.isRegistered,
+            directEnrollment: user.directEnrollment,
+            adminMarkedAsCompleted: user.adminMarkedAsCompleted,
+        }));
         return {
             countOfUsers: formattedResults.length || 0,
-            users: formattedResults,
+            users: decryptedFormattedResults,
         };
     },
     getTrainingRegistration: async ({ id }, context) => {
@@ -430,8 +445,7 @@ module.exports.queries = {
                             let: {
                                 moduleId: "$contentData.moduleId",
                                 contentIds: "$contentData.contentIds",
-                                overallTrainingProgress: "$_id",
-                                attemptCount: "$attemptCount"
+                                overallTrainingProgress: "$_id"
                             },
                             pipeline: [
                                 {
@@ -451,12 +465,6 @@ module.exports.queries = {
                                                     $eq: [
                                                         "$trainingModule",
                                                         "$$moduleId"
-                                                    ]
-                                                },
-                                                {
-                                                    $eq: [
-                                                        "$attemptCount",
-                                                        "$$attemptCount"
                                                     ]
                                                 }
                                             ]
@@ -947,7 +955,6 @@ module.exports.queries = {
                                 moduleId: "$contentData.moduleId",
                                 overallTrainingProgress: "$_id",
                                 contentIds: "$contentData.contentIds",
-                                attemptCount: "$attemptCount",
                             },
                             pipeline: [
                                 {
@@ -961,12 +968,6 @@ module.exports.queries = {
                                                     $eq: [
                                                         "$trainingModule",
                                                         "$$moduleId"
-                                                    ]
-                                                },
-                                                {
-                                                    $eq: [
-                                                        "$attemptCount",
-                                                        "$$attemptCount"
                                                     ]
                                                 },
                                                 {
@@ -1426,7 +1427,7 @@ module.exports.mutations = {
         }
     },
     verifyRegistrationEmails: async ({ input }, context) => {
-
+        console.log(input?.email, "input in verifyRegistrationEmails");
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
 
@@ -1455,7 +1456,7 @@ module.exports.mutations = {
                     if (!Validator.isEmail(email)) {
                         invalidEmails.push(email);
                     } else {
-                        const user = await User.findOne({ email: email });
+                        const user = await User.findOne({ email: encrypt(email) });
                         if (!user) {
                             invalidEmails.push(email);
                         }
@@ -1472,7 +1473,7 @@ module.exports.mutations = {
                 existingTraining = await OverallTrainingProgress.find({ training: input.training, user: { $in: inputUserIds } });
             }
 
-            const inputUsers = await User.find({ email: { $in: input.users } });
+            const inputUsers = await User.find({ email: { $in: input?.users?.map(email => encrypt(email)) } });
 
             if (inputUsers.length === 0) {
                 return { invalidEmails };
@@ -1858,11 +1859,25 @@ module.exports.mutations = {
 
             // update progress of individual contents 
             await TrainingProgressHelper.updateOrCreateTrainingProgressForUsers({ trainingId: input.training, subscriberId, userIds: input.userIds, trainingContentData, overallProgressRecords: recordsToUpdate, updatedBy: userId });
+            const elasticSearchUpdateResponse = await updateCoursesCountAndProgressInElasticSearch(input?.userIds)
+            console.log("Elastic Search Update Response", elasticSearchUpdateResponse);
 
             const overallTrainingProgressUsers = await OverallTrainingProgress.find({ training: input.training, user: { $in: input.userIds } }).populate({
                 path: 'user',
                 select: 'firstName lastName email'
             });
+
+            let decryptedFirstName = '';
+            let decryptedEmail = '';
+
+            if (overallTrainingProgressUsers[0].user.firstName) {
+                decryptedFirstName = decrypt(overallTrainingProgressUsers[0].user.firstName);
+            }
+
+            if (overallTrainingProgressUsers[0].user.email) {
+                decryptedEmail = decrypt(overallTrainingProgressUsers[0].user.email);
+            }
+
             const selectedCertificateLayout = await certificateLayout.findOne({
                 training: input.training,
             });
@@ -1930,14 +1945,14 @@ module.exports.mutations = {
                 'https://squadra-media-assets.s3.amazonaws.com/public/course-image.png';
             if (overallTrainingProgressUsers[0].user.isEmailNotification) {
                 const emailContent = courseCompletion({
-                    firstName: overallTrainingProgressUsers[0].user.firstName,
+                    firstName: decryptedFirstName,
                     trainingTitle: trainingData[0].title[0]?.value,
                     durationHours: trainingData[0].durationHours,
                     courseId: trainingData[0]._id,
                     courseImage: courseImages,
                 });
                 sendEmail({
-                    receiverEmail: overallTrainingProgressUsers[0].user.email,
+                    receiverEmail: decryptedEmail,
                     subject: `Congratulations on Completing the ${trainingData[0]?.title[0]?.value} Course!`,
                     htmlContent: emailContent,
                 });
@@ -2082,14 +2097,10 @@ module.exports.mutations = {
 
 
             const trainingTitle = trainingData.title[0]?.value;
-            const userIds = input.userIds || (await OverallTrainingProgress.find({ training: input.training }).distinct('user'));
-            const users = await User.find({
-                _id: { $in: input.userIds }
-            }).select('firstName email');
-            const trainings = await Training.aggregate([
-                { $match: { _id: input.training } },
-                { $project: { title: 1 } }
-            ]);
+
+            const elasticSearchUpdateResponse = await updateCoursesCountAndProgressInElasticSearch(input?.userIds)
+            console.log("Elastic Search Update Response", elasticSearchUpdateResponse);
+
             return {
                 status: true,
                 message: `${trainingTitle} reset successfully`

@@ -20,7 +20,7 @@ const user = require("..");
 
 const { isAlphanumeric } = require('../../../util/password_helper');
 
-const { mailSenderHelper, sendNotificationOnDELETEREQUEST, generateRandomString } = require("./user_profile_helper");
+const { mailSenderHelper, sendNotificationOnDELETEREQUEST, generateRandomString, deleteProfilePictureHelper } = require("./user_profile_helper");
 const LogHelper = require("../../logs/log_helper");
 const LogType = require("../../logs/log_type.json");
 
@@ -33,73 +33,90 @@ const NotificationType = require("../../notifications/notification_type.json");
 const notificationiconEnum = require("../../notifications/notification_icon.json");
 const notificationHelper = require("../../notifications/notification_helper");
 const mongoose = require('mongoose');
+const { encrypt, decrypt } = require("../../../util/encryption_helper");
+const { updateByQueryToElasticSearch } = require("../../../util/elastic_helper");
 
 
 module.exports.queries = {
     getUserProfile: async ({ }, context) => {
         const { isAuthenticated, role, userId, userInfo } = AuthUser(context);
 
-        const fetchResult = async (userId, population) => {
-            const existingUser = await User.findById(userId)
-                .lean()
-                .populate({
-                    path: "subRoles",
-                    match: { isActive: true, isDeleted: { $ne: true } },
-                })
-                .populate(population);
-            if (!existingUser) throw CustomError(ErrorName.NOT_FOUND);
+        try {
 
-            if (existingUser.avatar) {
-                existingUser.avatar = await AwsHelper.fetchFile(existingUser.avatar);
+            const fetchResult = async (userId, population) => {
+                const existingUser = await User.findById(userId)
+                    .lean()
+                    .select("-consents")
+                    .populate({
+                        path: "subRoles",
+                        match: { isActive: true, isDeleted: { $ne: true } },
+                    })
+                    .populate(population);
+                if (!existingUser) throw CustomError(ErrorName.NOT_FOUND);
+
+                if (existingUser.avatar) {
+                    existingUser.avatarUrl = existingUser.avatar;
+                    existingUser.avatar = await AwsHelper.fetchFile(existingUser.avatar);
+                }
+                let employeeData = {};
+                employeeData = await Employee.findOne({ user: userId }).lean().populate({
+                    path: "empDesignation",
+                    select: "_id name",
+                });
+                if (employeeData && employeeData.empDesignation) {
+                    employeeData.designation = employeeData.empDesignation.name;
+                } else if (role === Role.ADMIN) {
+                    employeeData = {};
+                    employeeData.designation = 'MANAGER';
+                }
+
+                existingUser.employee = employeeData || null;
+
+                for (let key in existingUser) {
+                    if (key === "firstName" || key === "lastName" || key === "email" || key === "civilIdOrPassport") {
+                        existingUser[key] = decrypt(existingUser[key]);
+                    }
+                }
+                return existingUser;
+            };
+            const fetchMenuItems = (userInfo) => {
+
+                if (role === 'ADMIN') {
+                    return [
+                        {
+                            role_name: 'ADMIN',
+                            platform: 'ADMIN',
+                        },
+                        {
+                            role_name: 'LEARNER',
+                            platform: 'LEARNER',
+                        },
+                    ];
+                } else {
+                    return [
+                        ...userInfo.subRoles.map(subRole => ({
+                            role_name: subRole.name,
+                            platform: subRole.primaryRole,
+                        })),
+                        {
+                            role_name: 'LEARNER',
+                            platform: 'LEARNER',
+                        },
+                    ];
+
+                }
+            };
+
+            if (isAuthenticated) {
+                return { "user": fetchResult(userId), "menuItem": fetchMenuItems(userInfo) };
             }
-            let employeeData = {};
-            employeeData = await Employee.findOne({ user: userId }).lean().populate({
-                path: "empDesignation",
-                select: "_id name",
-            });
-            if (employeeData && employeeData.empDesignation) {
-                employeeData.designation = employeeData.empDesignation.name;
-            } else if (role === Role.ADMIN) {
-                employeeData = {};
-                employeeData.designation = 'MANAGER';
-            }
 
-            existingUser.employee = employeeData || null;
-            return existingUser;
-        };
-        const fetchMenuItems = (userInfo) => {
+            throw CustomError(ErrorName.FORBIDDEN);
 
-            if (role === 'ADMIN') {
-                return [
-                    {
-                        role_name: 'ADMIN',
-                        platform: 'ADMIN',
-                    },
-                    {
-                        role_name: 'LEARNER',
-                        platform: 'LEARNER',
-                    },
-                ];
-            } else {
-                return [
-                    ...userInfo.subRoles.map(subRole => ({
-                        role_name: subRole.name,
-                        platform: subRole.primaryRole,
-                    })),
-                    {
-                        role_name: 'LEARNER',
-                        platform: 'LEARNER',
-                    },
-                ];
-
-            }
-        };
-
-        if (isAuthenticated) {
-            return { "user": fetchResult(userId), "menuItem": fetchMenuItems(userInfo) };
+        } catch (error) {
+            console.log(error);
+            throw CustomError(ErrorName.FAILED, error.message);
         }
-
-        throw CustomError(ErrorName.FORBIDDEN);
     },
     getProfile: async ({ id }, context) => {
         const { isAuthenticated, role, userId } = AuthUser(context, false);
@@ -292,10 +309,13 @@ module.exports.queries = {
         await user.save();
 
         let errors = [];
-        const resetPasswordHtml = resetPasswordRequest(user, token);
+        const decryptedUser = {
+            firstName: decrypt(user.firstName),
+        }
+        const resetPasswordHtml = resetPasswordRequest(decryptedUser, token);
         // const resetPasswordHtmlforAdmin = resetPasswordRequestforAdmin(user, token);
         const result = await AwsHelper.sendEmail({
-            receiverEmail: user.email,
+            receiverEmail: decrypt(user.email),
             subject: "Reset Password Request",
             htmlContent: resetPasswordHtml,
 
@@ -361,14 +381,6 @@ module.exports.mutations = {
     updateProfile: async ({ input }, context) => {
         const { role, userId, subscriberId, userInfo } = AuthUser(context);
         try {
-            if (role === "LEARNER") {
-                const isUpdatingNonAvatarFields = Object.keys(input).some(
-                    field => field !== "avatar"
-                );
-                if (isUpdatingNonAvatarFields) {
-                    throw CustomError("Learner can only update their profile picture");
-                }
-            }
             const savedUser = await UserHelper.updateUser(
                 { id: userId, input },
                 { currentRole: role }
@@ -394,6 +406,17 @@ module.exports.mutations = {
                     createdBy: userInfo,
                 });
                 return savedUser;
+            }
+        } catch (error) {
+            throw CustomError(ErrorName.FAILED, error.message);
+        }
+    },
+    deleteProfilePicture: async ({ url }, context) => {
+        const { userId } = AuthUser(context);
+        try {
+            const result = await deleteProfilePictureHelper(url, userId);
+            if (result) {
+                return "Profile picture deleted successfully.";
             }
         } catch (error) {
             throw CustomError(ErrorName.FAILED, error.message);
@@ -460,6 +483,28 @@ module.exports.mutations = {
             existingUser.isResetPasswordDialog = true;
 
             await existingUser.save();
+
+            try {
+                await updateByQueryToElasticSearch(
+                    "users",
+                    `
+                    ctx._source.password = params.password;
+                    ctx._source.isResetPasswordDialog = params.isResetPasswordDialog;
+                `,
+                    {
+                        term: {
+                            userId: existingUser._id.toString()
+                        }
+                    },
+                    {
+                        password: existingUser.password,
+                        isResetPasswordDialog: true
+                    }
+                );
+            } catch (error) {
+                throw CustomError(ErrorName.SERVER_ERROR, error.message);
+            }
+
             LogHelper.logActivity({
                 subscriber: subscriberId,
                 logType: LogType.PASSWORD_MANAGEMENT_LOG,
@@ -476,7 +521,7 @@ module.exports.mutations = {
 
     forgetPassword: async ({ email, consentsInput }, context) => {
         try {
-            const existingUser = await User.findOne({ email });
+            const existingUser = await User.findOne({ email: encrypt(email) });
             if (!existingUser) {
                 throw CustomError(ErrorName.EMAIL_NOT_FOUND);
             }
@@ -590,6 +635,25 @@ module.exports.mutations = {
 
             const updateUser = await user.save();
 
+            try {
+                await updateByQueryToElasticSearch(
+                    "users",
+                    `
+                    ctx._source.isResetPasswordDialog = true;
+                `,
+                    {
+                        match: {
+                            userId: user._id.toString(),
+                        }
+                    },
+                    {
+                        password: user.password
+                    }
+                );
+            } catch (error) {
+                throw CustomError(ErrorName.FAILED);
+            }
+
             if (updateUser) {
                 return "Password updated successfully!";
             } else {
@@ -633,7 +697,7 @@ module.exports.mutations = {
                 }
             ]);
 
-            if ((userData.length === 1)&& (userData[0]._id.toString() === userId.toString())) {
+            if ((userData.length === 1) && (userData[0]._id.toString() === userId.toString())) {
                 throw CustomError(
                     ErrorName.FAILED_TO_DELETE_LAST_ADMIN,
                     "You cannot delete yourself because you are the only admin left in the system."
@@ -653,6 +717,30 @@ module.exports.mutations = {
                     reasonForDelete: reasonForDelete,
                 },
             });
+
+            try {
+                await updateByQueryToElasticSearch(
+                    "users",
+                    `
+                    ctx._source.deleteRequest = params.deleteRequest;
+                    ctx._source.deleteRequestDate = params.deleteRequestDate;
+                    ctx._source.reasonForDelete = params.reasonForDelete;
+                `,
+                    {
+                        match: {
+                            userId: userId,
+                        },
+                    },
+                    {
+                        deleteRequest: true,
+                        deleteRequestDate: Date.now(),
+                        reasonForDelete: reasonForDelete,
+                    }
+                );
+            } catch (error) {
+                throw CustomError(ErrorName.FAILED, error.message);
+
+            }
 
             if (updateUser) {
                 const subscriber = await Subscriber.findOne();
@@ -716,5 +804,5 @@ module.exports.mutations = {
             throw CustomError(ErrorName.FAILED, error.message);
         }
     },
-    
+
 };

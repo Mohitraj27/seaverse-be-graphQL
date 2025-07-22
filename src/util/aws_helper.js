@@ -7,16 +7,23 @@ module.exports = {
     
     fetchFile: async (filePath) => {
         if (filePath) {
+            // console.log('fetchFile', {
+            //     AWS_ACCESS_KEY: process.env.AWS_ACCESS_KEY,
+            //     AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY,
+            //     AWS_REGION: process.env.AWS_REGION,
+            //     S3_BUCKET: process.env.S3_BUCKET,
+            //     filePath
+            // });
             const s3 = new AWS.S3({
-                accessKeyId: process.env.AWS_ACCESS_KEY,
-                secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-                region: process.env.AWS_REGION,
+                accessKeyId: process.env.AWS_ACCESS_KEY?.trim(),
+                secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY?.trim(),
+                region: process.env.AWS_REGION?.trim(),
             });
 
             const signedUrl = await new Promise((resolve, reject) => {
                 const params = {
-                    Bucket: process.env.S3_BUCKET,
-                    Key: filePath,
+                    Bucket: process.env.S3_BUCKET?.trim(),
+                    Key: filePath?.trim(),
                     Expires: 60 * 60 * 5
                 };
 

@@ -1,3 +1,5 @@
+const { decrypt } = require("../../util/encryption_helper");
+
 function roleUpdateNotifyLearner(user) {
     return `
    <!DOCTYPE html>
@@ -44,7 +46,7 @@ function roleUpdateNotifyLearner(user) {
                                 </tr>
                                 <tr>
                                     <td style="padding: 24px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; line-height: 24px; color: #384860;">
-                                        Hello <strong>${user[0].firstName}</strong> 👋
+                                        Hello <strong>${decrypt(user[0].firstName)}</strong> 👋
                                     </td>
                                 </tr>
                                 <tr>

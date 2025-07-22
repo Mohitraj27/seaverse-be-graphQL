@@ -25,7 +25,27 @@ const { OverallTrainingProgress } = require("../training-registrations/overall-c
 const validRoles = Object.values(roles);
 const { Moment } = require("../../tools");
 const LearningPlanAssignment = require('../learning-plan/assignedLearner/assignedLearnerModel');
-const learningPlanStatus = require('./enumFields/learning_plan_status.json')
+const learningPlanStatus = require('./enumFields/learning_plan_status.json');
+const { v4: uuidv4 } = require('uuid')
+const pLimit = require('p-limit');
+
+
+const { decrypt } = require("../../util/encryption_helper");
+// const courseEnrollmentQueue = require("../queues/course_enrollment_queue");
+// const { JOB_NAMES } = require("../queues/queue.enum");
+
+
+const { SQSClient, SendMessageCommand, SendMessageBatchCommand } = require('@aws-sdk/client-sqs');
+
+const sqsClient = new SQSClient({
+    region: process.env.SQS_AWS_REGION,
+    credentials: {
+        accessKeyId: process.env.SQS_AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.SQS_AWS_SECRET_ACCESS_KEY,
+    },
+});
+
+const COURSE_ENROLLMENT_QUEUE_URL = process.env.SQS_QUEUE_URL;
 const validateConditionalCustomFields = async (conditionalCustomFields) => {
     const errors = [];
 
@@ -289,13 +309,33 @@ const createLearningPlanHelper = async (input, context) => {
         if (newLearningPlan?.status === learningPlanStatus.ACTIVE || input?.status === learningPlanStatus.ACTIVE) {
             const dataNeedstobeSendForEnrollment = await LearningPlanAssignment.find({ learningPlanId: newLearningPlan._id, isDeleted: { $ne: true } }).select('assignedLearnerId');
             if (dataNeedstobeSendForEnrollment?.length > 0 && newLearningPlan.selectCourses?.length > 0) {
+
+                // Create a job ID for tracking
+                const jobId = uuidv4();
+
                 const enrollData = {
                     trainings: newLearningPlan.selectCourses,
                     users: dataNeedstobeSendForEnrollment.map(user => user.assignedLearnerId),
                     type: "ENROLL",
                     learningPlan: newLearningPlan._id
                 }
-                await createTrainingRegistration(enrollData, context);
+
+                // console.log(enrollData, "enrollData for job");
+
+
+               
+
+                
+                
+                
+                
+                
+                // ✅ Main publisher
+                await publishEnrollmentInBatches(enrollData, jobId, context);
+
+
+                // await createTrainingRegistration(enrollData, context);
+
             }
         }
         return { success: true, learningPlan: newLearningPlan };
@@ -303,6 +343,91 @@ const createLearningPlanHelper = async (input, context) => {
         throw Error(error.message);
     }
 };
+
+async function publishEnrollmentInBatches(enrollData, jobId, context) {
+    if (!enrollData?.users?.length) {
+        console.warn('⚠️ No users found');
+        return { success: false, reason: 'No users found' };
+    }
+    if (!enrollData?.trainings?.length) {
+        console.warn('⚠️ No trainings found');
+        return { success: false, reason: 'No trainings found' };
+    }
+
+    const users = enrollData.users;
+    const batchSize = 10; // max for SendMessageBatchCommand
+    const totalUsers = users.length;
+
+    // ✅ ✅ ✅ This is where you add it:
+    const messageBatchSize = 500;
+    const allMessages = [];
+
+    for (let i = 0; i < users.length; i += messageBatchSize) {
+        const chunk = users.slice(i, i + messageBatchSize);
+        allMessages.push({
+            id: `msg-${i / messageBatchSize + 1}`,
+            body: {
+                jobId: `${jobId}-batch-${i / messageBatchSize + 1}`,
+                batchedEnrollData: {
+                    ...enrollData,
+                    users: chunk,
+                    batchInfo: {
+                        batchNumber: i / messageBatchSize + 1,
+                        totalBatches: Math.ceil(users.length / messageBatchSize),
+                        batchSize: chunk.length
+                    }
+                },
+                context,
+                timestamp: new Date().toISOString(),
+            },
+        });
+    }
+
+    // Split into SQS batches of 10
+    const batches = [];
+    for (let i = 0; i < allMessages.length; i += batchSize) {
+        batches.push(allMessages.slice(i, i + batchSize));
+    }
+
+    console.log(`🚀 Total users: ${totalUsers}`);
+    console.log(`📦 Total SQS batches: ${batches.length}`);
+
+    // Process batches in parallel with concurrency limit
+    const CONCURRENCY = 5;
+    const results = [];
+
+    async function processBatch(batch) {
+        for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+                const params = {
+                    QueueUrl: process.env.SQS_QUEUE_URL,
+                    Entries: batch.map(item => ({
+                        Id: item.id,
+                        MessageBody: JSON.stringify(item.body)
+                    })),
+                };
+                const result = await sqsClient.send(new SendMessageBatchCommand(params));
+                console.log(`✅ Batch sent: ${batch.map(b => b.id).join(', ')}`);
+                results.push(result);
+                break; // success, exit retry loop
+            } catch (err) {
+                console.error(`❌ Batch failed (attempt ${attempt}):`, err);
+                if (attempt === 3) throw err;
+                await new Promise(r => setTimeout(r, attempt * 1000)); // backoff
+            }
+        }
+    }
+
+    let index = 0;
+    while (index < batches.length) {
+        const chunk = batches.slice(index, index + CONCURRENCY);
+        await Promise.all(chunk.map(processBatch));
+        index += CONCURRENCY;
+    }
+
+    console.log(`✅ All batches done`);
+    return { success: true, totalMessages: allMessages.length, totalBatches: batches.length };
+}
 
 const clearFieldsBasedOnConditions = async (input, errorList) => {
     if (input.audienceSelection === audienceSelection.MANUAL) {
@@ -338,7 +463,6 @@ const updateLearningPlanHelper = async (id, input, context) => {
         //     errorList.push(errorMessages.LEARNING_PLAN_EXISTS);
         //     return { success: false, errors: errorList };
         // }
-        console.log('input recived', input);
         await basicValidations(input, errorList);
         await audienceSelectionValidation(input, errorList);
         await additionalValidationConditionalCustomFields(input, errorList);
@@ -435,8 +559,8 @@ const updateLearningPlanHelper = async (id, input, context) => {
                     createdBy: existingLearningPlan.createdBy,
                     updatedBy: existingLearningPlan.updatedBy,
                 }));
-            if (existingLearningPlan?.status === learningPlanStatus.ACTIVE || input?.status === learningPlanStatus.ACTIVE  
- ) {                   
+            if (existingLearningPlan?.status === learningPlanStatus.ACTIVE || input?.status === learningPlanStatus.ACTIVE
+            ) {
                 await OverallTrainingProgress.updateMany(
                     {
                         user: { $in: learnersToAssign },
@@ -454,27 +578,6 @@ const updateLearningPlanHelper = async (id, input, context) => {
         }
 
 
-        if (input.selectCourses?.length > 0 && learnersToAssign?.length > 0) {
-            const courseIds = existingLearningPlan?.selectCourses?.map(course => course._id) || [];
-            if (courseIds?.length > 0) {
-                const publishedCourses = await Training.find({
-                    _id: { $in: courseIds },
-                    status: "PUBLISHED",
-                    isDeleted: false
-                }).select('_id');
-
-            const publishedCourseIds = publishedCourses?.map(course => course._id);
-            if (publishedCourseIds?.length > 0 && existingLearningPlan?.status === learningPlanStatus.ACTIVE) {
-                const enrollData = {
-                    trainings: publishedCourseIds,
-                    users: learnersToAssign?.map(learner => learner._id) || [],
-                    type: "ENROLL",
-                    learningPlan: existingLearningPlan._id
-                };
-                await createTrainingRegistration(enrollData, context);
-            }
-        }
-        }
         let inputCourses = [], excludedCourses = [];
         if (existingLearningPlan?.selectCourses.length > 0 && input.selectCourses?.length > 0) {
 
@@ -486,7 +589,6 @@ const updateLearningPlanHelper = async (id, input, context) => {
 
         }
 
-
         const takeOutLearningPlanIdFromOverallTrainingProgress = await OverallTrainingProgress.updateMany(
             { training: { $in: excludedCourses }, isDeleted: { $ne: true } },
             {
@@ -496,7 +598,33 @@ const updateLearningPlanHelper = async (id, input, context) => {
             }
         );
 
+        if (input.selectCourses?.length > 0 && learnersToAssign?.length > 0) {
+            const courseIds = existingLearningPlan?.selectCourses?.map(course => course._id) || [];
+            if (courseIds?.length > 0) {
+                const publishedCourses = await Training.find({
+                    _id: { $in: courseIds },
+                    status: "PUBLISHED",
+                    isDeleted: false
+                }).select('_id');
 
+                const publishedCourseIds = publishedCourses?.map(course => course._id);
+                if (publishedCourseIds?.length > 0 && existingLearningPlan?.status === learningPlanStatus.ACTIVE) {
+                    const jobId = uuidv4();
+
+                    const enrollData = {
+                        trainings: publishedCourseIds,
+                        users: learnersToAssign?.map(learner => learner._id) || [],
+                        type: "ENROLL",
+                        learningPlan: existingLearningPlan._id
+                    }
+
+                    
+                    await publishEnrollmentInBatches(enrollData, jobId, context);
+
+
+                }
+            }
+        }
         // const updatedLearningPlan = await LearningPlan.findById(id).lean();
         return { learningPlan: existingLearningPlan, success: true };
     } catch (error) {
@@ -1244,6 +1372,14 @@ const getLearningPlanAverageProgress = async (learningPlanId, status = [], searc
             );
         }
 
+        if (mergedData.users?.length > 0) {
+            mergedData.users = mergedData.users.map(user => ({
+                ...user,
+                firstName: decrypt(user?.firstName),
+                lastName: user?.lastName ? decrypt(user?.lastName) : "",
+                email: decrypt(user?.email)
+            }));
+        }
         return mergedData || [];
 
     } catch (error) {
@@ -1273,13 +1409,13 @@ const updateLearningPlanStatusActivationHelper = async (existingLearningPlans, c
         };
 
         console.log('input received for status activation', input);
-        
+
         await basicValidations(input, errorList);
         await audienceSelectionValidation(input, errorList);
         await additionalValidationConditionalCustomFields(input, errorList);
         await clearFieldsBasedOnConditions(input, errorList);
         await validateGroupAndConditionalFields(input, errorList);
-        
+
         if (errorList?.length > 0) {
             return { success: false, errors: errorList };
         }
@@ -1289,7 +1425,7 @@ const updateLearningPlanStatusActivationHelper = async (existingLearningPlans, c
 
         // Update the existing learning plan object
         Object.assign(existingLearningPlans, {
-            title: input.title, 
+            title: input.title,
             targetAudience: input.targetAudience,
             audienceSelection: input.audienceSelection,
             conditionType: input.conditionType || null,
@@ -1309,14 +1445,14 @@ const updateLearningPlanStatusActivationHelper = async (existingLearningPlans, c
         }
 
         await existingLearningPlans.save();
-        
-        
-       const userObjectIds = await LearningPlanAssignment.find({
+
+
+        const userObjectIds = await LearningPlanAssignment.find({
             learningPlanId: ObjectId(existingLearningPlans._id),
             isDeleted: false,
             isManuallyAdded: true
-            }).select('assignedLearnerId -_id');
-            const userIds = userObjectIds.map(item => item.assignedLearnerId.toString());
+        }).select('assignedLearnerId -_id');
+        const userIds = userObjectIds.map(item => item.assignedLearnerId.toString());
         let learnersToAssign = [];
         if (input.audienceSelection === audienceSelection.MANUAL) {
             // For manual selection, we need to get users based on existing assignments or criteria

@@ -1,7 +1,20 @@
 const { LearningPlan } = require("./learning_plan_model");
 const { CustomError } = require("../../util/error_helper");
-const { ErrorName, AuthUser, Permission, SubRoleHelper, subscriberId, context } = require("../../util");
-const { createLearningPlanHelper, getUsersAndCount, updateLearningPlanHelper, getLearningPlanAverageProgress, updateLearningPlanStatusActivationHelper } = require("./learning_plan_helper");
+const {
+    ErrorName,
+    AuthUser,
+    Permission,
+    SubRoleHelper,
+    subscriberId,
+    context,
+} = require("../../util");
+const {
+    createLearningPlanHelper,
+    getUsersAndCount,
+    updateLearningPlanHelper,
+    getLearningPlanAverageProgress,
+    updateLearningPlanStatusActivationHelper,
+} = require("./learning_plan_helper");
 const { fetchTotalTrainerStatisticsGraph } = require("../statistics/statistics_helper");
 const LearningPlanStatus = require("./enumFields/learning_plan_status.json");
 const { Moment } = require("../../tools");
@@ -10,9 +23,12 @@ const LogType = require("../logs/log_type.json");
 const { get } = require("lodash");
 const notificationiconEnum = require("../notifications/notification_icon.json");
 const NotificationType = require("../notifications/notification_type.json");
-const NotificationHelper = require("../notifications/notification_helper")
-const LearningPlanAssignment = require('../learning-plan/assignedLearner/assignedLearnerModel');
-const { OverallTrainingProgress } = require("../training-registrations/overall-course-progress/overall_progress_model");
+const NotificationHelper = require("../notifications/notification_helper");
+const LearningPlanAssignment = require("../learning-plan/assignedLearner/assignedLearnerModel");
+const { decrypt, encrypt } = require("../../util/encryption_helper");
+const {
+    OverallTrainingProgress,
+} = require("../training-registrations/overall-course-progress/overall_progress_model");
 module.exports.mutations = {
     createLearningPlan: async ({ input }, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
@@ -20,7 +36,10 @@ module.exports.mutations = {
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
         try {
             const { subscriberId, userId, userInfo } = AuthUser(context);
-            const result = await createLearningPlanHelper({ ...input, createdBy: userId, updatedBy: userId }, context);
+            const result = await createLearningPlanHelper(
+                { ...input, createdBy: userId, updatedBy: userId },
+                context
+            );
             if (!result?.success) {
                 throw CustomError(ErrorName.LEARNING_PLAN_NOT_CREATED, result?.errors[0]);
             }
@@ -46,7 +65,11 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `New Learning Plan Created`,
-                messageValue: `Learning plan "${result?.learningPlan?.title ?? ""}" has been created by  ${userInfo?.firstName} ${userInfo?.lastName ?? ""}.`,
+                messageValue: `Learning plan "${
+                    result?.learningPlan?.title ?? ""
+                }" has been created by  ${decrypt(userInfo?.firstName)} ${
+                    userInfo?.lastName ? decrypt(userInfo?.lastName) : ""
+                }.`,
                 notificationType: NotificationType.LEARNING_PLAN_CREATED,
                 notifyAllAdmin: true,
                 affected: [
@@ -55,7 +78,7 @@ module.exports.mutations = {
                         target: result.learningPlan._id,
                     },
                 ],
-                status: 'SENT',
+                status: "SENT",
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             });
@@ -71,16 +94,25 @@ module.exports.mutations = {
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
         try {
             if (!Array.isArray(learningPlanIDs) || learningPlanIDs.length === 0) {
-                throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Learning Plan IDs must be provided.");
+                throw CustomError(
+                    ErrorName.ARGUMENTS_REQUIRED,
+                    "Learning Plan IDs must be provided."
+                );
             }
             if (newStatus === LearningPlanStatus.DRAFT) {
-                throw CustomError(ErrorName.INVALID_LEARNING_PLAN_STATUS_UPDATE, 'Learning Plan Status Update Cannot be DRAFT');
+                throw CustomError(
+                    ErrorName.INVALID_LEARNING_PLAN_STATUS_UPDATE,
+                    "Learning Plan Status Update Cannot be DRAFT"
+                );
             }
             const existingLearningPlans = await LearningPlan.find({
                 _id: { $in: learningPlanIDs },
             });
             if (existingLearningPlans.length !== learningPlanIDs.length) {
-                throw CustomError(ErrorName.INVALID_LEARNING_PLAN, "One or more provided Learning Plan IDs do not exist.");
+                throw CustomError(
+                    ErrorName.INVALID_LEARNING_PLAN,
+                    "One or more provided Learning Plan IDs do not exist."
+                );
             }
             const updatedLearningPlans = await LearningPlan.updateMany(
                 { _id: { $in: learningPlanIDs } },
@@ -88,10 +120,13 @@ module.exports.mutations = {
                 { new: true }
             );
             const updatedPlans = await LearningPlan.find({ _id: { $in: learningPlanIDs } });
-            console.log('data recied', existingLearningPlans);
+            console.log("data recied", existingLearningPlans);
 
-            if (existingLearningPlans[0].status === LearningPlanStatus.INACTIVE && newStatus === LearningPlanStatus.ACTIVE) {
-                console.log('data received', existingLearningPlans[0]);
+            if (
+                existingLearningPlans[0].status === LearningPlanStatus.INACTIVE &&
+                newStatus === LearningPlanStatus.ACTIVE
+            ) {
+                console.log("data received", existingLearningPlans[0]);
                 const data = existingLearningPlans[0];
                 await updateLearningPlanStatusActivationHelper(data, context);
             }
@@ -115,14 +150,19 @@ module.exports.mutations = {
                 createdBy: userInfo,
             });
 
-            const actionInNotification = newStatus === LearningPlanStatus.ACTIVE ? "activated" : "deactivated";
+            const actionInNotification =
+                newStatus === LearningPlanStatus.ACTIVE ? "activated" : "deactivated";
 
             await Promise.all(
                 updatedPlans.map(plan =>
                     NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
                         titleValue: `Learning Plan Status Updated`,
-                        messageValue: `Learning plan "${plan.title}" status changed to ${actionInNotification} by ${userInfo?.firstName} ${userInfo?.lastName ?? ""}.`,
+                        messageValue: `Learning plan "${
+                            plan.title
+                        }" status changed to ${actionInNotification} by ${decrypt(
+                            userInfo?.firstName
+                        )} ${userInfo?.lastName ? decrypt(userInfo?.lastName) : ""}.`,
                         notificationType: NotificationType.LEARNING_PLAN_STATUS_UPDATED,
                         notifyAllAdmin: true,
                         affected: [
@@ -131,7 +171,7 @@ module.exports.mutations = {
                                 target: plan._id,
                             },
                         ],
-                        status: 'SENT',
+                        status: "SENT",
                         icon: notificationiconEnum.SUCCESS,
                         createdBy: userInfo,
                     })
@@ -153,13 +193,20 @@ module.exports.mutations = {
 
             const learningPlan = await LearningPlan.findById({ _id: id });
             if (!learningPlan) {
-                throw CustomError(ErrorName.LEARNING_PLAN_NOT_FOUND, 'Learning Plan not found.');
+                throw CustomError(ErrorName.LEARNING_PLAN_NOT_FOUND, "Learning Plan not found.");
             }
             if (learningPlan.isDeleted) {
-                throw CustomError(ErrorName.ALREADY_DELETED, 'Learning Plan already deleted.');
+                throw CustomError(ErrorName.ALREADY_DELETED, "Learning Plan already deleted.");
             }
-            if (![LearningPlanStatus.INACTIVE, LearningPlanStatus.DRAFT].includes(learningPlan.status)) {
-                throw CustomError(ErrorName.INVALID_LEARNING_PLAN, 'Only Learning Plans with status INACTIVE or DRAFT can be deleted.');
+            if (
+                ![LearningPlanStatus.INACTIVE, LearningPlanStatus.DRAFT].includes(
+                    learningPlan.status
+                )
+            ) {
+                throw CustomError(
+                    ErrorName.INVALID_LEARNING_PLAN,
+                    "Only Learning Plans with status INACTIVE or DRAFT can be deleted."
+                );
             }
             learningPlan.isDeleted = true;
             learningPlan.updatedBy = userId;
@@ -188,7 +235,11 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Learning Plan Deleted`,
-                messageValue: `Learning plan "${learningPlan.title ?? ""}" has been deleted by ${userInfo?.firstName} ${userInfo?.lastName ?? ""}.`,
+                messageValue: `Learning plan "${
+                    learningPlan.title ?? ""
+                }" has been deleted by ${decrypt(userInfo?.firstName)} ${
+                    userInfo?.lastName ? decrypt(userInfo?.lastName) : ""
+                }.`,
                 notificationType: NotificationType.LEARNING_PLAN_DELETED,
                 notifyAllAdmin: true,
                 affected: [
@@ -197,18 +248,17 @@ module.exports.mutations = {
                         target: learningPlan._id,
                     },
                 ],
-                status: 'SENT',
+                status: "SENT",
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             });
             return {
                 success: true,
-                message: 'Learning Plan  deleted successfully.'
+                message: "Learning Plan  deleted successfully.",
             };
         } catch (error) {
             throw CustomError(ErrorName.FAILED_TO_DELETE_LEARNING_PLAN, `${error.message}`);
         }
-
     },
     updateLearningPlan: async ({ id, input }, context) => {
         const { userId, userInfo } = AuthUser(context);
@@ -224,7 +274,10 @@ module.exports.mutations = {
             const updatedLearningPlan = await LearningPlan.findById(validation.learningPlan._id);
             const learningPlanName = updatedLearningPlan?.title ?? "";
             if (!updatedLearningPlan) {
-                throw CustomError(ErrorName.LEARNING_PLAN_NOT_FOUND, "Updated Learning Plan not found");
+                throw CustomError(
+                    ErrorName.LEARNING_PLAN_NOT_FOUND,
+                    "Updated Learning Plan not found"
+                );
             }
             updatedLearningPlan.updatedBy = userId;
             updatedLearningPlan.updatedAt = new Date();
@@ -254,7 +307,11 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Learning Plan Updated`,
-                messageValue: `Learning plan "${learningPlanName ?? ""}" has been updated by ${userInfo?.firstName} ${userInfo?.lastName ?? ""}.`,
+                messageValue: `Learning plan "${
+                    learningPlanName ?? ""
+                }" has been updated by ${decrypt(userInfo?.firstName)} ${
+                    userInfo?.lastName ? decrypt(userInfo?.lastName) : ""
+                }.`,
                 notificationType: NotificationType.LEARNING_PLAN_UPDATED,
                 notifyAllAdmin: true,
                 affected: [
@@ -263,18 +320,288 @@ module.exports.mutations = {
                         target: validation.learningPlan._id,
                     },
                 ],
-                status: 'SENT',
+                status: "SENT",
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             });
-            console.log('updated Learning Plan', updatedLearningPlan);
+            console.log("updated Learning Plan", updatedLearningPlan);
             return updatedLearningPlan;
         } catch (error) {
             throw CustomError(ErrorName.LEARNING_PLAN_NOT_UPDATED, error.message);
         }
-    }
+    },
 };
 module.exports.queries = {
+    // getLearningPlans: async ({ filterInput, pageInput, status, search }, context) => {
+    //     const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
+    //         AuthUser(context);
+    //     const skip = pageInput?.skip || 0;
+    //     const limit = pageInput?.limit || 50;
+
+    //     if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
+    //     try {
+    //         const { subscriberId, userInfo } = AuthUser(context);
+
+    //         const queryConditions = {
+    //             ...filterInput,
+    //             isDeleted: false,
+    //         };
+    //         if (filterInput?.title) {
+    //             delete queryConditions.title;
+    //         }
+
+    //         if (filterInput?.status && Array.isArray(filterInput.status)) {
+    //             queryConditions.status = { $in: filterInput.status };
+    //         }
+    //         if (filterInput?.audienceSelection) {
+    //             queryConditions.audienceSelection = {
+    //                 $in: Array.isArray(filterInput.audienceSelection)
+    //                     ? filterInput.audienceSelection
+    //                     : [filterInput.audienceSelection]
+    //             };
+    //         }
+    //         let startDate, endDate;
+    //         if (filterInput?.lastModified) {
+    //             delete queryConditions.lastModified
+    //             const today = Moment();
+    //             const endOfToday = today.clone().endOf("day").toDate();
+    //             switch (filterInput.lastModified) {
+    //                 case "TODAY":
+    //                     startDate = today.clone().startOf("day").toDate();
+    //                     endDate = endOfToday;
+    //                     break;
+    //                 case "YESTERDAY":
+    //                     startDate = today.clone().subtract(1, "day").startOf("day").toDate();
+    //                     endDate = today.clone().subtract(1, "day").endOf("day").toDate();
+    //                     break;
+    //                 case "LAST_7_DAYS":
+    //                     startDate = today.clone().subtract(7, "days").startOf("day").toDate();
+    //                     endDate = endOfToday;
+    //                     break;
+    //                 case "LAST_30_DAYS":
+    //                     startDate = today.clone().subtract(30, "days").startOf("day").toDate();
+    //                     endDate = endOfToday;
+    //                     break;
+    //                 case "LAST_3_MONTHS":
+    //                     startDate = today.clone().subtract(3, "months").startOf("day").toDate();
+    //                     endDate = endOfToday;
+    //                     break;
+    //                 case "LAST_6_MONTHS":
+    //                     startDate = today.clone().subtract(6, "months").startOf("day").toDate();
+    //                     endDate = endOfToday;
+    //                     break;
+    //                 case "LAST_YEAR":
+    //                     startDate = today.clone().subtract(12, "months").startOf("day").toDate();
+    //                     endDate = endOfToday;
+    //                     break;
+    //                 default:
+    //                     break;
+    //             }
+
+    //             if (startDate && endDate) {
+    //                 queryConditions.updatedAt = { $gte: startDate, $lte: endDate };
+    //             }
+    //         }
+    //         console.time('queryTime');
+    //         const totalCount = await LearningPlan.countDocuments(queryConditions);
+
+    //         const learningPlans = await LearningPlan.aggregate([
+    //             { $match: queryConditions },
+    //             { $sort: { updatedAt: -1 } },
+    //             // { $skip: skip },
+    //             // { $limit: limit },
+    //             {
+    //                 $lookup: {
+    //                     from: "groups",
+    //                     localField: "groupIDs",
+    //                     foreignField: "_id",
+    //                     as: "groupDetails"
+    //                 }
+    //             },
+    //             {
+    //                 $unwind: {
+    //                     path: "$groupDetails",
+    //                     preserveNullAndEmptyArrays: true
+    //                 }
+    //             },
+    //             {
+    //                 $lookup: {
+    //                     from: "users",
+    //                     localField: "createdBy",
+    //                     foreignField: "_id",
+    //                     as: "createdByDetails"
+    //                 }
+    //             },
+    //             {
+    //                 $addFields: {
+    //                     createdByDetails: { $arrayElemAt: ["$createdByDetails", 0] }
+    //                 }
+    //             },
+    //             {
+    //                 $match: {
+    //                     ...queryConditions,
+    //                     ...(filterInput?.title?.trim() ? {
+    //                         $or: [
+    //                             { title: { $regex: filterInput.title, $options: "i" } },
+    //                             { "createdByDetails.firstName": { $regex: filterInput.title, $options: "i" } },
+    //                             { "createdByDetails.lastName": { $regex: filterInput.title, $options: "i" } }
+    //                         ]
+    //                     } : {})
+    //                 }
+    //             },
+    //             {
+    //                 $lookup: {
+    //                     from: "trainings",
+    //                     localField: "selectCourses",
+    //                     foreignField: "_id",
+    //                     as: "courseDetails",
+    //                     pipeline: [
+    //                         {
+    //                             $project: {
+    //                                 _id: 1,
+    //                                 UID: 1,
+    //                                 title: 1,
+    //                                 status: 1,
+    //                                 bannerImage: 1,
+    //                                 coverImage: 1,
+    //                                 isDeleted: 1,
+    //                             },
+    //                         },
+    //                     ],
+    //                 }
+    //             },
+    //             {
+    //                 $lookup: {
+    //                     from: "learningplanassignments",
+    //                     localField: "_id",
+    //                     foreignField: "learningPlanId",
+    //                     as: "assignedLearners"
+    //                 }
+    //             },
+    //             {
+    //                 $addFields: {
+    //                     assignedLearnerIDs: {
+    //                         $map: {
+    //                             input: "$assignedLearners",
+    //                             as: "assignment",
+    //                             in: "$$assignment.assignedLearnerId"
+    //                         }
+    //                     }
+    //                 }
+    //             },
+    //             {
+    //                 $addFields: {
+    //                     selectCourses: {
+    //                         $filter: {
+    //                             input: "$courseDetails",
+    //                             as: "course",
+    //                             cond: { $eq: ["$$course.isDeleted", false] }
+    //                         }
+    //                     }
+    //                 }
+    //             },
+    //             {
+    //                 $lookup: {
+    //                     from: "users",
+    //                     localField: "assignedLearnerIDs",
+    //                     foreignField: "_id",
+    //                     as: "assignedLearners"
+    //                 }
+    //             },
+    //             {
+    //                 $addFields: {
+    //                     numberOfAssignedLearners: {
+    //                         $size: { $ifNull: ["$assignedLearners", []] }
+    //                     },
+    //                 }
+    //             },
+    //             {
+    //                 $lookup: {
+    //                     from: "users",
+    //                     localField: "assignedLearnerIDs",
+    //                     foreignField: "_id",
+    //                     as: "assignedLearners"
+    //                 }
+    //             },
+    //             {
+    //                 $addFields: {
+    //                     assignedLearnerIDs: {
+    //                         $filter: {
+    //                             input: "$assignedLearners",
+    //                             as: "learner",
+    //                             cond: { $eq: ["$$learner.isDeleted", false] }
+    //                         }
+    //                     }
+    //                 }
+    //             },
+    //             {
+    //                 $project: {
+    //                     _id: 1,
+    //                     title: 1,
+    //                     status: 1,
+    //                     isDeleted: 1,
+    //                     createdAt: 1,
+    //                     updatedAt: 1,
+    //                     selectCourses: 1,
+    //                     audienceSelection: 1,
+    //                     numberOfAssignedLearners: 1,
+    //                     "createdBy._id": "$createdByDetails._id",
+    //                     "createdBy.firstName": "$createdByDetails.firstName",
+    //                     "createdBy.lastName": "$createdByDetails.lastName",
+    //                 }
+    //             }
+    //         ]);
+    //         console.timeEnd('queryTime');
+
+    //         for (const learningPlan of learningPlans) {
+    //             const overallProgress = await getLearningPlanAverageProgress(learningPlan._id, status, search);
+    //             learningPlan.overallProgress = overallProgress;
+    //         }
+    //         function filterData(data, statuses) {
+
+    //             if (!statuses || statuses.length === 0) {
+    //                 return data;
+    //             }
+
+    //             return data?.filter(item => {
+    //                 const avgProgress = item.overallProgress?.averageProgress || 0;
+
+    //                 return statuses.some(status => {
+    //                     if (status === "NOT_STARTED" && avgProgress === 0) {
+    //                         return true;
+    //                     }
+
+    //                     if (status === "IN_PROGRESS" && avgProgress > 0 && avgProgress < 100) {
+    //                         return true;
+    //                     }
+
+    //                     if (status === "COMPLETED" && avgProgress === 100) {
+    //                         return true;
+    //                     }
+
+    //                     return false;
+    //                 });
+    //             });
+    //         }
+
+    //         const lpData = filterData(learningPlans, status);
+
+    //         if (status) {
+
+    //             return {
+    //                 learningPlans: lpData,
+    //                 totalCount: lpData?.length,
+    //             };
+    //         }
+    //         return {
+    //             learningPlans: learningPlans,
+    //             totalCount: learningPlans?.length,
+    //         };
+    //     } catch (error) {
+    //         throw CustomError(ErrorName.FAILED_TO_FETCH_LEARNING_PLAN, error.message);
+    //     }
+    // },
+
     getLearningPlans: async ({ filterInput, pageInput, status, search }, context) => {
         const { role, userId, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
@@ -291,6 +618,7 @@ module.exports.queries = {
             };
             if (filterInput?.title) {
                 delete queryConditions.title;
+                filterInput={ ...filterInput, title:encrypt(filterInput.title.trim()) };
             }
 
             if (filterInput?.status && Array.isArray(filterInput.status)) {
@@ -372,22 +700,22 @@ module.exports.queries = {
                     $match: {
                         ...(filterInput?.title?.trim()
                             ? {
-                                $or: [
-                                    { title: { $regex: filterInput.title, $options: "i" } },
-                                    {
-                                        "createdByDetails.firstName": {
-                                            $regex: filterInput.title,
-                                            $options: "i",
-                                        },
-                                    },
-                                    {
-                                        "createdByDetails.lastName": {
-                                            $regex: filterInput.title,
-                                            $options: "i",
-                                        },
-                                    },
-                                ],
-                            }
+                                  $or: [
+                                      { title: { $regex: filterInput.title, $options: "i" } },
+                                      {
+                                          "createdByDetails.firstName": {
+                                              $regex: filterInput.title,
+                                              $options: "i",
+                                          },
+                                      },
+                                      {
+                                          "createdByDetails.lastName": {
+                                              $regex: filterInput.title,
+                                              $options: "i",
+                                          },
+                                      },
+                                  ],
+                              }
                             : {}),
                     },
                 },
@@ -557,6 +885,15 @@ module.exports.queries = {
 
             // Post-process filtering is no longer needed since we're not returning users
             const learningPlans = learningPlansResult;
+
+            for (const plan of learningPlans) {
+                if (plan?.createdBy?.firstName) {
+                    plan.createdBy.firstName = decrypt(plan.createdBy.firstName);
+                }
+                if (plan?.createdBy?.lastName) {
+                    plan.createdBy.lastName = decrypt(plan.createdBy.lastName);
+                }
+            }
 
             const totalCount = countResult.length > 0 ? countResult[0].total : 0;
             return {
@@ -728,25 +1065,17 @@ module.exports.queries = {
                 filteredLearnerData,
                 pageInput
             );
-
+            if (detailedPlan?.userObjectIds?.length > 0) {
+                detailedPlan.userObjectIds = detailedPlan.userObjectIds.map(user => ({
+                    ...user,
+                    firstName: decrypt(user.firstName),
+                    lastName: user.lastName ? decrypt(user.lastName) : "",
+                    email: decrypt(user.email),
+                }));
+            }
             return detailedPlan;
         } catch (error) {
             throw CustomError(ErrorName.FAILED_TO_FETCH_LEARNING_PLAN, error.message);
-        }
-    },
-    getUsersForLearningPlan: async ({ input }, context) => {
-        const { role, userId, userInfo, subscriberId } = AuthUser(context);
-        if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
-
-        try {
-            input.fromUserCount = true;
-            const { userIds, count } = await getUsersAndCount(input);
-            return {
-                userIds,
-                count
-            };
-        } catch (error) {
-            throw Error(error.message);
         }
     },
     getUsersForLearningPlan: async ({ input }, context) => {
@@ -779,23 +1108,68 @@ module.exports.queries = {
                 learningPlan: { $in: [id] },
                 isDeleted: { $ne: true },
             };
-            if (status?.length > 0) {
-                queryConditions.status = { $in: status };
-            }
+
             const searchCondition = [];
             if (search?.trim()) {
+                const encryptedSearch = encrypt(search.trim()?.toLowerCase());
                 searchCondition.push({
                     $match: {
                         $or: [
-                            { "usersList.firstName": { $regex: search, $options: "i" } },
-                            { "usersList.lastName": { $regex: search, $options: "i" } },
-                            { "usersList.email": { $regex: search, $options: "i" } },
+                            { "usersList.firstName": { $regex: encryptedSearch, $options: "i" } },
+                            { "usersList.lastName": { $regex: encryptedSearch, $options: "i" } },
+                            { "usersList.email": { $regex: encryptedSearch, $options: "i" } },
                         ],
                     },
                 });
             }
 
-            const pipeline = [
+            let startDate, endDate;
+            if (lastActivity) {
+                const today = Moment();
+                const endOfToday = today.clone().endOf("day").toDate();
+                switch (lastActivity) {
+                    case "TODAY":
+                        startDate = today.clone().startOf("day").toDate();
+                        endDate = endOfToday;
+                        break;
+                    case "YESTERDAY":
+                        startDate = today.clone().subtract(1, "day").startOf("day").toDate();
+                        endDate = today.clone().subtract(1, "day").endOf("day").toDate();
+                        break;
+                    case "LAST_7_DAYS":
+                        startDate = today.clone().subtract(7, "days").startOf("day").toDate();
+                        endDate = endOfToday;
+                        break;
+                    case "LAST_30_DAYS":
+                        startDate = today.clone().subtract(30, "days").startOf("day").toDate();
+                        endDate = endOfToday;
+                        break;
+                    case "LAST_3_MONTHS":
+                        startDate = today.clone().subtract(3, "months").startOf("day").toDate();
+                        endDate = endOfToday;
+                        break;
+                    case "LAST_6_MONTHS":
+                        startDate = today.clone().subtract(6, "months").startOf("day").toDate();
+                        endDate = endOfToday;
+                        break;
+                    case "LAST_YEAR":
+                        startDate = today.clone().subtract(12, "months").startOf("day").toDate();
+                        endDate = endOfToday;
+                        break;
+                    default:
+                        break;
+                }
+
+                if (startDate && endDate) {
+                    searchCondition.push({
+                        $match: {
+                            "usersList.lastLoginAt": { $gte: startDate, $lte: endDate },
+                        },
+                    });
+                }
+            }
+
+            const basePipeline = [
                 {
                     $match: queryConditions,
                 },
@@ -843,13 +1217,19 @@ module.exports.queries = {
                         averageProgress: 1,
                         totalTrainings: 1,
                         completedTrainings: 1,
-                        status: 1,
                         firstName: "$user.firstName",
                         lastName: "$user.lastName",
                         email: "$user.email",
                         lastLoginAt: "$user.lastLoginAt",
                         isRegistered: "$user.isRegistered",
                         timeSpend: 1,
+                        lastLoginAtNumeric: {
+                            $cond: {
+                                if: { $type: "$user.lastLoginAt" },
+                                then: { $toLong: "$user.lastLoginAt" },
+                                else: 0,
+                            },
+                        },
                         status: {
                             $switch: {
                                 branches: [
@@ -869,38 +1249,87 @@ module.exports.queries = {
                 },
             ];
 
-            // Sort (before skip & limit)
+            if (status?.length > 0) {
+                basePipeline.push({
+                    $match: {
+                        status: { $in: status },
+                    },
+                });
+            }
+
+            const dataPipeline = [...basePipeline];
+
             if (sortInput?.sortField) {
                 const sortFieldMap = {
                     Name: "firstName",
                     status: "status",
                     progressPercentage: "averageProgress",
                     completedTrainings: "completedTrainings",
-                    updatedAt: "lastLoginAt",
+                    updatedAt: "lastLoginAtNumeric",
                 };
 
                 const field = sortFieldMap[sortInput.sortField];
+                const sortOrder = sortInput.sortOrder ?? 1;
+
                 if (field) {
-                    pipeline.push({
+                    dataPipeline.push({
                         $sort: {
-                            [field]: sortInput.sortOrder ?? 1,
+                            [field]: sortOrder,
+                            userId: 1,
+                        },
+                    });
+                } else {
+                    dataPipeline.push({
+                        $sort: {
+                            firstName: 1,
+                            userId: 1,
                         },
                     });
                 }
             } else {
-                pipeline.push({ $sort: { lastLoginAt: -1 } });
+                dataPipeline.push({
+                    $sort: {
+                        firstName: 1,
+                        userId: 1,
+                    },
+                });
             }
 
-            // Then paginate
-            pipeline.push({ $skip: skip });
-            pipeline.push({ $limit: limit });
+            dataPipeline.push({ $skip: skip });
+            dataPipeline.push({ $limit: limit });
+            dataPipeline.push({
+                $project: {
+                    lastLoginAtNumeric: 0,
+                },
+            });
 
-            const detailedPlan = await OverallTrainingProgress.aggregate(pipeline);
+            const countPipeline = [...basePipeline, { $count: "totalCount" }];
 
-            return detailedPlan;
+            const [paginatedUsers, countResult] = await Promise.all([
+                OverallTrainingProgress.aggregate(dataPipeline),
+                OverallTrainingProgress.aggregate(countPipeline),
+            ]);
+
+            const totalCount = countResult[0]?.totalCount || 0;
+
+            const decryptedResult = paginatedUsers.map((user) => ({
+                ...user,
+                firstName: decrypt(user.firstName),
+                lastName: user.lastName ? decrypt(user.lastName) : "",
+                email: decrypt(user.email),
+            }));
+
+            return {
+                users: decryptedResult,
+                totalCount,
+            };
         } catch (error) {
-            console.log(error);
-            throw CustomError(ErrorName.FAILED_TO_FETCH_USER_LIST_FOR_LEARNING_PLAN, error.message);
+            console.error(error);
+            throw CustomError(
+                "FAILED_TO_FETCH_USER_LIST_FOR_LEARNING_PLAN",
+                error.message
+            );
         }
     },
+      
 };
