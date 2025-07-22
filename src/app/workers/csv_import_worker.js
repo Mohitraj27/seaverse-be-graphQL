@@ -81,13 +81,6 @@ async function pollMessages() {
                             const totalRecords = fetchJob?.totalRecords || 0;
                             const progressCompleted = fetchJob?.progressCompleted;
 
-                            console.log(fetchJob, "fetchJob");
-                            console.log('insertedCount');
-                            console.log(insertedCount);
-
-                            console.log('updatedCount');
-                            console.log(updatedCount);
-
                             if ((insertedCount + updatedCount === totalRecords) && progressCompleted) {
 
                                 if (insertedCount > 0 && updatedCount === 0) {
