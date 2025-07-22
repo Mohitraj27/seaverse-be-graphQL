@@ -457,16 +457,11 @@ module.exports.mutations = {
                             { email: 1, firstName: 1, lastName: 1 }
                         ).lean();
 
-                        const decryptedAdminUsers = adminUserEmails?.map(user => ({
+                    
+                        const adminUsers = adminUserEmails?.map(user => ({
                             email: decrypt(user?.email),
                             firstName: decrypt(user?.firstName),
                             lastName: user?.lastName ? decrypt(user?.lastName) : '',
-                        }));
-
-                        const adminUsers = decryptedAdminUsers?.map(user => ({
-                            email: user?.email,
-                            firstName: user?.firstName,
-                            lastName: user?.lastName
                         }));
 
                         await Promise.all(adminUsers?.map(async user => await AwsHelper.sendEmail({

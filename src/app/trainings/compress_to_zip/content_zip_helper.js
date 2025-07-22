@@ -7,13 +7,14 @@ const archiver = require('archiver');
 const stream = require('stream');
 const { uploadType, uploadZip } = require("../../../util/upload_helper");
 const AwsHelper = require("../../../util/aws_helper");
-const { PassThrough } = require('stream');
+const { PassThrough, Readable } = require('stream');
 const AWS = require('aws-sdk');
 const ffmpeg = require('fluent-ffmpeg');
 const { pipeline } = require('stream/promises');
 const tmp = require('tmp');
 const VIDEO_MIME_TYPES = ['video/mp4'];
 const { spawn } = require('child_process');
+const UploadHelper = require("../../../util/upload_helper");
 
 const filterVideosByLanguage = async (videos = [], userLanguages = []) => {
     if (!videos?.length) return [];
@@ -103,326 +104,273 @@ const filterVideosByLanguage = async (videos = [], userLanguages = []) => {
 // };
 
 // Fixed fileDownloader that ensures complete upload before returning
-const fileDownloader = async (contentMap) => {
-    // First, create a temporary file to ensure we have complete data
-    const saveZipName = `zip_${Date.now()}.zip`;
-    const tempDir = os.tmpdir();
-    const tempFilePath = path.join(tempDir, saveZipName);
 
-    console.log(`Creating temporary zip file: ${tempFilePath}`);
+// const fileDownloader = async (contentMap) => {
+//     // First, create a temporary file to ensure we have complete data
+//     const saveZipName = `zip_${Date.now()}.zip`;
+//     const tempDir = os.tmpdir();
+//     const tempFilePath = path.join(tempDir, saveZipName);
 
-    try {
-        // Step 1: Create the complete zip file first
-        await createZipFile(contentMap, tempFilePath);
+//     console.log(`Creating temporary zip file: ${tempFilePath}`);
 
-        // Step 2: Upload the complete file to S3
-        const fileStream = fs.createReadStream(tempFilePath);
+//     try {
+//         // Step 1: Create the complete zip file first
+//         await createZipFile(contentMap, tempFilePath);
 
-        const filePath = await uploadZip({
-            data: fileStream,
-            folderName: 'trainingContents',
-            fileName: saveZipName,
-            uploadType: uploadType.lessonZip,
-        });
+//         // Step 2: Upload the complete file to S3
+//         const fileStream = fs.createReadStream(tempFilePath);
 
-        console.log(`Upload successful: ${filePath}`);
+//         const filePath = await uploadZip({
+//             data: fileStream,
+//             folderName: 'trainingContents',
+//             fileName: saveZipName,
+//             uploadType: uploadType.lessonZip,
+//         });
 
-        // Step 3: Verify the upload (optional but recommended)
-        // await verifyS3Upload(filePath);
+//         console.log(`Upload successful: ${filePath}`);
 
-        return filePath;
+//         // Step 3: Verify the upload (optional but recommended)
+//         // await verifyS3Upload(filePath);
 
-    } catch (error) {
-        console.error('Error in fileDownloader:', error);
-        throw error;
-    } finally {
-        // Clean up temp file
-        fs.unlink(tempFilePath, (err) => {
-            if (err) {
-                console.error(`Failed to delete temporary file ${tempFilePath}: ${err.message}`);
-            } else {
-                console.log(`Temporary file ${tempFilePath} deleted successfully.`);
-            }
-        });
-    }
-};
+//         return filePath;
+
+//     } catch (error) {
+//         console.error('Error in fileDownloader:', error);
+//         throw error;
+//     } finally {
+//         // Clean up temp file
+//         fs.unlink(tempFilePath, (err) => {
+//             if (err) {
+//                 console.error(`Failed to delete temporary file ${tempFilePath}: ${err.message}`);
+//             } else {
+//                 console.log(`Temporary file ${tempFilePath} deleted successfully.`);
+//             }
+//         });
+//     }
+// };
 
 // Helper function to create the zip file
-const createZipFile = async (contentMap, outputPath) => {
-    const tempCleanups = [];
-    const metadata = {};
+// const createZipFile = async (contentMap, outputPath) => {
+//     const tempCleanups = [];
+//     const metadata = {};
 
-    return new Promise(async (resolve, reject) => {
-        const archive = archiver("zip", {
-            zlib: { level: 5 },
-        });
+//     return new Promise(async (resolve, reject) => {
+//         const archive = archiver("zip", {
+//             zlib: { level: 5 },
+//         });
 
-        const fileWriteStream = fs.createWriteStream(outputPath);
+//         const fileWriteStream = fs.createWriteStream(outputPath);
 
-        // Error handling
-        fileWriteStream.on("error", err => {
-            console.error("Write stream error:", err);
-            reject(err);
-        });
+//         // Error handling
+//         fileWriteStream.on("error", err => {
+//             console.error("Write stream error:", err);
+//             reject(err);
+//         });
 
-        archive.on("error", err => {
-            console.error("Archive error:", err);
-            reject(err);
-        });
+//         archive.on("error", err => {
+//             console.error("Archive error:", err);
+//             reject(err);
+//         });
 
-        archive.on("warning", err => {
-            if (err.code === "ENOENT") {
-                console.warn("Archive warning:", err);
-            } else {
-                reject(err);
-            }
-        });
+//         archive.on("warning", err => {
+//             if (err.code === "ENOENT") {
+//                 console.warn("Archive warning:", err);
+//             } else {
+//                 reject(err);
+//             }
+//         });
 
-        // Cleanup after archive finishes writing
-        archive.on("end", () => {
-            console.log("Archive stream ended.");
-            for (const { path, cleanupCallback } of tempCleanups) {
-                try {
-                    cleanupCallback();
-                    console.log(`Cleaned up temp file: ${path}`);
-                } catch (err) {
-                    console.warn(`Failed to clean up temp file: ${path} - ${err.message}`);
-                }
-            }
-            resolve();
-        });
+//         // Cleanup after archive finishes writing
+//         archive.on("end", () => {
+//             console.log("Archive stream ended.");
+//             for (const { path, cleanupCallback } of tempCleanups) {
+//                 try {
+//                     cleanupCallback();
+//                     console.log(`Cleaned up temp file: ${path}`);
+//                 } catch (err) {
+//                     console.warn(`Failed to clean up temp file: ${path} - ${err.message}`);
+//                 }
+//             }
+//             resolve();
+//         });
 
-        // Start piping archive output to file
-        archive.pipe(fileWriteStream);
+//         // Start piping archive output to file
+//         archive.pipe(fileWriteStream);
 
-        const CONCURRENT_DOWNLOADS = 3;
-        const entries = Array.from(contentMap.entries());
+//         const CONCURRENT_DOWNLOADS = 3;
+//         const entries = Array.from(contentMap.entries());
 
-        for (let i = 0; i < entries.length; i += CONCURRENT_DOWNLOADS) {
-            const batch = entries.slice(i, i + CONCURRENT_DOWNLOADS);
+//         for (let i = 0; i < entries.length; i += CONCURRENT_DOWNLOADS) {
+//             const batch = entries.slice(i, i + CONCURRENT_DOWNLOADS);
 
-            await Promise.all(
-                batch.map(async ([contentId, fileUrl]) => {
-                    try {
-                        const updatedUrl = await AwsHelper.fetchFile(fileUrl);
-                        const fileName = fileUrl.split("/").pop();
+//             await Promise.all(
+//                 batch.map(async ([contentId, fileUrl]) => {
+//                     try {
+//                         const updatedUrl = await AwsHelper.fetchFile(fileUrl);
+//                         const fileName = fileUrl.split("/").pop();
 
-                        console.log(`Downloading: ${fileName}`);
-                        const { path, contentType, cleanupCallback } = await downloadWithRetry(
-                            updatedUrl
-                        );
-                        tempCleanups.push({ path, cleanupCallback });
+//                         console.log(`Downloading: ${fileName}`);
+//                         const { path, contentType, cleanupCallback } = await downloadWithRetry(
+//                             updatedUrl
+//                         );
+//                         tempCleanups.push({ path, cleanupCallback });
 
-                        // Create base stream
-                        let inputStream = fs.createReadStream(path);
-                        // if (VIDEO_MIME_TYPES.includes(contentType)) {
-                        //     console.log(`Compressing video: ${fileName}`);
-                        //     inputStream = compressVideoStream(path, { maxResolution: 720 });
-                        // }
+//                         // Create base stream
+//                         let inputStream = fs.createReadStream(path);
+//                         // if (VIDEO_MIME_TYPES.includes(contentType)) {
+//                         //     console.log(`Compressing video: ${fileName}`);
+//                         //     inputStream = compressVideoStream(path, { maxResolution: 720 });
+//                         // }
 
-                        // Create passthrough stream and append it to archive
-                        const passThrough = new PassThrough();
-                        archive.append(passThrough, { name: fileName });
+//                         // Create passthrough stream and append it to archive
+//                         const passThrough = new PassThrough();
+//                         archive.append(passThrough, { name: fileName });
 
-                        // Wait for full piping to complete before continuing
-                        await pipeline(inputStream, passThrough);
+//                         // Wait for full piping to complete before continuing
+//                         await pipeline(inputStream, passThrough);
 
-                        metadata[contentId] = fileName;
-                    } catch (error) {
-                        console.error(`Error processing file ${fileUrl}:`, error.message);
-                    }
-                })
-            );
-        }
+//                         metadata[contentId] = fileName;
+//                     } catch (error) {
+//                         console.error(`Error processing file ${fileUrl}:`, error.message);
+//                     }
+//                 })
+//             );
+//         }
 
-        // Add metadata to archive
-        archive.append(JSON.stringify(metadata, null, 2), { name: "metadata.json" });
+//         // Add metadata to archive
+//         archive.append(JSON.stringify(metadata, null, 2), { name: "metadata.json" });
 
-        // Finalize the archive
-        await archive.finalize();
-    });
-};
+//         // Finalize the archive
+//         await archive.finalize();
+//     });
+// };
 
 // Helper function to download with retry
-const downloadWithRetry = async (url, maxRetries = 3) => {
-    for (let i = 0; i < maxRetries; i++) {
-        console.log(`Attempt ${i + 1} to download: ${url}`);
-        try {
-            const response = await axios.get(url, {
-                responseType: 'stream',
-                timeout: 300000 * 6, // 5 minutes
-                maxContentLength: Infinity,
-                maxBodyLength: Infinity,
-                decompress: false, // ⬅️ important for signed S3 URLs
-                headers: {}
-            });
+// const downloadWithRetry = async (url, maxRetries = 3) => {
+//     for (let i = 0; i < maxRetries; i++) {
+//         console.log(`Attempt ${i + 1} to download: ${url}`);
+//         try {
+//             const response = await axios.get(url, {
+//                 responseType: 'stream',
+//                 timeout: 300000 * 6, // 5 minutes
+//                 maxContentLength: Infinity,
+//                 maxBodyLength: Infinity,
+//                 decompress: false, // ⬅️ important for signed S3 URLs
+//                 headers: {}
+//             });
 
-            const tmpFile = tmp.fileSync({ postfix: '.mp4' });
-            await pipeline(response.data, fs.createWriteStream(tmpFile.name));
-            console.log(`\nDownloaded file to temporary location: ${tmpFile.name}`);
-            return {
-                path: tmpFile.name,
-                cleanupCallback: tmpFile.removeCallback, // in case you want to delete later
-                contentType: response.headers['content-type']
-            };
-        } catch (error) {
-            if (i === maxRetries - 1) throw error;
+//             const tmpFile = tmp.fileSync({ postfix: '.mp4' });
+//             await pipeline(response.data, fs.createWriteStream(tmpFile.name));
+//             console.log(`\nDownloaded file to temporary location: ${tmpFile.name}`);
+//             return {
+//                 path: tmpFile.name,
+//                 cleanupCallback: tmpFile.removeCallback, // in case you want to delete later
+//                 contentType: response.headers['content-type']
+//             };
+//         } catch (error) {
+//             if (i === maxRetries - 1) throw error;
 
-            console.warn(`Retry ${i + 1} for ${url}`);
-            await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+//             console.warn(`Retry ${i + 1} for ${url}`);
+//             await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+//         }
+//     }
+// };
+
+const fetchFiles = async (moduleAndContents, userLanguages = []) => {
+    let metadataObject = {};
+
+    for (const item of moduleAndContents) {
+
+        const trainingContents = Array.isArray(item.trainingContent) ? item.trainingContent : [];
+
+        for (const trainingContent of trainingContents) {
+
+            if (!trainingContent) continue;
+
+            switch (trainingContent.contentType) {
+                case contentTypes.VIDEO:
+                    const selectedVideos = await filterVideosByLanguage(trainingContent?.videos, userLanguages);
+                    selectedVideos.forEach(video => {
+                        if (video?.url) {
+                            const videoKey = `${item?.trainingModule}_${trainingContent?._id}_video_${video?._id}_${video?.lang}`;
+                            const fileName = video?.url.split("/").pop();
+                            metadataObject[videoKey] = fileName;
+                        }
+
+                        // Process subtitles for the current video
+                        video?.subtitles?.forEach(subtitle => {
+                            if (subtitle?.url) {
+                                const subtitleKey = `${item?.trainingModule}_${trainingContent?._id}_subtitle_${video?._id}_${video?.lang}_${subtitle?._id}_${subtitle?.lang}`;
+                                const fileName = subtitle?.url.split("/").pop();
+                                metadataObject[subtitleKey] = fileName;
+                            }
+                        });
+                    });
+                    break;
+
+                case contentTypes.IMAGE:
+                    if (trainingContent.images && trainingContent.images[0]?.url) {
+                        const imageKey = `${item?.trainingModule}_${trainingContent?._id}`;
+                        const fileName = trainingContent.images[0]?.url.split("/").pop();
+                        metadataObject[imageKey] = fileName;
+                    }
+                    break;
+
+                case contentTypes.QUIZ:
+                    break;
+
+                default:
+                    if (trainingContent.files && trainingContent.files[0]?.url) {
+                        const fileName = trainingContent.files[0]?.url.split("/").pop();
+                        const defaultKey = `${item?.trainingModule}_${trainingContent?._id}`;
+                        metadataObject[defaultKey] = fileName;
+                    }
+                    break;
+            }
         }
     }
+
+    // Return the completed object.
+    return metadataObject;
 };
 
-const fetchFiles = async (contents, userLanguages = []) => {
+const generateAndUploadMetadata = async (moduleAndContents, userLanguages, folderName = 'metadatas') => {
 
-    let fileUrlMap = new Map();
+    const metadataObject = await fetchFiles(moduleAndContents, userLanguages);
 
-    for (let content of contents) {
+    const jsonString = JSON.stringify(metadataObject, null, 2);
 
-        const trainingContent = content;
+    const stream = Readable.from(jsonString);
 
-        switch (trainingContent.contentType) {
-            case contentTypes.VIDEO:
-                /* fileUrlMap.set(content._id, trainingContent.videos[0]?.url);
-               break;
-               */
-                const selectedVideos = await filterVideosByLanguage(trainingContent?.videos, userLanguages);
-                selectedVideos.forEach((video, index) => {
-                    if (video?.url) {
-                        fileUrlMap.set(`${content?._id}_video_${video?._id}_${video?.lang}`, video?.url);
-                    }
-                    video?.subtitles?.forEach((subtitle) => {
-                        if (subtitle?.url) {
-                            fileUrlMap.set(`${content?._id}_subtitle_${video?._id}_${video?.lang}_${subtitle?._id}_${subtitle?.lang}`, subtitle?.url);
-                        }
-                    });
-                });
-                break;
-            case contentTypes.IMAGE:
-                fileUrlMap.set(content._id, trainingContent.images[0]?.url);
-                break;
-            case contentTypes.QUIZ:
-                break;
-            default:
-                fileUrlMap.set(content._id, trainingContent.files[0]?.url);
-                break;
+    const s3Path = await UploadHelper.uploadFile({
+        fileData: stream,
+        folderName: folderName,
+        fileName: `metadata_${Date.now()}.json`,
+        uploadType: 'metadataJSON',
+        acceptedTypes: 'application/json',
+    });
+
+    return s3Path;
+};
+
+const getTheContent = async (moduleAndContents, userLanguages = []) => {
+
+    try {
+        const allQuizzes = moduleAndContents.every(item => item?.trainingContent?.contentType === contentTypes.QUIZ);
+
+        if (allQuizzes) {
+            return [];
         }
 
+        const metaData = await generateAndUploadMetadata(moduleAndContents, userLanguages);
+
+        return metaData;
+    } catch (error) {
+        throw new Error('Failed to generate content metadata');
     }
 
-    return fileUrlMap;
 
 }
-
-const getTheContent = async (contents, userLanguages = []) => {
-
-    let zipUrl = null;
-    let fetchedData;
-
-    const allQuizzes = contents.every(content => content.contentType === contentTypes.QUIZ);
-
-    if (allQuizzes) {
-        return [];
-    }
-
-    fetchedData = await fetchFiles(contents, userLanguages);
-    if (fetchedData?.size > 0) {
-        zipUrl = await fileDownloader(fetchedData);
-    }
-
-    if (!zipUrl) {
-        return null;
-    }
-
-    return zipUrl || null;
-}
-
-/**
- * Compresses a video stream using FFmpeg and returns a compressed stream.
- * If FFmpeg fails, returns the original stream.
- *
- * @param {ReadableStream} inputStream - Original video stream (e.g., from S3 or disk)
- * @param {Object} [options]
- * @param {number} [options.crf=28] - Constant Rate Factor (lower = higher quality)
- * @param {number} [options.maxResolution=720] - Maximum output height
- * @returns {ReadableStream} - Compressed video stream (or original stream on failure)
- */
-
-// function compressVideoStream(filePath, options = {}) {
-//     const { maxResolution = 720 } = options;
-//     const outputStream = new PassThrough();
-
-//     console.log(`[FFMPEG] Compressing video: ${filePath}`);
-
-//     ffmpeg(filePath)
-//         .inputOptions([
-//             '-probesize', '5000000',
-//             '-analyzeduration', '10000000'
-//         ])
-//         .videoCodec('libx264')
-//         .audioCodec('aac')
-//         .outputOptions([
-//             '-preset', 'veryfast', // changed from 'fast'
-//             '-crf', '24',          // changed from '28'
-//             ...(maxResolution ? ['-vf', `scale=-2:${maxResolution}`] : []),
-//             '-pix_fmt', 'yuv420p',
-//             '-movflags', 'frag_keyframe+empty_moov'
-//         ])
-//         .format('mp4')
-//         .on('start', cmd => console.log('[FFMPEG] Command:', cmd))
-//         .on('progress', p => console.log(`[FFMPEG] Progress: frame=${p.frames} time=${p.timemark}`))
-//         .on('error', (err, stdout, stderr) => {
-//             console.error('[FFMPEG] Error:', err.message);
-//             console.error('[FFMPEG] Stderr:', stderr);
-//             outputStream.emit('error', err);
-//         })
-//         .on('end', () => {
-//             console.log('[FFMPEG] Compression finished');
-//             outputStream.end();
-//         })
-//         .pipe(outputStream, { end: true });
-
-//     return outputStream;
-// }
-// function compressVideoStream(filePath, options = {}) {
-//     const { maxResolution = 720 } = options;
-//     const outputStream = new PassThrough();
-
-//     console.log(`[FFMPEG] Compressing video: ${filePath}`);
-
-//     const compressionPromise = new Promise((resolve, reject) => {
-//         ffmpeg(filePath)
-//             .inputOptions([
-//                 '-probesize', '5000000',
-//                 '-analyzeduration', '10000000'
-//             ])
-//             .videoCodec('libx264')
-//             .audioCodec('aac')
-//             .outputOptions([
-//                 '-preset', 'veryfast',
-//                 '-crf', '24',
-//                 ...(maxResolution ? [`-vf`, `scale=-2:${maxResolution}`] : []),
-//                 '-pix_fmt', 'yuv420p',
-//                 '-movflags', 'frag_keyframe+empty_moov'
-//             ])
-//             .format('mp4')
-//             .on('start', cmd => console.log('[FFMPEG] Command:', cmd))
-//             .on('progress', p => console.log(`[FFMPEG] Progress: frame=${p.frames} time=${p.timemark}`))
-//             .on('error', (err, stdout, stderr) => {
-//                 console.error('[FFMPEG] Error:', err.message);
-//                 console.error('[FFMPEG] Stderr:', stderr);
-//                 reject(err);
-//             })
-//             .on('end', () => {
-//                 console.log('[FFMPEG] Compression finished');
-//                 resolve();
-//             })
-//             .pipe(outputStream, { end: true });
-//     });
-
-//     return { outputStream, compressionPromise };
-// }
 
 async function compressVideoToFile(inputPath, options = {}) {
     console.log(`[FFMPEG] Compressing video InputPath: ${inputPath}`);
