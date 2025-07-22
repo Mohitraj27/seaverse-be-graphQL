@@ -486,7 +486,7 @@ module.exports.mutations = {
         }
     },
 
-    lastLoginAt: async ({ input }, context) => {
+    lastLoginAt: async ({ firebaseToken }, context) => {
         const { userId } = AuthUser(context);
         if (!userId) throw CustomError(ErrorName.UNAUTHORIZED, "User not authenticated");
 
@@ -499,9 +499,12 @@ module.exports.mutations = {
                 lastLoginAt: lastLoginAtTime
             };
 
-            if (input?.firebaseToken) {
-                mongoUpdate.firebaseTokens = [input.firebaseToken];
+            console.log(firebaseToken);
+            if (firebaseToken) {
+                mongoUpdate.firebaseTokens = [firebaseToken];
             }
+
+            console.log(mongoUpdate);
 
             updatePromises.push(
                 User.findByIdAndUpdate(userId, mongoUpdate, {
