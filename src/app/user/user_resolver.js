@@ -503,8 +503,6 @@ module.exports.mutations = {
                 mongoUpdate.firebaseTokens = [firebaseToken];
             }
 
-            console.log(mongoUpdate);
-
             updatePromises.push(
                 User.findByIdAndUpdate(userId, mongoUpdate, {
                     new: false, 
