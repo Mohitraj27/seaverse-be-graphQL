@@ -1736,6 +1736,71 @@ module.exports.mutations = {
             createdBy: userInfo,
         });
 
+        if (savedContent.videos && savedContent.videos.length > 0) {
+            const videoUrls = savedContent?.videos.map(video => video.url);
+
+            if (videoUrls && videoUrls.length > 0) {
+
+                const jobId = uuidv4();
+
+                async function compressVideoJob(jobData) {
+                    try {
+                        if (!jobData || !jobData.jobId) {
+                            throw new Error('Invalid job data: missing jobId');
+                        }
+
+                        const params = {
+                            QueueUrl: process.env.SQS_VIDEO_COMPRESSION_QUEUE_URL,
+                            MessageBody: JSON.stringify(jobData),
+                        };
+
+                        // // 👉 If FIFO queue:
+                        // if (process.env.SQS_QUEUE_TYPE === 'FIFO') {
+                        //     params.MessageGroupId = 'course-enrollment'; // Required for FIFO
+                        //     params.MessageDeduplicationId = `${jobData.jobId}-${Date.now()}`; // Ensure unique
+                        // }
+
+                        const data = await sqsClient.send(new SendMessageCommand(params));
+
+                        console.log(`📋 Job sent to SQS: ${data.MessageId}`);
+                        return { id: data.MessageId };
+                    } catch (error) {
+                        console.error('❌ Failed to send job to SQS:', error);
+                        throw error;
+                    }
+                }
+
+
+
+                async function publishVideoCompression(videoUrls, jobId, context) {
+                    // Input validation
+                    if (!videoUrls || videoUrls.length === 0) {
+                        console.warn('⚠️ No video URL found!');
+                        return { success: false, reason: 'No videos found' };
+                    }
+
+
+                    console.log(`🚀 Publishing ${videoUrls.length} videos to compress`);
+
+                    const job = await compressVideoJob({
+                        jobId: jobId,
+                        savedContent,
+                        context,
+                        timestamp: new Date().toISOString()
+                    });
+
+
+                    return job;
+                }
+
+
+
+                await publishVideoCompression(videoUrls, jobId, context);
+
+            }
+
+        }
+
         return {
             success: true,
             message: "Content updated successfully.",
