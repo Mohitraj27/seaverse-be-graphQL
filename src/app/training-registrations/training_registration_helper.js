@@ -621,6 +621,15 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
                 acc[_id] = count;
                 return acc;
             }, {});
+              
+            const totalModuleCount = trainingModuleCounts.reduce((sum, { count }) => {
+                return sum + count;
+            }, 0);
+
+
+            
+            console.log('moduleCount');
+            console.log(totalModuleCount);
 
         }
 
@@ -691,7 +700,7 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
                                 completedModules: 0,
                                 contentData: [],
                                 totalDuration: durationHours,
-                                totalTrainingModules: trainingIdToModuleCount[training] || 0,
+                                totalTrainingModules: totalModuleCount || 0,
                                 startDate: null,
                                 endDate: null,
                                 unenrollmentDate: null,

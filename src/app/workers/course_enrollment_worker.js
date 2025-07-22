@@ -70,7 +70,7 @@ async function pollMessages() {
                         //         { upsert: true }
                         //     );
                             // console.log(`Job ${jobId} reserved:`, res);
-                                console.log(batchedEnrollData,"batchedEnrollData");
+                                // console.log(batchedEnrollData,"batchedEnrollData");
                             // ✅ Do your enrollment processing
                             await createTrainingRegistrationBackgroundProcess(batchedEnrollData, context);
 
