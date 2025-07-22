@@ -499,7 +499,6 @@ module.exports.mutations = {
                 lastLoginAt: lastLoginAtTime
             };
 
-            console.log(firebaseToken);
             if (firebaseToken) {
                 mongoUpdate.firebaseTokens = [firebaseToken];
             }
