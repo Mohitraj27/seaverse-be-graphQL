@@ -11,44 +11,19 @@ const { decrypt, encrypt } = require('../../util/encryption_helper');
 const { updateByQueryToElasticSearch } = require("../../util/elastic_helper");
 module.exports = {
     makeAuthUser: async user => {
-
-        if (user.role === Role.EMPLOYEE) {
-            await user
-                .populate({ path: "subRoles", match: { isActive: true, isDeleted: { $ne: true } } })
-                .populate("employee")
-                .execPopulate();
-        }
-
-        let tokenPayload = {
-            masterLogin: user.masterLogin,
+        const tokenPayload = {
             role: user.role,
             userId: user._id,
-            permissions: [...new Set(user.subRoles?.map(x => x.permissions).flat(1))],
             subscriberId: user.subscriber?._id ?? user.subscriber,
-            employeeId: user.employee?._id ?? user.employee,
         };
 
-        if (tokenPayload.subscriberId) {
-            const activeSubscriptionInfo = await SubscriptionHelper.getActiveSubscriptionInfo(
-                tokenPayload.subscriberId
-            );
-
-            tokenPayload = {
-                ...tokenPayload,
-                ...activeSubscriptionInfo,
-            };
-
-            user.subscriptionInfo = activeSubscriptionInfo;
-        }
-
-        const accessToken = JwtHelper.sign(tokenPayload, process.env.APP_SECRET, { expiresIn: "9h" }); 
+        const accessToken = JwtHelper.sign(tokenPayload, process.env.APP_SECRET, { expiresIn: "9h" });
         const refreshToken = JwtHelper.sign({ userId: user._id }, process.env.REFRESH_SECRET, { expiresIn: "7d" });
 
         return {
             user: user,
             token: accessToken,
             refreshToken: refreshToken,
-            subscriptionInfo: user.subscriptionInfo,
         };
     },
     refreshToken: async (refreshToken) => {

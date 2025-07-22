@@ -4,6 +4,7 @@ const { SQSClient, ReceiveMessageCommand, DeleteMessageCommand } = require('@aws
 const { connectDb, closeDb } = require('../../util/child_process_db_helper');
 const { createTrainingRegistrationBackgroundProcess } = require('../training-registrations/training_registration_helper');
 const { ImportJob } = require('../user/employee/import_job_model');
+const firebase_helper = require('../../util/firebase_helper');
 
 const QUEUE_URL = process.env.SQS_QUEUE_URL;
 
@@ -40,7 +41,7 @@ async function pollMessages() {
 
                         try {
                             await connectDb();
-
+                          firebase_helper.init();
                             const { batchedEnrollData, context, jobId } = message.Body ? JSON.parse(message.Body) : {};
 
                             if (!jobId) {
@@ -69,7 +70,7 @@ async function pollMessages() {
                         //         { upsert: true }
                         //     );
                             // console.log(`Job ${jobId} reserved:`, res);
-                                console.log(batchedEnrollData,"batchedEnrollData");
+                                // console.log(batchedEnrollData,"batchedEnrollData");
                             // ✅ Do your enrollment processing
                             await createTrainingRegistrationBackgroundProcess(batchedEnrollData, context);
 

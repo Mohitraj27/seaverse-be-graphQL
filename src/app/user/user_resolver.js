@@ -381,201 +381,162 @@ module.exports.mutations = {
         try {
             const signIn = await DbTransactionHelper.performDbTransaction(async session => {
                 const encryptedEmail = encrypt(input.emailOrCivilIdOrPassport);
-                const password = input.password;
-                const deleteRequest = await User.find({ email: encryptedEmail, deleteRequest: true }).session(session);
-                if (deleteRequest?.length > 0) {
-                    return CustomError(ErrorName.DELETE_REQUEST_PENDING, 'Your account delete request is pending. Please contact your admin');
-                }
-                // for app signup
-                const fetchAppUser = await AppUser.findOne({
+              
+                const existingUser = await User.findOne({
                     $or: [
                         { email: encryptedEmail },
                         { civilIdOrPassport: input.emailOrCivilIdOrPassport },
                     ],
+                    role: { $ne: Role.SAAS_ADMIN },
+                    isActive: true,
+                    isDeleted: { $ne: true },
+                }).populate({
+                    path: 'subRoles',
+                    select: '_id name permissions isActive isPredefined description isDefault primaryRole',
                 }).session(session);
 
-                if (fetchAppUser) {
-                    const valid = await CryptoHelper.compare(input.password, fetchAppUser.password);
+                if (!existingUser) {
+                    return CustomError(ErrorName.USER_NOT_FOUND);
+                }
 
-                    if (valid) {
+              
+                if (existingUser.deleteRequest === true) {
+                    return CustomError(ErrorName.DELETE_REQUEST_PENDING, 'Your account delete request is pending. Please contact your admin');
+                }
 
-                        const fetchUser = await User.findOne({ email: "testuser@example.com" }).session(session);
-                        if (!fetchUser) {
-                            return CustomError(ErrorName.USER_NOT_FOUND);
-                        }
-                        return await UserHelper.makeAuthUser(fetchUser);
-                    }
-                } else {
+             
+                const isPasswordValid = await CryptoHelper.compare(input.password, existingUser.password);
 
-                    // const expiredUser = await User.findOne({
-                    //     $or: [
-                    //         { email: { $regex: new RegExp(`^${input.emailOrCivilIdOrPassport}$`, "i") } },
-                    //         { civilIdOrPassport: input.emailOrCivilIdOrPassport },
-                    //     ],
-                    //     isDeleted: true,
-                    //     deleteRequest: true,
-                    //     isActive: false
-                    // }).session(session);
-                    // if (expiredUser) {
-                    //     expiredUser.isDeleted = false;
-                    //     expiredUser.isActive = true;
-                    //     expiredUser.deleteRequest = false;
-                    //     expiredUser.deleteRequestDate = null;
-                    //     expiredUser.reasonForDelete = null;
-                    //     await expiredUser.save({ session });
-
-                    //     await OverallTrainingProgress.updateMany(
-                    //         { user: expiredUser._id },
-                    //         {
-                    //             $set: {
-                    //                 isDeleted: false,
-                    //             }
-                    //         }
-                    //     ).session(session);
-                    // }
-
-                    const existingUser = await User.findOne({
-                        $or: [
-                            { email: encryptedEmail },
-                            { civilIdOrPassport: input.emailOrCivilIdOrPassport },
-                        ],
-                        role: { $ne: Role.SAAS_ADMIN },
-                        isActive: true,
-                        isDeleted: { $ne: true },
-                    }).populate({
-                        path: 'subRoles',
-                        select: '_id name permissions isActive isPredefined description isDefault primaryRole',
-                    }).session(session);
-
-                    if (!existingUser) {
-                        return CustomError(ErrorName.USER_NOT_FOUND);
-                    }
-                    if (input?.consents?.length > 0) {
-                        const termsAndConditionsInput = input.consents;
-                        const existingConditionsMap = new Map(
-                            existingUser.consents.map(tc => [tc._id.toString(), tc])
-                        );
-                        termsAndConditionsInput.forEach(condition => {
-                            const inputConditionId = condition._id ? condition._id.toString() : null;
-
-                            if (inputConditionId && existingConditionsMap.has(inputConditionId)) {
-                                // Update existing condition
-                                const existingCondition = existingConditionsMap.get(inputConditionId);
-                                existingCondition.message = condition.message;
-                                existingCondition.consentType = consentTypes.INITIAL_LOGIN;
-                                existingCondition.title = condition.title;
-                                existingCondition.status = condition.status;
-                                existingCondition.timestamp = condition.timestamp || new Date().toISOString();
-                            } else {
-                                existingUser.consents.push({
-                                    _id: new mongoose.Types.ObjectId(),
-                                    consentType: consentTypes.INITIAL_LOGIN,
-                                    message: condition.message,
-                                    title: condition.title,
-                                    status: condition.status,
-                                    timestamp: condition.timestamp || new Date().toISOString(),
-                                });
-                            }
-                        });
-                        if (input?.consents?.some(consent => consent.status === false)) {
-                            const decryptedUserEmail = decrypt(existingUser?.email);
-                            const decryptedUserFirstName = decrypt(existingUser?.firstName);
-                            await AwsHelper.sendEmail({
-                                receiverEmail: decryptedUserEmail,
-                                subject: `Your Sign In Was Not Complete`,
-                                htmlContent: consentsforLearnerInitalLogin({ firstName: decryptedUserFirstName }),
-                            });
-                            const adminSubRole = await SubRole.findOne({ name: 'ADMIN' }).select('_id');
-                            const adminUserEmails = await User.find({ subRoles: { $in: adminSubRole?._id } }, { email: 1, firstName: 1, lastName: 1 }).lean();
-                            const decryptedAdminUsers = adminUserEmails?.map(user => ({
-                                email: decrypt(user?.email),
-                                firstName: decrypt(user?.firstName),
-                                lastName: user?.lastName ? decrypt(user?.lastName) : '',
-                            }));
-                            const adminUsers = decryptedAdminUsers?.map(user => ({ email: user?.email, firstName: user?.firstName, lastName: user?.lastName }));
-                            await Promise.all(adminUsers?.map(async user => await AwsHelper.sendEmail({
-                                receiverEmail: user?.email,
-                                subject: `Alert: Learner Rejected Terms and Conditions`,
-                                htmlContent: sendConsentsforAllAdminsInitalLogin({ adminFirstName: decrypt(user?.firstName), learnerfirstName: decryptedUserFirstName, learnerEmail: decryptedUserEmail }),
-                            })));
-                        }
-                        await existingUser.save({ session });
-                    }
-                    const processValidUser = async () => {
-                        if (input.firebaseToken) {
-                            existingUser.firebaseTokens = [input.firebaseToken];
-                        }
-
-                        if (input.deviceId) {
-                            existingUser.deviceIds = [input.deviceId];
-                        }
-
-                        existingUser.lastLoginAt = Moment().format();
-                        await existingUser.save({ session });
-
-                        try {
-                            await updateByQueryToElasticSearch(
-                                "users",
-                                `
-                                ctx._source.lastLoginAt = params.lastLoginAt;
-                            `,
-                                {
-                                    match: {
-                                        userId: existingUser._id.toString(),
-                                    }
-                                },
-                                {
-                                    lastLoginAt: Moment().format()
-                                }
-                            );
-                        } catch (error) {
-                            throw error;
-                        }
-
-                        return await UserHelper.makeAuthUser(existingUser);
-                    };
-
-
-                    const valid = await CryptoHelper.compare(input.password, existingUser.password);
-
-                    if (valid) {
-                        return await processValidUser();
-                    } else if (existingUser.role === Role.EMPLOYEE) {
-
-                        const subscriberProfile = await SubscriberProfile.findOne({
-                            subscriber: existingUser.subscriber,
-                        }).lean().select("employeeMasterPassword").session(session);
-
-                        if (
-                            context.platform === Role.EMPLOYEE &&
-                            subscriberProfile?.employeeMasterPassword?.length
-                        ) {
-                            const valid = await CryptoHelper.compare(
-                                input.password,
-                                subscriberProfile.employeeMasterPassword
-                            );
-
-                            if (valid) {
-                                return await processValidUser();
-                            }
-                        }
-
-                        if (
-                            existingUser.isRegistered !== true &&
-                            existingUser.password === process.env.USER_DUMMY_PASSWORD
-                        ) {
-                            return CustomError(ErrorName.UNAUTHORIZED);
-                        }
-                    }
+             
+                if (!isPasswordValid) {
+                    return CustomError(ErrorName.WRONG_PASSWORD);
                 }
 
 
-                return CustomError(ErrorName.WRONG_PASSWORD);
+                if (input?.consents?.length > 0) {
+                    const termsAndConditionsInput = input.consents;
+                    const existingConditionsMap = new Map(
+                        existingUser.consents.map(tc => [tc._id.toString(), tc])
+                    );
+
+                    termsAndConditionsInput.forEach(condition => {
+                        const inputConditionId = condition._id ? condition._id.toString() : null;
+
+                        if (inputConditionId && existingConditionsMap.has(inputConditionId)) {
+                        
+                            const existingCondition = existingConditionsMap.get(inputConditionId);
+                            existingCondition.message = condition.message;
+                            existingCondition.consentType = consentTypes.INITIAL_LOGIN;
+                            existingCondition.title = condition.title;
+                            existingCondition.status = condition.status;
+                            existingCondition.timestamp = condition.timestamp || new Date().toISOString();
+                        } else {
+                            existingUser.consents.push({
+                                _id: new mongoose.Types.ObjectId(),
+                                consentType: consentTypes.INITIAL_LOGIN,
+                                message: condition.message,
+                                title: condition.title,
+                                status: condition.status,
+                                timestamp: condition.timestamp || new Date().toISOString(),
+                            });
+                        }
+                    });
+
+                 
+                    if (input?.consents?.some(consent => consent.status === false)) {
+                        const decryptedUserEmail = decrypt(existingUser?.email);
+                        const decryptedUserFirstName = decrypt(existingUser?.firstName);
+
+                  
+                        await AwsHelper.sendEmail({
+                            receiverEmail: decryptedUserEmail,
+                            subject: `Your Sign In Was Not Complete`,
+                            htmlContent: consentsforLearnerInitalLogin({ firstName: decryptedUserFirstName }),
+                        });
+
+                        const adminSubRole = await SubRole.findOne({ name: 'ADMIN' }).select('_id');
+                        const adminUserEmails = await User.find(
+                            { subRoles: { $in: adminSubRole?._id } },
+                            { email: 1, firstName: 1, lastName: 1 }
+                        ).lean();
+
+                    
+                        const adminUsers = adminUserEmails?.map(user => ({
+                            email: decrypt(user?.email),
+                            firstName: decrypt(user?.firstName),
+                            lastName: user?.lastName ? decrypt(user?.lastName) : '',
+                        }));
+
+                        await Promise.all(adminUsers?.map(async user => await AwsHelper.sendEmail({
+                            receiverEmail: user?.email,
+                            subject: `Alert: Learner Rejected Terms and Conditions`,
+                            htmlContent: sendConsentsforAllAdminsInitalLogin({
+                                adminFirstName: decrypt(user?.firstName),
+                                learnerfirstName: decryptedUserFirstName,
+                                learnerEmail: decryptedUserEmail
+                            }),
+                        })));
+                    }
+                }
+
+                return await UserHelper.makeAuthUser(existingUser);
             });
+
             return signIn;
 
         } catch (error) {
             throw new Error(error.message);
+        }
+    },
+
+    lastLoginAt: async ({ firebaseToken }, context) => {
+        const { userId } = AuthUser(context);
+        if (!userId) throw CustomError(ErrorName.UNAUTHORIZED, "User not authenticated");
+
+        const lastLoginAtTime = Moment().format();
+
+        try {
+            const updatePromises = [];
+
+            const mongoUpdate = {
+                lastLoginAt: lastLoginAtTime
+            };
+
+            if (firebaseToken) {
+                mongoUpdate.firebaseTokens = [firebaseToken];
+            }
+
+            updatePromises.push(
+                User.findByIdAndUpdate(userId, mongoUpdate, {
+                    new: false, 
+                    lean: true 
+                })
+            );
+
+           
+            updatePromises.push(
+                updateByQueryToElasticSearch(
+                    "users",
+                    "ctx._source.lastLoginAt = params.lastLoginAt",
+                    {
+                        match: {
+                            userId: userId.toString()
+                        }
+                    },
+                    {
+                        lastLoginAt: lastLoginAtTime
+                    }
+                )
+            );
+
+           
+            await Promise.all(updatePromises);
+
+            return "Last login time updated successfully";
+
+        } catch (error) {
+            console.error("Failed to update last login time:", error);
+            throw CustomError(ErrorName.FAILED, `Failed to update last login time: ${error.message}`);
         }
     },
     generateRefreshToken: async ({ token }) => {

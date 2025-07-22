@@ -381,14 +381,6 @@ module.exports.mutations = {
     updateProfile: async ({ input }, context) => {
         const { role, userId, subscriberId, userInfo } = AuthUser(context);
         try {
-            if (role === "LEARNER") {
-                const isUpdatingNonAvatarFields = Object.keys(input).some(
-                    field => field !== "avatar"
-                );
-                if (isUpdatingNonAvatarFields) {
-                    throw CustomError("Learner can only update their profile picture");
-                }
-            }
             const savedUser = await UserHelper.updateUser(
                 { id: userId, input },
                 { currentRole: role }

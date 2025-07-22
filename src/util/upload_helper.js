@@ -58,6 +58,7 @@ const uploadType = {
     exportLearnersCoursesReportAsExcel: "exportLearnersCoursesReportAsExcel",
     exportCustomQuizReport: "exportCustomQuizReport",
     lessonZip: "lessonZip",
+    metadataJSON: "metadataJSON",
 };
 
 
@@ -98,6 +99,7 @@ const getPathFromType = ({ type, folder, filename }) => {
     else if (type === uploadType.exportLearnersCoursesReportAsExcel) return `${rootFolder}/export-reports/${folder}/${filename}`;
     else if (type === uploadType.exportCustomQuizReport) return `${rootFolder}/export-reports/Custom-Reports/${folder}/${filename}`;
     else if (type === uploadType.lessonZip) return `${rootFolder}/lessons/${folder}/${filename}`;
+    else if (type === uploadType.metadataJSON) return `${rootFolder}/metadatas/${folder}/${filename}`;
 };
 
 const isReadableStream = (value) => {
@@ -111,7 +113,6 @@ const isReadableStream = (value) => {
 const isPromise = data => data !== undefined && data instanceof Promise;
 
 const uploadFile = async ({ fileData, folderName, fileName, uploadType, acceptedTypes }) => {
-    console.log('reached here uploadFile');
     if (isPromise(fileData)) {
         const { filename: fileNameCurrent, mimetype, createReadStream } = await fileData;
         if (
@@ -236,6 +237,7 @@ module.exports = {
     uploadType,
     fileType,
     uploadJsonObject,
+    uploadFile,
     uploadZip: async ({ data, folderName, fileName, uploadType }) => {
         if (typeof data === "object" && typeof data.pipe === "function") {
             const filePath = await uploadFile({
