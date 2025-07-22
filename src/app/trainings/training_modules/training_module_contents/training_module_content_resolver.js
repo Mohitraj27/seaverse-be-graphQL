@@ -1024,6 +1024,11 @@ module.exports.mutations = {
 
                 contentTypeNotification = 'Document';
             }
+            else if (file) {
+                input.files = [{
+                    url: file,
+                }];
+            }
 
             const contentData = {
                 ...input,
@@ -1584,7 +1589,7 @@ module.exports.mutations = {
             isUpdated = true;
             isMediaUpdated = true;
         }
-
+      
         if (file && (file.endsWith('.pptx') || file.endsWith('.ppt'))) {
 
             const fetchedFile = await AwsHelper.fetchFile(file);
@@ -1654,6 +1659,13 @@ module.exports.mutations = {
 
             contentTypeNotification = 'Document';
         }
+        else if (file) {
+            updateData.files = [{
+                url: file,
+            }];
+        }
+
+
 
 
 
