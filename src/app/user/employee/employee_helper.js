@@ -4293,132 +4293,21 @@ module.exports = {
         });
 
         if (insertedUsers.length > 0 || updatedUsersByEmail.length > 0 || updatedUsersById.length > 0) {
-            // await ImportJob.findOneAndUpdate(
-            //     { jobId: jobId },
-            //     {
-            //         $inc: {
-            //             "processedBatches.insertedCount": insertedUsers.length,
-            //             "processedBatches.updatedCount": updatedUsersByEmail.length + updatedUsersById.length
-            //         },
-            //     },
-            //     { new: true }
-            // )
 
-            const areCountsEqual =
-                insertedUsers.length === (updatedUsersByEmail.length + updatedUsersById.length);
-            console.log("areCountsEqual------------>", areCountsEqual);
+            const updatedUsersCount = updatedUsersByEmail.length + updatedUsersById.length;
 
-            const updateObj = [
-                {
-                    $set: {
-                        "processedBatches.insertedCount": {
-                            $add: ["$processedBatches.insertedCount", insertedUsers.length]
-                        },
-                        "processedBatches.updatedCount": {
-                            $add: [
-                                "$processedBatches.updatedCount",
-                                updatedUsersByEmail.length + updatedUsersById.length
-                            ]
-                        },
-                        ...(areCountsEqual && {
-                            progressCompleted: { $not: ["$progressCompleted"] }
-                        })
-                    }
-                }
-            ];
+            let importJob = await ImportJob.findOne({ jobId: jobId });
 
-            await ImportJob.findOneAndUpdate(
-                { jobId: jobId },
-                updateObj,
-                { new: true }
-            );
+            importJob.processedBatches.updatedCount += updatedUsersCount;
+            importJob.processedBatches.insertedCount += insertedUsers.length;
+
+            if (importJob.totalRecords == (importJob?.processedBatches?.updatedCount + importJob?.processedBatches?.insertedCount)) {
+                importJob.progressCompleted = !importJob.progressCompleted;
+            }
+
+            await importJob.save();
 
         }
-
-        // if (insertedUsers.length > 0 && updatedUsersByEmail.length === 0 && updatedUsersById.length === 0) {
-
-        //     await sendNotificationOnBULK({
-        //         subscriber: subscriberId,
-        //         action: "Bulk Import Success",
-        //         createdBy: adminUser?._id,
-        //         uploadedBy: adminUser?._id,
-        //         isError: false,
-        //         description: `${insertedUsers?.length ?? 0} user${insertedUsers.length === 1 ? '' : 's'} have been added successfully`,
-        //         // description: `Successfully created ${insertedUsers.length} user(s) and updated ${updatedUsersByEmail.length + updatedUsersById.length} user(s)`,
-        //         notificationType: 'BULK_IMPORT_SUCCESS',
-        //         status: "SUCCESS",
-        //         icon: notificationiconEnum.SUCCESS,
-        //         creatorId: userInfo._id,
-        //     })
-
-        //     const createImportLog = await ImportLog.create({
-        //         subscriber: subscriberId,
-        //         usersCount: userCount,
-        //         uploadedBy: userId,
-        //         fileName: newFileName,
-        //         filePath: { url: saveCSV },
-        //         importStatus: "SUCCESS",
-        //         description: `Successfully created ${insertedUsers.length} user(s)`
-        //     })
-        //     if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
-        // }
-
-        // if ((updatedUsersByEmail.length > 0 || updatedUsersById.length > 0) && insertedUsers.length === 0) {
-
-        //     await sendNotificationOnBULK({
-        //         subscriber: subscriberId,
-        //         action: "Bulk Import Success",
-        //         createdBy: adminUser?._id,
-        //         uploadedBy: adminUser?._id,
-        //         isError: false,
-        //         description: `${updatedUsersByEmail.length + updatedUsersById.length ?? 0} user${insertedUsers.length === 1 ? '' : 's'} have been updated successfully`,
-        //         // description: `Successfully created ${insertedUsers.length} user(s) and updated ${updatedUsersByEmail.length + updatedUsersById.length} user(s)`,
-        //         notificationType: 'BULK_IMPORT_SUCCESS',
-        //         status: "SUCCESS",
-        //         icon: notificationiconEnum.SUCCESS,
-        //         creatorId: userInfo._id,
-        //     })
-
-        //     const createImportLog = await ImportLog.create({
-        //         subscriber: subscriberId,
-        //         usersCount: 0,
-        //         uploadedBy: userId,
-        //         fileName: newFileName,
-        //         filePath: { url: saveCSV },
-        //         importStatus: "SUCCESS",
-        //         description: `Successfully updated ${updatedUsersByEmail.length + updatedUsersById.length ?? 0} user(s)`
-        //     })
-        //     if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
-        // }
-
-        // if ((insertedUsers.length > 0 && updatedUsersByEmail.length > 0) || (insertedUsers.length > 0 && updatedUsersById.length > 0)) {
-
-        //     await sendNotificationOnBULK({
-        //         subscriber: subscriberId,
-        //         action: "Bulk Import Success",
-        //         createdBy: adminUser?._id,
-        //         uploadedBy: adminUser?._id,
-        //         isError: false,
-        //         description: `Successfully created ${insertedUsers?.length || 0} user(s) and updated ${updatedUsersByEmail?.length + updatedUsersById?.length || 0} user(s)`,
-        //         notificationType: 'BULK_IMPORT_SUCCESS',
-        //         status: "SUCCESS",
-        //         icon: notificationiconEnum.SUCCESS,
-        //         creatorId: userInfo._id,
-        //     })
-
-        //     const createImportLog = await ImportLog.create({
-        //         subscriber: subscriberId,
-        //         usersCount: `${updatedUsersByEmail?.length + updatedUsersById?.length || 0}`,
-        //         uploadedBy: userId,
-        //         fileName: newFileName,
-        //         filePath: { url: saveCSV },
-        //         importStatus: "SUCCESS",
-        //         description: `Successfully created ${insertedUsers?.length || 0} user(s) and updated ${updatedUsersByEmail?.length + updatedUsersById?.length || 0} user(s)`
-        //     })
-
-        //     if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
-
-        // }
 
     },
 
