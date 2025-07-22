@@ -390,8 +390,11 @@ module.exports.mutations = {
                     role: { $ne: Role.SAAS_ADMIN },
                     isActive: true,
                     isDeleted: { $ne: true },
+                }).populate({
+                    path: 'subRoles',
+                    select: '_id name permissions isActive isPredefined description isDefault primaryRole',
                 }).session(session);
-              
+
                 if (!existingUser) {
                     return CustomError(ErrorName.USER_NOT_FOUND);
                 }
