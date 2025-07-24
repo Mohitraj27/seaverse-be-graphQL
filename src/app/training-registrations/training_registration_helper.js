@@ -596,6 +596,7 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
         }
 
         let trainingIds, trainingModuleCounts, trainingIdToModuleCount;
+        let totalModuleCount;
 
         if (trainings.length > 0) {
 
@@ -622,14 +623,9 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
                 return acc;
             }, {});
               
-            const totalModuleCount = trainingModuleCounts.reduce((sum, { count }) => {
+            totalModuleCount = trainingModuleCounts.reduce((sum, { count }) => {
                 return sum + count;
             }, 0);
-
-
-            
-            console.log('moduleCount');
-            console.log(totalModuleCount);
 
         }
 
