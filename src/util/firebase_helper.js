@@ -4,10 +4,10 @@ const firebaseConfig = require("./firebaseConfig");
 const generateFirebaseMessageInput = ({ title, body, content, webLink }) => {
 
     const message = {
-        notification: {
-            title: title || "Test notification title",
-            body: body || "Test notification body",
-        },
+        // notification: {
+        //     title: title || "Test notification title",
+        //     body: body || "Test notification body",
+        // },
         data: {
             title: title || "Test notification title",
             body: body || "Test notification body",
