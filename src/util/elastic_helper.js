@@ -160,6 +160,8 @@ const searchEmployeesFromElastic = async ({
         { match_phrase_prefix: { lastName: encryptedLower } },
         { match_phrase_prefix: { email: encryptedLower } },
         { match_phrase_prefix: { civilIdOrPassport: encryptedUpper } },
+        { match_phrase_prefix: { designation: searchTerm } },
+        { match_phrase_prefix: { vesselName: searchTerm } },
       ],
       minimum_should_match: 1,
     },
