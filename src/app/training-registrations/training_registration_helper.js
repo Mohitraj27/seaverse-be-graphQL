@@ -618,10 +618,16 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
                 }
             ]).session(session);
 
+            console.log('trainingModuleCounts');
+            console.log(trainingModuleCounts);
+
             trainingIdToModuleCount = trainingModuleCounts.reduce((acc, { _id, count }) => {
                 acc[_id] = count;
                 return acc;
             }, {});
+
+            console.log('trainingIdToModuleCount');
+            console.log(trainingIdToModuleCount);
 
         }
 
