@@ -15,9 +15,9 @@ const generateFirebaseMessageInput = ({ title, body, content, webLink }) => {
         },
 
         android: {
-            notification: {
-                click_action: "FLUTTER_NOTIFICATION_CLICK",
-            },
+            // notification: {
+            //     click_action: "FLUTTER_NOTIFICATION_CLICK",
+            // },
         },
         apns: {
             payload: {
