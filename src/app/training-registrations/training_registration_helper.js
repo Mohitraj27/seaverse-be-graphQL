@@ -622,10 +622,6 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
                 acc[_id] = count;
                 return acc;
             }, {});
-              
-            totalModuleCount = trainingModuleCounts.reduce((sum, { count }) => {
-                return sum + count;
-            }, 0);
 
         }
 
@@ -696,7 +692,7 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
                                 completedModules: 0,
                                 contentData: [],
                                 totalDuration: durationHours,
-                                totalTrainingModules: totalModuleCount || 0,
+                                totalTrainingModules: trainingIdToModuleCount[training],
                                 startDate: null,
                                 endDate: null,
                                 unenrollmentDate: null,
@@ -728,13 +724,11 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
             })
         ).filter(entry => entry !== null);
 
-        console.log('reached here 1');
         if (newProgressEntries.length > 0) {
             console.log('newProgressEntries');
             console.log(JSON.stringify(newProgressEntries, null, 2));
             await OverallTrainingProgress.bulkWrite(newProgressEntries, { session });
         }
-        console.log('reached here 2');
     } catch (error) {
         throw Error(error.message);
     }
