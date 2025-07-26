@@ -5,6 +5,7 @@ const { connectDb, closeDb } = require('../../util/child_process_db_helper');
 const { createTrainingRegistrationBackgroundProcess } = require('../training-registrations/training_registration_helper');
 const { ImportJob } = require('../user/employee/import_job_model');
 const firebase_helper = require('../../util/firebase_helper');
+const { updateCoursesCountAndProgressInElasticSearch } = require('../training-registrations/overall-course-progress/overall_progress_helper');
 
 const QUEUE_URL = process.env.SQS_QUEUE_URL;
 
@@ -72,7 +73,10 @@ async function pollMessages() {
                             // console.log(`Job ${jobId} reserved:`, res);
                                 // console.log(batchedEnrollData,"batchedEnrollData");
                             // ✅ Do your enrollment processing
+                            // console.log(`Processing batchedEnrollData for Job ${message.MessageId} (${jobId})`);
                             await createTrainingRegistrationBackgroundProcess(batchedEnrollData, context);
+
+                            await updateCoursesCountAndProgressInElasticSearch(batchedEnrollData?.users, context?.session);
 
                             // ✅ Mark job as completed
                             // await ImportJob.updateOne(
