@@ -91,7 +91,7 @@ async function pollMessages() {
                                         createdBy: userId,
                                         uploadedBy: userId,
                                         isError: false,
-                                        description: `${insertedUsers?.length ?? 0} user${insertedUsers.length === 1 ? '' : 's'} have been added successfully`,
+                                        description: `${insertedCount ?? 0} user${insertedCount === 1 ? '' : 's'} have been added successfully`,
                                         notificationType: 'BULK_IMPORT_SUCCESS',
                                         status: "SUCCESS",
                                         icon: notificationiconEnum.SUCCESS,
