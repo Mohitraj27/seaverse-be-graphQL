@@ -324,7 +324,7 @@ const performCustomReportGeneration = async ({ input, subscriberId, userId, user
                 type: "REPORT_EXPORT_SUCCESS",
                 payload: {
                     subscriber: subscriberId,
-                    titleValue: `Report Export Complete`,
+                    titleValue: notificationMessage,
                     notificationType: NotificationType.REPORT_EXPORT_SUCCESS,
                     notifyAllAdmin: false,
                     isNotificatonForAdmin: true,
