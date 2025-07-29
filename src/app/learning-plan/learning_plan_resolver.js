@@ -772,7 +772,12 @@ module.exports.queries = {
                                 $match: {
                                     $expr: {
                                         $and: [
-                                            { $in: ["$learningPlanId", "$learningPlan"] },
+                                            {
+                                                $in: [
+                                                    { $toObjectId: "$$learningPlanId" },
+                                                    "$learningPlan",
+                                                ],
+                                            },
                                             { $ne: ["$isEnrolled", false] },
                                         ],
                                     },
