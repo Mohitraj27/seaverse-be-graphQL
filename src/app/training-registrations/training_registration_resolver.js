@@ -289,11 +289,9 @@ module.exports.queries = {
         );
     },
     myCourses: async ({ filterInput = {} }, context) => {
-
         const { userId, subscriberId } = AuthUser(context);
 
         try {
-
             let filterConditions = {
                 user: filterInput?.employeeId ? ObjectId(filterInput.employeeId) : ObjectId(userId),
                 $or: [
@@ -324,9 +322,6 @@ module.exports.queries = {
                 };
             }
 
-            // const twoDaysAgo = new Date();
-            // twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-
             const courses = await OverallTrainingProgress.aggregate([
                 {
                     $lookup: {
@@ -340,14 +335,6 @@ module.exports.queries = {
                 {
                     $match: {
                         ...filterConditions,
-                        // $and: [
-                        //     {
-                        //         $or: [
-                        //             { "training.deletedDate": { $gt: twoDaysAgo } },
-                        //             { "training.deletedDate": { $exists: false } },
-                        //         ]
-                        //     }
-                        // ]
                     },
                 },
                 {
@@ -355,15 +342,39 @@ module.exports.queries = {
                         moduleCount: "$totalTrainingModules"
                     }
                 },
+                // Modified lookup to get count instead of full documents
                 {
                     $lookup: {
                         from: "trainingmodules",
                         let: { trainingId: "$training._id" },
                         pipeline: [
-                            { $match: { $expr: { $eq: ["$training", "$$trainingId"] } } },
+                            {
+                                $match: {
+                                    $expr: {
+                                        $and: [
+                                            { $eq: ["$training", "$$trainingId"] },
+                                            { $ne: ["$isDeleted", true] }  // Exclude deleted modules
+                                        ]
+                                    }
+                                }
+                            },
+                            {
+                                $count: "moduleCount"
+                            }
                         ],
-                        as: "trainingModules",
+                        as: "moduleCountResult",
                     },
+                },
+                // Extract the count from the result
+                {
+                    $addFields: {
+                        actualModuleCount: {
+                            $ifNull: [
+                                { $arrayElemAt: ["$moduleCountResult.moduleCount", 0] },
+                                0
+                            ]
+                        }
+                    }
                 },
                 {
                     $addFields: {
@@ -373,6 +384,12 @@ module.exports.queries = {
                 {
                     $addFields: {
                         timeSpend: { $ifNull: ["$timeSpend", 0] }
+                    }
+                },
+                // Remove the temporary moduleCountResult field
+                {
+                    $project: {
+                        moduleCountResult: 0
                     }
                 },
                 { $sort: { createdAt: -1 } }
@@ -387,7 +404,6 @@ module.exports.queries = {
         } catch (error) {
             throw CustomError(ErrorName.FAILED, error.message);
         }
-
     },
     getSingleCourseDetails: async ({ input }, context) => {
 

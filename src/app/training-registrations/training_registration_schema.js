@@ -73,6 +73,7 @@ module.exports = {
             progressPercentage: String
             isEnrolled: Boolean
             moduleCount: Int
+            actualModuleCount: Int
             totalTrainingModules: Int
             totalDuration: String
             status: String
