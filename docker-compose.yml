@@ -21,22 +21,22 @@ services:
       - app-network
 
   # CSV Worker
-  csv-worker:
-    build:
-      context: .
-      dockerfile: Dockerfile.csvworker
-    restart: unless-stopped
-    networks:
-      - app-network
+  # csv-worker:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile.csvworker
+  #   restart: unless-stopped
+  #   networks:
+  #     - app-network
 
   # CSV Worker
-  video-compression:
-    build:
-      context: .
-      dockerfile: Dockerfile.videocompression
-    restart: unless-stopped
-    networks:
-      - app-network
+  # video-compression:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile.videocompression
+  #   restart: unless-stopped
+  #   networks:
+  #     - app-network
 
 networks:
   app-network:
