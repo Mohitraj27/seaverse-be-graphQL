@@ -273,12 +273,12 @@ module.exports.queries = {
             const decryptedContents = contents?.contents?.map((content) => {
                 const decryptedCreatedBy = {
                     ...content.createdBy,
-                    firstName: content.createdBy.firstName !== 'Unknown' ? decrypt(content.createdBy.firstName) : 'Unknown',
+                    firstName: content.createdBy.firstName !== 'Deleted' ? decrypt(content.createdBy.firstName) : 'Deleted',
                     lastName: content.createdBy.lastName && content.createdBy.lastName !== 'User' ? decrypt(content.createdBy.lastName) : 'User',
                 };
                 const decryptedUpdatedBy = {
                     ...content.updatedBy,
-                    firstName: content.updatedBy.firstName !== 'Unknown' ? decrypt(content.updatedBy.firstName) : 'Unknown',
+                    firstName: content.updatedBy.firstName !== 'Deleted' ? decrypt(content.updatedBy.firstName) : 'Deleted',
                     lastName: content.updatedBy.lastName && content.updatedBy.lastName !== 'User' ? decrypt(content.updatedBy.lastName) : 'User',
                 };
                 return {
