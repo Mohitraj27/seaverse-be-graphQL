@@ -632,7 +632,7 @@ module.exports.mutations = {
         try {
             const { country, email } = input;
             if (!email) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Email is required!");
-            const lowercaseEmail = email.toLowerCase();
+            const lowercaseEmail = encrypt(email.toLowerCase());
             const existingUser = await User.findOne({ email: lowercaseEmail, isDeleted: false });
             if (existingUser) throw CustomError(ErrorName.USER_ALREADY_EXIST, "Email entered already exists!");
 
