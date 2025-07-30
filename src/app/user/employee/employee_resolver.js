@@ -1950,7 +1950,7 @@ module.exports.queries = {
                     messages.push("This email Id already exists in the system with another employee.");
                 }
             } else if (input.civilIdOrPassport) {
-                const empNoExists = await User.findOne({ civilIdOrPassport: { $regex: `^${input.civilIdOrPassport}$`, $options: 'i' }, isDeleted: false });
+                const empNoExists = await User.findOne({ civilIdOrPassport: { $regex: `^${encrypt(input.civilIdOrPassport)}$`, $options: 'i' }, isDeleted: false });
                 if (empNoExists) {
                     messages.push("Employee Id already exists");
                 }
