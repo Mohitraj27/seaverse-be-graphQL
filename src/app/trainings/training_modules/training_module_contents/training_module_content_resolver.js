@@ -168,7 +168,7 @@ module.exports.queries = {
                                 if: { $eq: [{ $size: "$createdByUser" }, 0] },
                                 then: {
                                     _id: "$creatorId",
-                                    firstName: "Unknown",
+                                    firstName: "Deleted",
                                     lastName: "User"
                                 },
                                 else: { $arrayElemAt: ["$createdByUser", 0] }
@@ -179,7 +179,7 @@ module.exports.queries = {
                                 if: { $eq: [{ $size: "$updatedByUser" }, 0] },
                                 then: {
                                     _id: "$updaterId",
-                                    firstName: "Unknown",
+                                    firstName: "Deleted",
                                     lastName: "User"
                                 },
                                 else: { $arrayElemAt: ["$updatedByUser", 0] }

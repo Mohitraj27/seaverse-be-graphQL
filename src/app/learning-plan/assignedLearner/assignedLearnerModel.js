@@ -21,6 +21,7 @@ const learningPlanAssignmentSchema = new Schema(
     },
     { timestamps: true }
 );
+learningPlanAssignmentSchema.index({ learningPlanId: 1, assignedLearnerId: 1 });
 
 const LearningPlanAssignment = mongoose.model('LearningPlanAssignment', learningPlanAssignmentSchema);
 
