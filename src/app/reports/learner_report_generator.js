@@ -23,7 +23,7 @@ const performLearnerReportGeneration = async (payload) => {
 
          const matchStage = [];
         let learnerData = [];
-        let deteledUsersStage = [];
+        let deletedUsersStage = [];
         let matchUsersFromTrainingProgresses = [];
         if (input && Object.keys(input).length > 0) {
             if (!input?.selectVesselOrLearner) input.selectVesselOrLearner = 'LEARNER';
@@ -133,7 +133,7 @@ const performLearnerReportGeneration = async (payload) => {
             }
 
             if (input?.filterInput?.includeDeletedUsers) {
-                deteledUsersStage = [
+                deletedUsersStage = [
                     {
                         $lookup: {
                             from: 'deletedusers',
@@ -157,7 +157,7 @@ const performLearnerReportGeneration = async (payload) => {
                     },
                 ];
             } else {
-                deteledUsersStage = [
+                deletedUsersStage = [
                     {
                         $match: {
                             $and: [
@@ -271,7 +271,7 @@ const performLearnerReportGeneration = async (payload) => {
 
             const singleLearnerEnrollmentPipeline = singleLearnerEnrollmentReportQuery({
                 matchStage,
-                deteledUsersStage,
+                deletedUsersStage,
                 matchUsers,
                 matchUsersFromTrainingProgresses,
                 sortingStage,
