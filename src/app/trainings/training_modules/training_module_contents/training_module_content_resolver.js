@@ -84,212 +84,221 @@ const uploadPpt = async (file) => {
 
 module.exports.queries = {
     getTrainingModuleContents: async ({ pageInput, search, contentStatus, recentlyModified, contentType, useStatus }, context) => {
-        const { subscriberId } = AuthUser(context);
-        const filterConditions = {
-            subscriber: subscriberId,
-            isUpdated: { $ne: true },
-            isDeleted: { $ne: true },
-        };
-        if (contentStatus) {
-            filterConditions.contentStatus = contentStatus;
-        }
-        if (contentType && contentType.length > 0) {
-            filterConditions.contentType = { $in: contentType };
-        }
-        if (recentlyModified) {
-            filterConditions.modifiedDate = { $gte: new Date(new Date() - 24 * 60 * 60 * 1000) };
-        }
 
-        if (search) {
-            // const escapedSearch = escapeRegex(search);
-            filterConditions['title.value'] = { $regex: search?.trim(), $options: "i" };
-        }
-        const totalCountBeforePagination = await TrainingModuleContent.countDocuments(filterConditions);
-        const skip = pageInput?.skip ?? 0;
-        const limitContent = pageInput?.limit ?? 50;
+        try {
 
-        const contents = await TrainingModuleContent.aggregatePaginate(
-            TrainingModuleContent.aggregate([
-                { $match: filterConditions },
-                {
-                    $lookup: {
-                        from: "questions",
-                        localField: "quiz",
-                        foreignField: "_id",
-                        as: "quiz",
-                        pipeline: [
-                            { $project: { _id: 1, question: 1, questionType: 1, choices: 1, answerKey: 1, allowMultipleAnswers: 1, points: 1, negativePoints: 1 } },
-                            {
-                                $lookup: {
-                                    from: "answerchoices",
-                                    localField: "choices",
-                                    foreignField: "_id",
-                                    as: "choices",
-                                    pipeline: [
-                                        { $project: { _id: 1, question: 1, choice: 1 } }
-                                    ]
-                                }
-                            }
-                        ],
-                    },
-                },
-                {
-                    $addFields: {
-                        creatorId: "$createdBy",
-                        updaterId: "$updatedBy"
-                    }
-                },
-                {
-                    $lookup: {
-                        from: "users",
-                        localField: "createdBy",
-                        foreignField: "_id",
-                        as: "createdByUser",
-                        pipeline: [
-                            { $project: { _id: 1, firstName: 1, lastName: 1 } }
-                        ]
-                    },
-                },
-                {
-                    $lookup: {
-                        from: "users",
-                        localField: "updatedBy",
-                        foreignField: "_id",
-                        as: "updatedByUser",
-                        pipeline: [
-                            { $project: { _id: 1, firstName: 1, lastName: 1 } }
-                        ]
-                    },
-                },
-                {
-                    $addFields: {
-                        createdBy: {
-                            $cond: {
-                                if: { $eq: [{ $size: "$createdByUser" }, 0] },
-                                then: {
-                                    _id: "$creatorId",
-                                    firstName: "Deleted",
-                                    lastName: "User"
-                                },
-                                else: { $arrayElemAt: ["$createdByUser", 0] }
-                            }
-                        },
-                        updatedBy: {
-                            $cond: {
-                                if: { $eq: [{ $size: "$updatedByUser" }, 0] },
-                                then: {
-                                    _id: "$updaterId",
-                                    firstName: "Deleted",
-                                    lastName: "User"
-                                },
-                                else: { $arrayElemAt: ["$updatedByUser", 0] }
-                            }
-                        }
-                    }
-                },
-                {
-                    $project: {
-                        createdByUser: 0,
-                        updatedByUser: 0,
-                        creatorId: 0,
-                        updaterId: 0
-                    }
-                },
-                {
-                    $lookup: {
-                        from: "trainingcontentbridges",
-                        localField: "_id",
-                        foreignField: "trainingContent",
-                        as: "courseUsage",
-                        pipeline: [
-                            {
-                                $match: {
-                                    isDeleted: false
-                                }
-                            },
-                            {
-                                $lookup: {
-                                    from: "trainings",
-                                    localField: "training",
-                                    foreignField: "_id",
-                                    as: "trainingData",
-                                    pipeline: [
-                                        {
-                                            $match: {
-                                                isDeleted: false,
-                                                isActive: true
-                                            }
-                                        }
-                                    ]
-                                }
-                            },
-                            {
-                                $unwind: {
-                                    path: "$trainingData",
-                                    preserveNullAndEmptyArrays: false
-                                }
-                            }
-                        ]
-                    },
-                },
-                {
-                    $addFields: {
-                        featuredInCourses: { $size: "$courseUsage" }
-                    },
-                },
-                ...(useStatus
-                    ? [{
-                        $match: {
-                            featuredInCourses: useStatus === "IN_USE" ? { $gt: 0 } : 0
-                        }
-                    }]
-                    : []
-                )
-            ]),
-            {
-                offset: skip,
-                limit: limitContent,
-                sort: { updatedAt: -1 },
-                customLabels: {
-                    docs: "contents",
-                    totalDocs: "totalCount",
-                    offset: "skip",
-                },
-                pagination: limitContent !== 0,
-                allowDiskUse: true,
+
+            const { subscriberId } = AuthUser(context);
+            const filterConditions = {
+                subscriber: subscriberId,
+                isUpdated: { $ne: true },
+                isDeleted: { $ne: true },
+            };
+            if (contentStatus) {
+                filterConditions.contentStatus = contentStatus;
             }
-        );
+            if (contentType && contentType.length > 0) {
+                filterConditions.contentType = { $in: contentType };
+            }
+            if (recentlyModified) {
+                filterConditions.modifiedDate = { $gte: new Date(new Date() - 24 * 60 * 60 * 1000) };
+            }
 
-        if (contents.contents.length === 0) {
+            if (search) {
+                // const escapedSearch = escapeRegex(search);
+                filterConditions['title.value'] = { $regex: search?.trim(), $options: "i" };
+            }
+            const totalCountBeforePagination = await TrainingModuleContent.countDocuments(filterConditions);
+            const skip = pageInput?.skip ?? 0;
+            const limitContent = pageInput?.limit ?? 50;
+
+            const contents = await TrainingModuleContent.aggregatePaginate(
+                TrainingModuleContent.aggregate([
+                    { $match: filterConditions },
+                    {
+                        $lookup: {
+                            from: "questions",
+                            localField: "quiz",
+                            foreignField: "_id",
+                            as: "quiz",
+                            pipeline: [
+                                { $project: { _id: 1, question: 1, questionType: 1, choices: 1, answerKey: 1, allowMultipleAnswers: 1, points: 1, negativePoints: 1 } },
+                                {
+                                    $lookup: {
+                                        from: "answerchoices",
+                                        localField: "choices",
+                                        foreignField: "_id",
+                                        as: "choices",
+                                        pipeline: [
+                                            { $project: { _id: 1, question: 1, choice: 1 } }
+                                        ]
+                                    }
+                                }
+                            ],
+                        },
+                    },
+                    {
+                        $addFields: {
+                            creatorId: "$createdBy",
+                            updaterId: "$updatedBy"
+                        }
+                    },
+                    {
+                        $lookup: {
+                            from: "users",
+                            localField: "createdBy",
+                            foreignField: "_id",
+                            as: "createdByUser",
+                            pipeline: [
+                                { $project: { _id: 1, firstName: 1, lastName: 1 } }
+                            ]
+                        },
+                    },
+                    {
+                        $lookup: {
+                            from: "users",
+                            localField: "updatedBy",
+                            foreignField: "_id",
+                            as: "updatedByUser",
+                            pipeline: [
+                                { $project: { _id: 1, firstName: 1, lastName: 1 } }
+                            ]
+                        },
+                    },
+                    {
+                        $addFields: {
+                            createdBy: {
+                                $cond: {
+                                    if: { $eq: [{ $size: "$createdByUser" }, 0] },
+                                    then: {
+                                        _id: "$creatorId",
+                                        firstName: "Deleted",
+                                        lastName: "User"
+                                    },
+                                    else: { $arrayElemAt: ["$createdByUser", 0] }
+                                }
+                            },
+                            updatedBy: {
+                                $cond: {
+                                    if: { $eq: [{ $size: "$updatedByUser" }, 0] },
+                                    then: {
+                                        _id: "$updaterId",
+                                        firstName: "Deleted",
+                                        lastName: "User"
+                                    },
+                                    else: { $arrayElemAt: ["$updatedByUser", 0] }
+                                }
+                            }
+                        }
+                    },
+                    {
+                        $project: {
+                            createdByUser: 0,
+                            updatedByUser: 0,
+                            creatorId: 0,
+                            updaterId: 0
+                        }
+                    },
+                    {
+                        $lookup: {
+                            from: "trainingcontentbridges",
+                            localField: "_id",
+                            foreignField: "trainingContent",
+                            as: "courseUsage",
+                            pipeline: [
+                                {
+                                    $match: {
+                                        isDeleted: false
+                                    }
+                                },
+                                {
+                                    $lookup: {
+                                        from: "trainings",
+                                        localField: "training",
+                                        foreignField: "_id",
+                                        as: "trainingData",
+                                        pipeline: [
+                                            {
+                                                $match: {
+                                                    isDeleted: false,
+                                                    isActive: true
+                                                }
+                                            }
+                                        ]
+                                    }
+                                },
+                                {
+                                    $unwind: {
+                                        path: "$trainingData",
+                                        preserveNullAndEmptyArrays: false
+                                    }
+                                }
+                            ]
+                        },
+                    },
+                    {
+                        $addFields: {
+                            featuredInCourses: { $size: "$courseUsage" }
+                        },
+                    },
+                    ...(useStatus
+                        ? [{
+                            $match: {
+                                featuredInCourses: useStatus === "IN_USE" ? { $gt: 0 } : 0
+                            }
+                        }]
+                        : []
+                    )
+                ]),
+                {
+                    offset: skip,
+                    limit: limitContent,
+                    sort: { updatedAt: -1 },
+                    customLabels: {
+                        docs: "contents",
+                        totalDocs: "totalCount",
+                        offset: "skip",
+                    },
+                    pagination: limitContent !== 0,
+                    allowDiskUse: true,
+                }
+            );
+
+            if (contents.contents.length === 0) {
+                return {
+                    contents: [],
+                    totalCount: 0,
+                };
+            }
+            const decryptedContents = contents?.contents?.map((content) => {
+                const decryptedCreatedBy = {
+                    ...content.createdBy,
+                    firstName: content.createdBy.firstName !== 'Unknown' ? decrypt(content.createdBy.firstName) : 'Unknown',
+                    lastName: content.createdBy.lastName && content.createdBy.lastName !== 'User' ? decrypt(content.createdBy.lastName) : 'User',
+                };
+                const decryptedUpdatedBy = {
+                    ...content.updatedBy,
+                    firstName: content.updatedBy.firstName !== 'Unknown' ? decrypt(content.updatedBy.firstName) : 'Unknown',
+                    lastName: content.updatedBy.lastName && content.updatedBy.lastName !== 'User' ? decrypt(content.updatedBy.lastName) : 'User',
+                };
+                return {
+                    ...content,
+                    createdBy: decryptedCreatedBy,
+                    updatedBy: decryptedUpdatedBy,
+                };
+            });
+
+
+
             return {
-                contents: [],
-                totalCount: 0,
+                contents: decryptedContents,
+                totalCount: totalCountBeforePagination,
             };
         }
-        const decryptedContents = contents?.contents?.map((content) => {
-            const decryptedCreatedBy = {
-                ...content.createdBy,
-                firstName: content.createdBy.firstName !== 'Unknown' ? decrypt(content.createdBy.firstName) : 'Unknown',
-                lastName: content.createdBy.lastName && content.createdBy.lastName !== 'User' ? decrypt(content.createdBy.lastName) : 'User',
-            };
-            const decryptedUpdatedBy = {
-                ...content.updatedBy,
-                firstName: content.updatedBy.firstName !== 'Unknown' ? decrypt(content.updatedBy.firstName) : 'Unknown',
-                lastName: content.updatedBy.lastName && content.updatedBy.lastName !== 'User' ? decrypt(content.updatedBy.lastName) : 'User',
-            };
-            return {
-                ...content,
-                createdBy: decryptedCreatedBy,
-                updatedBy: decryptedUpdatedBy,
-            };
-        });
-
-
-
-        return {
-            contents: decryptedContents,
-            totalCount: totalCountBeforePagination,
-        };
+        catch (error) {
+            console.error("Error in getTrainingModuleContents:", error);
+            throw CustomError(ErrorName.FAILED, error.message);
+        }
     },
     getTrainingModuleContent: async ({ id }, context) => {
         const { subscriberId } = AuthUser(context);
@@ -1589,7 +1598,7 @@ module.exports.mutations = {
             isUpdated = true;
             isMediaUpdated = true;
         }
-      
+
         if (file && (file.endsWith('.pptx') || file.endsWith('.ppt'))) {
 
             const fetchedFile = await AwsHelper.fetchFile(file);
@@ -1663,6 +1672,8 @@ module.exports.mutations = {
             updateData.files = [{
                 url: file,
             }];
+            isUpdated = true;
+            isMediaUpdated = true;
         }
 
 
