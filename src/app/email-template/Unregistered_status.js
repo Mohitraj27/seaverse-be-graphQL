@@ -45,33 +45,33 @@ function Unregistered_Status(user) {
                                 <tr>
                                     <td
                                         style="font-family: 'Inter', sans-serif; font-weight: 700; font-size: 24px; line-height: 36px; color: #121A26;">
-                                        Unregistered Status
+                                        SeaVerse Account Access Restricted
                                     </td>
                                 </tr>
                                 <tr>
                                     <td
                                         style="padding: 24px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; line-height: 24px; color: #384860;">
-                                        Hello <strong>${user.firstName}</strong> 👋
+                                        Dear <strong>${user.firstName}</strong> 👋
                                     </td>
                                 </tr>
                                 <tr>
                                     <td
                                         style="padding: 0 0 24px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; line-height: 24px; color: #384860;">
-                                        Your status is currently marked as Unregistered. This limits your access to features like the dashboard and courses.
+                                        Your SeaVerse LMS account has been marked as unregistered by the administrator. As a result, your access to the platform has been restricted.
                                     </td>
                                 </tr>
                                 <tr>
                                     <td
                                         style="padding: 0 0 24px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; line-height: 24px; color: #384860;">
-                                        Please contact your administrator to update your status and gain full access to the platform.
+                                        For assistance or to request reactivation, please contact your administrator at support@thesealearning.com.
                                     </td>
                                 </tr>
                                 <tr>
                                     <td
                                         style="padding: 0 0 24px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; color: #384860;">
-                                        <p>Thanks</p>
+                                        <p>Thank you</p>
                                         <p></p>
-                                        <p>Seaverse Team</p>
+                                        <p>SeaVerse LMS Team</p>
                                     </td>
                                 </tr>
                             </table>
