@@ -45,27 +45,39 @@ function registered_status(user) {
                                 <tr>
                                     <td
                                         style="font-family: 'Inter', sans-serif; font-weight: 700; font-size: 24px; line-height: 36px; color: #121A26;">
-                                        Registered Status
+                                        You're Now Registered!
                                     </td>
                                 </tr>
                                 <tr>
                                     <td
                                         style="padding: 24px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; line-height: 24px; color: #384860;">
-                                        Hello <strong>${user.firstName}</strong> 👋
+                                        Dear <strong>${user.firstName}</strong> 👋
                                     </td>
                                 </tr>
                                 <tr>
                                     <td
                                         style="padding: 0 0 24px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; line-height: 24px; color: #384860;">
-                                        Your status is currently marked as Registered. 
+                                        Welcome aboard!
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td
+                                        style="padding: 0 0 24px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; line-height: 24px; color: #384860;">
+                                        Your SeaVerse LMS account has been successfully registered. You can now log in and start exploring your courses. 
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td
+                                        style="padding: 0 0 24px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; line-height: 24px; color: #384860;">
+                                        If you have any questions, feel free to reach out to us at support@thesealearning.com.
                                     </td>
                                 </tr>
                                 <tr>
                                     <td
                                         style="padding: 0 0 24px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; color: #384860;">
-                                        <p>Thanks</p>
+                                        <p>Thank you,</p>
                                         <p></p>
-                                        <p>Seaverse Team</p>
+                                        <p>SeaVerse LMS Team</p>
                                     </td>
                                 </tr>
                             </table>
