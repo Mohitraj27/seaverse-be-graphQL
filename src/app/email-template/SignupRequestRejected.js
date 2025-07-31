@@ -99,6 +99,7 @@ function rejectionEmailTemplate(data) {
               
               <p class="message">
                   Thank you for registering on SeaVerse LMS. After reviewing your application, we regret to inform you that your account registration has not been approved.
+                  Your data will be automatically deleted from our system within the next 7 days.
               </p>
               
               <p class="message">
