@@ -17,7 +17,7 @@ module.exports = {
             subscriberId: user.subscriber?._id ?? user.subscriber,
         };
 
-        const accessToken = JwtHelper.sign(tokenPayload, process.env.APP_SECRET, { expiresIn: "5m" });
+        const accessToken = JwtHelper.sign(tokenPayload, process.env.APP_SECRET, { expiresIn: "9h" });
         const refreshToken = JwtHelper.sign({ userId: user._id }, process.env.REFRESH_SECRET, { expiresIn: "7d" });
 
         return {
