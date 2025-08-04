@@ -866,7 +866,7 @@ const sendCourseMailsWithRetry = async (emailBatch, retryCount = 0) => {
         const emailPromises = emailBatch.map(async (email) => {
             const { to, subject, html } = email;
             if (to?.trim()?.length) {
-                const result = await AwsHelper.sendEmail({ receiverEmail: to, subject: subject, htmlContent: html });
+                const result = await sendEmail({ receiverEmail: to, subject: subject, htmlContent: html });
                 console.log('data recived',result);
                 return result;
             } else {
@@ -917,9 +917,9 @@ const sendCourseEmailBulk = async (action = 'ENROLL') => {
                     default:
                         throw new Error('Unknown action');
                 }
+                console.log("-----emailsToSend----- ",email.email);
                 return { to: email.email, subject: email.subject, html };
             });
-
             // Send emails (use sendWithRetry logic from existing code)
             const batchResults = await sendCourseMailsWithRetry(emailsToSend);
             results = results.concat(batchResults);
