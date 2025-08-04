@@ -85,10 +85,49 @@ const { httpsServer, httpServer, apolloServer } = (() => {
         uploads: false,
         subscriptions: { keepAlive: 15000 },
         formatError: error => FormatError(error),
-        formatResponse: (response) => {
+        formatResponse: (response, { request, context }) => {
+            // Handle errors and set HTTP status code
             if (response.errors && response.errors.length > 0) {
+                // Get the first error's status code (you can modify this logic as needed)
+                const firstError = response.errors[0];
+                let statusCode = 500; // default status code
+
+                // Check if the error has a statusCode property
+                if (firstError.statusCode) {
+                    statusCode = firstError.statusCode;
+                } else if (firstError.extensions && firstError.extensions.statusCode) {
+                    statusCode = firstError.extensions.statusCode;
+                } else if (firstError.extensions && firstError.extensions.code) {
+                    // Map common GraphQL error codes to HTTP status codes
+                    switch (firstError.extensions.code) {
+                        case 'UNAUTHORIZED':
+                        case 'UNAUTHENTICATED':
+                            statusCode = 401;
+                            break;
+                        case 'FORBIDDEN':
+                            statusCode = 403;
+                            break;
+                        case 'BAD_USER_INPUT':
+                        case 'VALIDATION_ERROR':
+                            statusCode = 400;
+                            break;
+                        case 'NOT_FOUND':
+                            statusCode = 404;
+                            break;
+                        default:
+                            statusCode = 500;
+                    }
+                }
+
+                // Set the HTTP status code
+                if (request && request.http && request.http.res) {
+                    request.http.res.status(statusCode);
+                }
+
                 return { errors: response.errors };
             }
+
+            // Transform names for successful responses
             if (response.data) {
                 transformNamesDeep(response.data);
             }
@@ -100,6 +139,74 @@ const { httpsServer, httpServer, apolloServer } = (() => {
                 ...(await VerifyToken(connection ? connection.context : req.headers)),
             };
         },
+        plugins: [
+            // Plugin to ensure HTTP status codes are properly set
+            {
+                requestDidStart() {
+                    return {
+                        willSendResponse(requestContext) {
+                            const { response, request } = requestContext;
+
+                            if (response.errors && response.errors.length > 0) {
+                                const firstError = response.errors[0];
+                                let statusCode = 500;
+
+                                // Extract status code from error
+                                if (firstError.statusCode) {
+                                    statusCode = firstError.statusCode;
+                                } else if (firstError.extensions && firstError.extensions.statusCode) {
+                                    statusCode = firstError.extensions.statusCode;
+                                } else if (firstError.extensions && firstError.extensions.code) {
+                                    switch (firstError.extensions.code) {
+                                        case 'UNAUTHORIZED':
+                                        case 'UNAUTHENTICATED':
+                                            statusCode = 401;
+                                            break;
+                                        case 'FORBIDDEN':
+                                            statusCode = 403;
+                                            break;
+                                        case 'BAD_USER_INPUT':
+                                        case 'VALIDATION_ERROR':
+                                            statusCode = 400;
+                                            break;
+                                        case 'NOT_FOUND':
+                                            statusCode = 404;
+                                            break;
+                                        default:
+                                            statusCode = 500;
+                                    }
+                                } else if (firstError.type) {
+                                    // Handle your custom error format
+                                    switch (firstError.type) {
+                                        case 'UNAUTHORIZED':
+                                        case 'UNAUTHENTICATED':
+                                            statusCode = 401;
+                                            break;
+                                        case 'FORBIDDEN':
+                                            statusCode = 403;
+                                            break;
+                                        case 'BAD_USER_INPUT':
+                                        case 'VALIDATION_ERROR':
+                                            statusCode = 400;
+                                            break;
+                                        case 'NOT_FOUND':
+                                            statusCode = 404;
+                                            break;
+                                        default:
+                                            statusCode = 500;
+                                    }
+                                }
+
+                                // Set HTTP status code
+                                if (response.http) {
+                                    response.http.status = statusCode;
+                                }
+                            }
+                        }
+                    };
+                }
+            }
+        ]
     });
 
     apolloServer.applyMiddleware({ app: ExpressServer, cors: false });
@@ -130,6 +237,7 @@ const elasticConnect = async () => {
     }
 };
 elasticConnect();
+
 // setInterval(async () => {
 //     console.log('Checking Redis connection...');
 //     if (!redis.status || redis.status !== 'ready') {
@@ -143,7 +251,6 @@ elasticConnect();
 //         console.error('❌ Redis ping failed:', err);
 //     }
 // }, 2000);
-
 
 // ExpressServer.get('/redis-health-check', async (req, res) => {
 //     try {
