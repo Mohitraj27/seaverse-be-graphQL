@@ -2312,6 +2312,20 @@ const changeRegisterEmployees = async ({ input }, context) => {
             if (learningPlans?.length > 0) {
                 const filteredPlans = await filterLearningPlans(learningPlans, conditions, context);
             }
+/* 
+            await NotificationHelper.createNotificationhelper({
+                subscriber: subscriberId,
+                titleValue: `Registered Successfully`,
+                messageValue: `You're now successfully registered.`,
+                notificationType: NotificationType.EMPLOYEE_UPDATED,
+                notifyAllAdmin: false,
+                isNotificatonForAdmin: false,
+                notifiers: input?.users ?? [],
+                status: "SUCCESS",
+                icon: notificationiconEnum.SUCCESS,
+                createdBy: userInfo,
+            });
+ */
         } else if (input.type === "Unregistered") {
             const alreadyUnregisteredUsers = users.filter((user) => !user.isRegistered);
             if (alreadyUnregisteredUsers.length > 0) {
@@ -2346,27 +2360,30 @@ const changeRegisterEmployees = async ({ input }, context) => {
                 const users = await User.find({
                     _id: { $in: input.users },
                     subscriber: subscriberId,
-                });
-                const notificationsData = users.map((user) => ({
+                }).select('firstName lastName email isRegistered');
+                const notificationsData = users.map(user => ({
                     subscriber: subscriberId,
                     employee: { user },
                     updatedBy: userInfo,
                     type: input.type,
                 }));
                 // await EmployeeHelper.notifyEmployeeStatusChange(notificationsData);
-                /* Ticket No SEAV-91
+/* 
                 for (const user of users) {
                     const emailContent =
                         input.type === "Registered"
-                            ? registered_status({ firstName: user.firstName })
-                            : Unregistered_Status({ firstName: user.firstName });
+                            ? registered_status({ firstName: decrypt(user.firstName) })
+                            : Unregistered_Status({ firstName: decrypt(user.firstName) });
+                    const subjectMessage = input.type === "Registered" ? "You're Now Registered!" : "SeaVerse Account Access Restricted";
+                    console.log("user email: ", user.email,decrypt(user?.email));
                     await SendEmail({
-                        receiverEmail: user.email,
-                        subject: `Current Status Update: ${input.type}`,
+                        receiverEmail: decrypt(user?.email),
+                        subject: subjectMessage,
                         htmlContent: emailContent,
                     });
                 }
-                */
+ */
+                
                 return { count: updateUsers.nModified, success: true };
             } else {
                 return { count: updateUsers.nModified, success: false };
@@ -2375,6 +2392,7 @@ const changeRegisterEmployees = async ({ input }, context) => {
             throw CustomError(ErrorName.FAILED_TO_CHANGE_REGISTER_STATUS, "Failed to change Register Status");
         }
     } catch (error) {
+        console.log(error);
         throw CustomError(ErrorName.FAILED_TO_CHANGE_REGISTER_STATUS, error.message);
     }
 };
@@ -3455,12 +3473,18 @@ module.exports.mutations = {
                 return changes;
             }, {});
 
-            // EmployeeHelper.sendNotificationOnCRUD({
-            //     subscriber: subscriberId,
-            //     employee: savedEmployee,
-            //     createdBy: userInfo,
-            //     action: "UPDATED",
-            // });
+             await NotificationHelper.createNotificationhelper({
+                 subscriber: subscriberId,
+                 titleValue: `Profile Updated Successfully`,
+                 messageValue: `Your profile details have been successfully updated on Seaverse.`,
+                 notificationType: NotificationType.EMPLOYEE_UPDATED,
+                 notifyAllAdmin: false,
+                 isNotificatonForAdmin: false,
+                 notifiers: [id],
+                 status: "SUCCESS",
+                 icon: notificationiconEnum.SUCCESS,
+                 createdBy: userInfo,
+             });
 
             return savedEmployee;
 
