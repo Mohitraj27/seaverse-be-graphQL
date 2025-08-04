@@ -866,7 +866,9 @@ const sendCourseMailsWithRetry = async (emailBatch, retryCount = 0) => {
         const emailPromises = emailBatch.map(async (email) => {
             const { to, subject, html } = email;
             if (to?.trim()?.length) {
-                return await AWS_HELPER.sendEmail({ receiverEmail: to, subject: subject, htmlContent: html });
+                const result = await AwsHelper.sendEmail({ receiverEmail: to, subject: subject, htmlContent: html });
+                console.log('data recived',result);
+                return result;
             } else {
                 return Promise.reject(new Error("Invalid email address"));
             }
