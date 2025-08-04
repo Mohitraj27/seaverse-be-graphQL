@@ -2312,7 +2312,7 @@ const changeRegisterEmployees = async ({ input }, context) => {
             if (learningPlans?.length > 0) {
                 const filteredPlans = await filterLearningPlans(learningPlans, conditions, context);
             }
-
+/* 
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Registered Successfully`,
@@ -2325,7 +2325,7 @@ const changeRegisterEmployees = async ({ input }, context) => {
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             });
-
+ */
         } else if (input.type === "Unregistered") {
             const alreadyUnregisteredUsers = users.filter((user) => !user.isRegistered);
             if (alreadyUnregisteredUsers.length > 0) {
@@ -2368,6 +2368,7 @@ const changeRegisterEmployees = async ({ input }, context) => {
                     type: input.type,
                 }));
                 // await EmployeeHelper.notifyEmployeeStatusChange(notificationsData);
+/* 
                 for (const user of users) {
                     const emailContent =
                         input.type === "Registered"
@@ -2381,6 +2382,7 @@ const changeRegisterEmployees = async ({ input }, context) => {
                         htmlContent: emailContent,
                     });
                 }
+ */
                 
                 return { count: updateUsers.nModified, success: true };
             } else {
