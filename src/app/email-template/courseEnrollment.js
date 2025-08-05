@@ -111,8 +111,7 @@ function courseEnrollment({ firstName, courses, isAdmin }) {
 
 
                            <tr>
-                                    <td>
-                                        <a href="${isAdmin ? `${process.env.APP_URL}/courses?learner=true` : `${process.env.APP_URL}/learner`}" style="text-decoration: none;">
+<td style="padding: 32px 40px; text-align: center; display: flex; justify-content: center;">                                        <a href="${isAdmin ? `${process.env.APP_URL}/courses?learner=true` : `${process.env.APP_URL}/learner`}" style="text-decoration: none;">
                                             <table border="0" cellpadding="0" cellspacing="0">
                                                 <tr>
                                                     <td align="center" bgcolor="#1E3A76" style="border-radius: 6px;">
