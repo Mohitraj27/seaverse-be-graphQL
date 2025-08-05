@@ -144,6 +144,7 @@ const searchEmployeesFromElastic = async ({
   sortOrder = "asc",
   skip = 0,
   limit = 10,
+  reports = false
 }) => {
   const must = [];
   const mustNot = [];
@@ -153,19 +154,47 @@ const searchEmployeesFromElastic = async ({
   const encryptedLower = encrypt(searchTerm.toLowerCase());
   const encryptedUpper = encrypt(searchTerm.toUpperCase());
 
-  must.push({
-    bool: {
-      should: [
-        { match_phrase_prefix: { firstName: encryptedLower } },
-        { match_phrase_prefix: { lastName: encryptedLower } },
-        { match_phrase_prefix: { email: encryptedLower } },
-        { match_phrase_prefix: { civilIdOrPassport: encryptedUpper } },
-        { match_phrase_prefix: { designation: searchTerm } },
-        { match_phrase_prefix: { vesselName: searchTerm } },
-      ],
-      minimum_should_match: 1,
-    },
-  });
+  // must.push({
+  //   bool: {
+  //     should: [
+  //       { match_phrase_prefix: { firstName: encryptedLower } },
+  //       { match_phrase_prefix: { lastName: encryptedLower } },
+  //       { match_phrase_prefix: { email: encryptedLower } },
+  //       { match_phrase_prefix: { civilIdOrPassport: encryptedUpper } },
+  //       { match_phrase_prefix: { designation: searchTerm } },
+  //       { match_phrase_prefix: { vesselName: searchTerm } },
+  //     ],
+  //     minimum_should_match: 1,
+  //   },
+  // });
+
+  if (reports) {
+    must.push({
+      bool: {
+        should: [
+          { match_phrase_prefix: { firstName: encryptedLower } },
+          { match_phrase_prefix: { lastName: encryptedLower } },
+          { match_phrase_prefix: { email: encryptedLower } },
+          { match_phrase_prefix: { civilIdOrPassport: encryptedUpper } },
+          { match_phrase_prefix: { designation: searchTerm } },
+          { match_phrase_prefix: { vesselName: searchTerm } },
+        ],
+        minimum_should_match: 1,
+      },
+    });
+  } else {
+    must.push({
+      bool: {
+        should: [
+          { match_phrase_prefix: { firstName: encryptedLower } },
+          { match_phrase_prefix: { lastName: encryptedLower } },
+          { match_phrase_prefix: { email: encryptedLower } },
+          { match_phrase_prefix: { civilIdOrPassport: encryptedUpper } },
+        ],
+        minimum_should_match: 1,
+      },
+    });
+  }
 }
 
 
