@@ -107,20 +107,23 @@ function courseEnrollment({ firstName, courses, isAdmin }) {
                               </td>
                           </tr>
                           ${coursesHTML}
-                          <tr>
-                              <td style="padding: 13px 0 40px 0;" class="content-inner">
-                                  <table border="0" cellpadding="0" cellspacing="0" width="100%">
-                                      <tr>
-                                          <td style="text-align: center;">
-                                              <a href="${isAdmin ? `${process.env.APP_URL}/courses?learner=true` : `${process.env.APP_URL}/learner`}"
-                                                  style="font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 500; line-height: 24px; color: #FFFFFF; text-decoration: none; display: inline-block; padding: 12px 24px; border-radius: 6px; background-color: #1E3A76;">
-                                                  Start Training
-                                              </a>
-                                          </td>
-                                      </tr>
-                                  </table>
-                              </td>
-                          </tr>
+                       
+
+
+                           <tr>
+                                    <td>
+                                        <a href="${isAdmin ? `${process.env.APP_URL}/courses?learner=true` : `${process.env.APP_URL}/learner`}" style="text-decoration: none;">
+                                            <table border="0" cellpadding="0" cellspacing="0">
+                                                <tr>
+                                                    <td align="center" bgcolor="#1E3A76" style="border-radius: 6px;">
+                                                        <a href="${isAdmin ? `${process.env.APP_URL}/courses?learner=true` : `${process.env.APP_URL}/learner`}" target="_blank"
+                                                            style="font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 500; line-height: 24px; color: #FFFFFF; text-decoration: none; display: inline-block; padding: 12px 24px; border-radius: 6px;">Start Training</a>
+                                                    </td>
+                                                </tr>
+                                            </table>
+                                        </a>
+                                    </td>
+                                </tr>
                       </table>
                   </td>
               </tr>
