@@ -229,6 +229,7 @@ const getMainLearnersReport = async ({ input }, context) => {
             sortOrder: sortElasticOrder,
             skip: skip,
             limit: limit,
+            reports: true,
         });
         const decryptedData = employeesData?.employees?.map(user => ({
             coursesCount: user.enrolledCourses ?? 0,
