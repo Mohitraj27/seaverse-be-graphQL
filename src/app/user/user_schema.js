@@ -50,6 +50,7 @@ module.exports = {
             isEmailNotification: Boolean
             isPushNotification: Boolean
             country: String
+            lastUnregisteredAt: String
         }
         type TermsAndConditions {
             _id: ID
