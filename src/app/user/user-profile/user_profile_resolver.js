@@ -651,15 +651,14 @@ module.exports.mutations = {
                     }
                 );
             } catch (error) {
-                throw CustomError(ErrorName.FAILED);
+                throw CustomError(ErrorName.FAILED, error.message);
             }
 
             if (updateUser) {
                 return "Password updated successfully!";
-            } else {
-                throw CustomError(ErrorName.FAILED);
-            }
+            } 
         } catch (error) {
+            console.error(error);
             throw CustomError(ErrorName.FAILED, `${error.message}`);
         }
     },
