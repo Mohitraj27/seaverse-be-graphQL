@@ -442,7 +442,7 @@ const performLearnerReportGeneration = async (payload) => {
             const singleLearnerModulePipeline = singleLearnerModuleReportQuery({
                 matchUsers,
                 matchStage,
-                deteledUsersStage,
+                deletedUsersStage,
             });
 
             const learnersData = await OverallTrainingProgress.aggregate(singleLearnerModulePipeline);
@@ -619,9 +619,11 @@ const performLearnerReportGeneration = async (payload) => {
         const notificationData = {
             subscriber: subscriberId,
             titleValue: `Learners Report Export Failed`,
-            messageValue: `An error occurred while generating the learners report: ${err.message}`,
+            messageValue: `An error occurred while generating the learners report`,
             notificationType: NotificationType.REPORT_EXPORT_FAILED,
             notifiers: [userInfo._id],
+            isNotificatonForAdmin: true,
+            notifyAllAdmin: false,
             status: 'FAILED',
             icon: notificationiconEnum.ERROR,
             createdBy: userInfo,
