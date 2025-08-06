@@ -595,6 +595,7 @@ module.exports.mutations = {
         }
     },
     newPasswordAfterReset: async ({ input }, context) => {
+        console.log(input,"input in newPasswordAfterReset");
         try {
             let userId = null;
 
