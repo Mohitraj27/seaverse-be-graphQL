@@ -369,6 +369,9 @@ module.exports.mutations = {
             if (!vessel) {
                 throw new CustomError(ErrorName.NOT_FOUND, 'Vessel not found.');
             }
+            if(vessel && input.name?.toLowerCase()===vessel.name?.toLowerCase()){
+                throw CustomError(ErrorName.ALREADY_EXIST, 'Vessel name already exists.');
+            }
 
             if (!input) throw CustomError(ErrorName.FIELD_REQUIRED, 'Input is required.');
             if (!input.name) throw CustomError(ErrorName.FIELD_REQUIRED, 'Name is required.');
