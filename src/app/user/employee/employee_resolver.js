@@ -2333,7 +2333,7 @@ const changeRegisterEmployees = async ({ input }, context) => {
             updateUsers = await User.updateMany(
                 { _id: { $in: input.users } },
                 {
-                    $set: { isRegistered: false }
+                    $set: { isRegistered: false, lastUnregisteredAt: new Date() },
                 }
             );
 
@@ -3227,7 +3227,7 @@ module.exports.mutations = {
                 role: userRole,
                 ...userPasswordInfo,
                 isSignupAdminAprroved: true,
-
+                lastUnregisteredAt: isRegistered === false ? new Date() : null,
                 UID: await EmployeeHelper.generateUserUID({ session }),
             });
 

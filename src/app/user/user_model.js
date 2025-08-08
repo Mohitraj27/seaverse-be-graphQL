@@ -92,6 +92,10 @@ const userSchema = new Schema(
             type: Boolean,
             default: true,
         },
+        lastUnregisteredAt: {
+            type: Date,
+            default: null,
+        },
         isProfileCompleted: {
             type: Boolean,
             default: false,
