@@ -26,7 +26,6 @@ module.exports = {
             requestDate: String
             signupStatus: historysignupStatusEnum
             userId: ID
-            country: String
             isDeleted: Boolean
             createdAt: String
             updatedAt: String
