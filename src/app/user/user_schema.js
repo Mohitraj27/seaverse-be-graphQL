@@ -189,7 +189,7 @@ module.exports = {
             message: String!
             generatedtoken: String!
             email:String!
-            country: String!
+            country: String
         }
         input OTPVerificationInput{
             email: String
@@ -200,7 +200,7 @@ module.exports = {
             status: String!
             message: String!
             email: String!
-            country: String!
+            country: String
         }
         type contentLanguage{
             status: String!

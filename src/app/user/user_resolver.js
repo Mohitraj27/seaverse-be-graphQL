@@ -630,7 +630,7 @@ module.exports.mutations = {
     },
     signUpVerifyEmail: async ({ input }) => {
         try {
-            const { country, email } = input;
+            const {  country = null, email } = input;
             if (!email) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Email is required!");
             const lowercaseEmail = encrypt(email.toLowerCase());
             const existingUser = await User.findOne({ email: lowercaseEmail, isDeleted: false });
@@ -690,7 +690,7 @@ module.exports.mutations = {
                     email: lowercaseEmail,
                     otp: encryptedOtp,
                     generatedtoken: generatedtoken,
-                    country: country
+                    ...(country && { country })
                 });
             }
             return {
@@ -698,7 +698,7 @@ module.exports.mutations = {
                 message: `OTP sent successfully to ${email}`,
                 generatedtoken: generatedtoken,
                 email: email,
-                country: country
+                country: country || null
             };
         } catch (error) {
             throw CustomError(ErrorName.EMAIL_VERIFICATION_FAILED, error.message);
@@ -720,7 +720,7 @@ module.exports.mutations = {
                 status: true,
                 message: "OTP verified successfully!",
                 email: savedOtp.email,
-                country: savedOtp.country
+                country: savedOtp.country || null
             };
 
         } catch (error) {
