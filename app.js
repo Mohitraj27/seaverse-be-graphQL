@@ -83,7 +83,7 @@ const { httpsServer, httpServer, apolloServer } = (() => {
         introspection: true,
         playground: true,
         uploads: false,
-        subscriptions: { keepAlive: 15000 },
+        subscriptions: { keepAlive: 30000 },
         formatError: error => FormatError(error),
         formatResponse: (response, { request, context }) => {
             // Handle errors and set HTTP status code
