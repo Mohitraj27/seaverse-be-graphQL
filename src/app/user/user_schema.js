@@ -79,7 +79,6 @@ module.exports = {
             firstName: String
             lastName: String
             email: String!
-            country: String
             password: String!
             confirmPassword: String!
             consents: [TermsAndConditionsInput!]
@@ -128,7 +127,6 @@ module.exports = {
             timestamp: String
         }
         input SignInInput {
-            countryCode: String
             emailOrCivilIdOrPassport: String!
             password: String!
             firebaseToken: String
