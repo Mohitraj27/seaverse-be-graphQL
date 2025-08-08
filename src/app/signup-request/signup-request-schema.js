@@ -39,7 +39,6 @@ module.exports = {
             requestDate: String
             signupStatus: signupStatus
             userId: ID
-            country: String
             isDeleted: Boolean
             createdAt: String
             updatedAt: String

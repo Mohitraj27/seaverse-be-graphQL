@@ -222,7 +222,6 @@ function mapElasticToOldAPI(elasticResults) {
                     lastLoginAt: new Date(emp.lastLoginAt).getTime() || null,
                     isRegistered: emp.isRegistered || false,
                     vesselStatus: emp.vesselStatus || null,
-                    country: emp.country || null,
                     subRoles: emp.subRoles || [],
                     isResetPasswordDialog: emp.isResetPasswordDialog || false,
                     __typename: "User",
@@ -404,8 +403,7 @@ module.exports.queries = {
 
 
         try {
-
-            const signedUrl = await AwsHelper.fetchFile("public/bulk_user.csv");
+            const signedUrl = await AwsHelper.fetchFile("public/bulk_import_csv.csv");
             return {
                 success: true,
                 message: "File fetched successfully",
@@ -766,7 +764,6 @@ module.exports.queries = {
                 "USER_ROLE": "user.role",
                 "LAST_SEEN": "user.lastLoginAt",
                 "VESSEL_TYPE": "userVessels.vesselDetails.typeOfVesselDetails.name",
-                "COUNTRY": "user.country",
             };
 
             const esFieldMapping = {
@@ -776,7 +773,6 @@ module.exports.queries = {
                 "USER_ROLE": "role.keyword",
                 "LAST_SEEN": "lastLoginAt",
                 "VESSEL_TYPE": "typeOfVesselName.keyword",
-                "COUNTRY": "country.keyword",
             };
 
             const field = sortInput?.field ?? "FIRST_NAME";
@@ -784,7 +780,7 @@ module.exports.queries = {
             const sortElasticField = esFieldMapping[field] || "user.firstName.keyword";
             const sortElasticOrder = sortOrderMap[String(sortInput?.sortOrder)] || "asc";
 
-            if (field === "FIRST_NAME" || field === "DESIGNATION" || field === "VESSEL_TYPE" || field === "COUNTRY") {
+            if (field === "FIRST_NAME" || field === "DESIGNATION" || field === "VESSEL_TYPE") {
 
                 sortingStage.push({
                     $addFields: {
@@ -3230,7 +3226,6 @@ module.exports.mutations = {
                 role: userRole,
                 ...userPasswordInfo,
                 isSignupAdminAprroved: true,
-                country: input.user.country.toUpperCase() ?? null,
                 lastUnregisteredAt: isRegistered === false ? new Date() : null,
                 UID: await EmployeeHelper.generateUserUID({ session }),
             });
@@ -3349,7 +3344,6 @@ module.exports.mutations = {
                     lastName: savedEmployee.user?.lastName,
                     email: savedEmployee.user?.email,
                     civilIdOrPassport: savedEmployee.user?.civilIdOrPassport,
-                    country: savedEmployee.user?.country,
                     languagePreference: savedEmployee.user?.languagePreference,
                     role: savedEmployee.user?.role,
                     subRoles: savedEmployee.user?.subRoles,
@@ -3977,8 +3971,7 @@ module.exports.mutations = {
             'Created At',
             'User Roles',
             'Vessel Type',
-            'User Status',
-            'Country'
+            'User Status'
         ];
         try {
             if (userObjectIds?.regType === undefined || userObjectIds?.regType === null) {
@@ -4139,7 +4132,6 @@ module.exports.mutations = {
                         isResetPasswordDialog: { $first: '$isResetPasswordDialog' },
                         isRegistered: { $first: '$isRegistered' },
                         subRoleDetails: { $first: '$subRoleDetails' },
-                        country: { $first: '$country' },
                     },
                 },
                 {
@@ -4221,13 +4213,7 @@ module.exports.mutations = {
                             else: 'Inactive',
                         },
                     },
-                    'Country': {
-                        $cond: {
-                            if: { $eq: ['$country', null] },
-                            then: ' ',
-                            else: '$country',
-                        },
-                    }
+
                 },
             };
             pipeline.push(projectStage);

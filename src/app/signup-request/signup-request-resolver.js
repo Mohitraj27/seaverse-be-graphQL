@@ -226,7 +226,6 @@ module.exports.mutations = {
                         userId: signupRequest?.userId,
                         requestDate: signupRequest?.requestDate,
                         signupStatus: signupStatus?.APPROVED,
-                        country: signupRequest?.country,
                         decisionDate: new Date(),
                         vesselName,
                         vesselStatus,
@@ -311,7 +310,6 @@ module.exports.mutations = {
                         userId: signupRequest?.userId,
                         requestDate: signupRequest?.requestDate,
                         signupStatus: signupStatus?.REJECTED,
-                        country: signupRequest?.country,
                         decisionDate: new Date(),
                         isRegistered: input?.isRegistered
                     }], { session });

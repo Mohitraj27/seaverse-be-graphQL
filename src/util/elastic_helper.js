@@ -214,9 +214,7 @@ const searchEmployeesFromElastic = async ({
     must.push({ term: { "isRegistered": filterInput?.isRegistered } });
   }
 
-  if (filterInput?.country?.length > 0) {
-    must.push({ terms: { "country.keyword": filterInput?.country } });
-  }
+
 
   if (lastSeenStart && lastSeenEnd) {
     must.push({

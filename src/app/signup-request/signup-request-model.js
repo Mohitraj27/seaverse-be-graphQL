@@ -8,7 +8,7 @@ const SignupRequestSchema = new Schema({
     requestDate: { type: Date, default: Date.now },
     signupStatus: { type: String, required: true, enum: [signupStatus], default: signupStatus.PENDING },
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-    country: { type: String },
+
     isDeleted: { type: Boolean, default: false },
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now },
