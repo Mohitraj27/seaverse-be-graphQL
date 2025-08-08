@@ -403,8 +403,7 @@ module.exports.queries = {
 
 
         try {
-
-            const signedUrl = await AwsHelper.fetchFile("public/bulk_user.csv");
+            const signedUrl = await AwsHelper.fetchFile("public/bulk_import_csv.csv");
             return {
                 success: true,
                 message: "File fetched successfully",
