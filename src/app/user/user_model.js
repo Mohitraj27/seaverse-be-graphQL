@@ -176,9 +176,9 @@ const userSchema = new Schema(
                 timestamps: { type: Date, default: Date.now }
             }
         ],
-        country: {
-            type: String,
-        },
+        // country: {
+        //     type: String,
+        // },
         isEmailNotification:{
             type: Boolean,
             default: true

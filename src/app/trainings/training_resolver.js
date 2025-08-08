@@ -663,162 +663,117 @@ module.exports.mutations = {
 
         return savedTraining;
     },
+
     syncOfflineDataAndUpdateProgress: async ({ input }, context) => {
-
+ try {
+ 
         const { role, userId, userInfo, subscriberId: subscriberID } = AuthUser(context);
-
         let subscriberId;
         if (!subscriberID) {
             const subscriber = await Subscriber.findOne({ isActive: true }).select("_id");
             subscriberId = subscriber._id;
+        } else {
+            subscriberId = subscriberID;
         }
 
-        try {
+        // Refactored: process input in batches, move validation and structure extraction outside transaction
+        const mongoose = require('mongoose');
+        const BATCH_SIZE = 1; // Process one document per batch to minimize write conflicts
+        if (!userId) throw CustomError(ErrorName.NOT_FOUND);
+        if (!input) throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
 
-            if (!userId) throw CustomError(ErrorName.NOT_FOUND);
-            if (!input) throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
+        // Preprocess input: handle offline sync, structure extraction, and validation outside transaction
+        let processedInput = input;
+        const modifiedCourseIds = new Set();
 
-            let processedInput = input;
-            const modifiedCourseIds = new Set();
+        if (input[0]?.isFromOfflineSync) {
+            if (!input[0].overallId) {
+                throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Overall ID is required");
+            }
+            if (!input[0].trainingModules || input[0].trainingModules.length === 0) {
+                throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Training modules are required");
+            }
 
-            if (input[0].isFromOfflineSync) {
+            const existingOverallTrainingProgress = await OverallTrainingProgress.findOne({
+                _id: input[0].overallId,
+            }).select('_id version');
 
-                if (!input[0].overallId) {
-                    throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Overall ID is required");
-                }
-                if (!input[0].trainingModules || input[0].trainingModules.length === 0) {
-                    throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Training modules are required");
-                }
-
-                const existingOverallTrainingProgress = await OverallTrainingProgress.findOne({
-                    _id: input[0].overallId,
-                }).select('_id version');
-
-                if (existingOverallTrainingProgress.version !== input[0].version) {
-
-                    const completedCourses = input.filter(item => {
-                        return item.trainingModules.every(module => {
-                            return module.contentDetails.every(content => {
-                                return content.contentStatus === "COMPLETED";
-                            });
+            if (existingOverallTrainingProgress.version !== input[0].version) {
+                const completedCourses = input.filter(item => {
+                    return item.trainingModules.every(module => {
+                        return module.contentDetails.every(content => {
+                            return content.contentStatus === "COMPLETED";
                         });
                     });
+                });
 
-                    if (completedCourses.length > 0) {
-
-                        // completed courses IDs
-                        const completedCourseIds = completedCourses.map(item => item.overallId);
-                        if (completedCourseIds) {
-
-                            const onlineCourseData = await OverallTrainingProgress.find({ _id: { $in: completedCourseIds } }).select('_id status');
-
-                            if (onlineCourseData.length > 0) {
-
-                                const alreadyCompletedIds = onlineCourseData
-                                    .filter(course => course.status === "COMPLETED")
-                                    .map(course => course._id.toString());
-
-                                // Filter out courses that are already COMPLETED in database
-                                const newlyCompletedCoursesOnline = completedCourses.filter(item =>
-                                    !alreadyCompletedIds.includes(item.overallId.toString())
+                if (completedCourses.length > 0) {
+                    const completedCourseIds = completedCourses.map(item => item.overallId);
+                    if (completedCourseIds) {
+                        const onlineCourseData = await OverallTrainingProgress.find({ _id: { $in: completedCourseIds } }).select('_id status');
+                        if (onlineCourseData.length > 0) {
+                            const alreadyCompletedIds = onlineCourseData
+                                .filter(course => course.status === "COMPLETED")
+                                .map(course => course._id.toString());
+                            const newlyCompletedCoursesOnline = completedCourses.filter(item =>
+                                !alreadyCompletedIds.includes(item.overallId.toString())
+                            );
+                            const matchedCourses = [];
+                            if (newlyCompletedCoursesOnline.length > 0) {
+                                const newlyCompletedIds = newlyCompletedCoursesOnline.map(item => item.overallId);
+                                const coursesWithDownloadData = await OverallTrainingProgress.find(
+                                    { _id: { $in: newlyCompletedIds } },
+                                    { _id: 1, contentFromDownload: 1 }
                                 );
-
-                                const matchedCourses = [];
-
-                                if (newlyCompletedCoursesOnline.length > 0) {
-
-                                    const newlyCompletedIds = newlyCompletedCoursesOnline.map(item => item.overallId);
-
-                                    // Fetch contentFromDownload for newly completed courses
-                                    const coursesWithDownloadData = await OverallTrainingProgress.find(
-                                        { _id: { $in: newlyCompletedIds } },
-                                        { _id: 1, contentFromDownload: 1 }
+                                for (const completedCourse of newlyCompletedCoursesOnline) {
+                                    const dbCourse = coursesWithDownloadData.find(
+                                        course => course._id.toString() === completedCourse.overallId.toString()
                                     );
-
-                                    for (const completedCourse of newlyCompletedCoursesOnline) {
-                                        const dbCourse = coursesWithDownloadData.find(
-                                            course => course._id.toString() === completedCourse.overallId.toString()
-                                        );
-
-                                        if (!dbCourse || !dbCourse.contentFromDownload || dbCourse.contentFromDownload.length === 0) {
-                                            continue;
-                                        }
-
-                                        // Extract current course structure (moduleIds and contentIds)
-                                        const currentCourseStructure = TrainingHelper.extractCourseStructure(completedCourse.trainingModules);
-
-                                        // Check each version in contentFromDownload
-                                        let matchFound = false;
-                                        let matchedVersion = null;
-
-                                        for (const downloadVersion of dbCourse.contentFromDownload) {
-                                            const downloadStructure = TrainingHelper.extractCourseStructure(downloadVersion.courseDetails);
-
-                                            if (TrainingHelper.areCourseStructuresEqual(currentCourseStructure, downloadStructure)) {
-                                                matchFound = true;
-                                                matchedVersion = downloadVersion?.courseDetails;
-                                                matchedCourses.push({
-                                                    courseId: completedCourse.overallId,
-                                                    matchedVersion: matchedVersion,
-                                                    version: downloadVersion.version,
-                                                    totalTrainingModules: matchedVersion.length
-                                                });
-                                                modifiedCourseIds.add(completedCourse.overallId.toString());
-                                                break;
-                                            }
+                                    if (!dbCourse || !dbCourse.contentFromDownload || dbCourse.contentFromDownload.length === 0) {
+                                        continue;
+                                    }
+                                    const currentCourseStructure = TrainingHelper.extractCourseStructure(completedCourse.trainingModules);
+                                    let matchFound = false;
+                                    let matchedVersion = null;
+                                    for (const downloadVersion of dbCourse.contentFromDownload) {
+                                        const downloadStructure = TrainingHelper.extractCourseStructure(downloadVersion.courseDetails);
+                                        if (TrainingHelper.areCourseStructuresEqual(currentCourseStructure, downloadStructure)) {
+                                            matchFound = true;
+                                            matchedVersion = downloadVersion?.courseDetails;
+                                            matchedCourses.push({
+                                                courseId: completedCourse.overallId,
+                                                matchedVersion: matchedVersion,
+                                                version: downloadVersion.version,
+                                                totalTrainingModules: matchedVersion.length
+                                            });
+                                            modifiedCourseIds.add(completedCourse.overallId.toString());
+                                            break;
                                         }
                                     }
-
-                                    // Update the course in OverallTrainingProgress and trainingProgress
-                                    if (matchedCourses.length > 0) {
-
-                                        const courseIds = matchedCourses.map(course => course.courseId);
-
-                                        const contentDataBulkOps = matchedCourses.map(matchedCourse => ({
-                                            updateOne: {
-                                                filter: { _id: matchedCourse.courseId },
-                                                update: {
-                                                    $set: {
-                                                        contentData: matchedCourse.matchedVersion,
-                                                        status: "IN_PROGRESS",
-                                                        progressPercentage: 0,
-                                                        version: matchedCourse.version,
-                                                        totalTrainingModules: matchedCourse.totalTrainingModules,
-                                                        lastConsumedContent: null,
-                                                    }
+                                }
+                                if (matchedCourses.length > 0) {
+                                    const courseIds = matchedCourses.map(course => course.courseId);
+                                    const contentDataBulkOps = matchedCourses.map(matchedCourse => ({
+                                        updateOne: {
+                                            filter: { _id: matchedCourse.courseId },
+                                            update: {
+                                                $set: {
+                                                    contentData: matchedCourse.matchedVersion,
+                                                    status: "IN_PROGRESS",
+                                                    progressPercentage: 0,
+                                                    version: matchedCourse.version,
+                                                    totalTrainingModules: matchedCourse.totalTrainingModules,
+                                                    lastConsumedContent: null,
                                                 }
                                             }
-                                        }));
-
-                                        try {
-                                            // Execute all operations in sequence
-                                            if (contentDataBulkOps.length > 0) {
-                                                const contentResult = await OverallTrainingProgress.bulkWrite(contentDataBulkOps);
-                                            }
-
-                                            const deleteResult = await TrainingProgress.deleteMany(
-                                                {
-                                                    overallTrainingProgress: { $in: courseIds },
-                                                    // isDeleted: { $ne: true }
-                                                }
-                                            );
-
-                                            // Summary
-                                            const summary = {
-                                                coursesUpdated: contentDataBulkOps.length,
-                                            };
-
-                                            console.log('Training progress update summary:', summary);
-                                            // return summary;
-
-                                        } catch (error) {
-                                            console.error('Error updating training progress:', error);
-                                            throw error;
                                         }
-
+                                    }));
+                                    if (contentDataBulkOps.length > 0) {
+                                        await OverallTrainingProgress.bulkWrite(contentDataBulkOps);
                                     }
-
-
+                                    await TrainingProgress.deleteMany(
+                                        { overallTrainingProgress: { $in: courseIds } }
+                                    );
                                     processedInput = input.map(course => {
                                         if (modifiedCourseIds.has(course.overallId.toString())) {
                                             const matchedCourse = matchedCourses.find(mc => mc.courseId.toString() === course.overallId.toString());
@@ -831,7 +786,6 @@ module.exports.mutations = {
                                                             const existingContent = course.trainingModules
                                                                 .flatMap(m => m.contentDetails || [])
                                                                 .find(c => c.contentId === contentId);
-
                                                             return existingContent || {
                                                                 contentId: contentId,
                                                                 contentStatus: "COMPLETED",
@@ -840,7 +794,7 @@ module.exports.mutations = {
                                                             };
                                                         })
                                                     })),
-                                                    processedByOfflineSync: true // ADDED flag
+                                                    processedByOfflineSync: true
                                                 };
                                                 return updatedCourse;
                                             }
@@ -851,59 +805,94 @@ module.exports.mutations = {
                             }
                         }
                     }
-
                 }
             }
+        }
 
-            const validateErrors = await TrainingHelper.validateSyncOfflineData(processedInput);
-
-
-            if (validateErrors && validateErrors.length > 0) {
-                throw CustomError(ErrorName.FAILED, validateErrors[0]);
-            }
-
-            processedInput.forEach((entry) => {
-                entry.trainingModules?.forEach((module) => {
-                    module.contentDetails?.forEach((content) => {
-                        if (content.progressPercentage == 100) {
-                            content.contentStatus = 'COMPLETED';
-                        } else if (content.progressPercentage == 0) {
-                            content.contentStatus = 'NOT_STARTED';
-                        } else if (content.progressPercentage > 0 && content.progressPercentage < 100) {
-                            content.contentStatus = 'IN_PROGRESS';
-                        }
-                    })
+        const validateErrors = await TrainingHelper.validateSyncOfflineData(processedInput);
+        if (validateErrors && validateErrors.length > 0) {
+            throw CustomError(ErrorName.FAILED, validateErrors[0]);
+        }
+        processedInput.forEach((entry) => {
+            entry.trainingModules?.forEach((module) => {
+                module.contentDetails?.forEach((content) => {
+                    if (content.progressPercentage == 100) {
+                        content.contentStatus = 'COMPLETED';
+                    } else if (content.progressPercentage == 0) {
+                        content.contentStatus = 'NOT_STARTED';
+                    } else if (content.progressPercentage > 0 && content.progressPercentage < 100) {
+                        content.contentStatus = 'IN_PROGRESS';
+                    }
                 })
             })
+        })
 
-            let updateTrainingProgress;
-            const updatedTraining = await DbTransactionHelper.performDbTransaction(async session => {
+        // Process in batches of 1 to reduce transaction time and write conflicts
+        const batches = [];
+        for (let i = 0; i < processedInput.length; i += BATCH_SIZE) {
+            batches.push(processedInput.slice(i, i + BATCH_SIZE));
+        }
 
-                let syncContentErrors = [];
-
-                if (processedInput.length > 0) {
-
-                    //add content data to overall training progress
-                    const syncContentsToOverallTrainingProgress = await TrainingHelper.addDataToOverallTrainingProgress(processedInput, syncContentErrors, session);
-
-                    //updating the progress in overall training progress and the final certificate generation 
-                    updateTrainingProgress = await TrainingHelper.updateTrainingProgress(processedInput, userId, subscriberId, session);
-
-                    if (syncContentErrors.length > 0) {
-                        throw CustomError(ErrorName.FAILED, syncContentErrors[0]);
+        for (const batch of batches) {
+            let attempt = 0;
+            let success = false;
+            let lastError;
+            // If batch size is 1, avoid using a transaction for single-document update
+            while (attempt < 5 && !success) {
+                let session = null;
+                try {
+                    let syncContentErrors = [];
+                    if (batch.length === 1) {
+                        // No transaction for single document
+                        await TrainingHelper.addDataToOverallTrainingProgress(batch, syncContentErrors, null);
+                        await TrainingHelper.updateTrainingProgress(batch, userId, subscriberId, null);
+                        if (syncContentErrors.length > 0) {
+                            throw CustomError(ErrorName.FAILED, syncContentErrors[0]);
+                        }
+                        success = true;
+                    } else {
+                        session = await mongoose.startSession();
+                        await session.withTransaction(async () => {
+                            if (batch.length > 0) {
+                                await TrainingHelper.addDataToOverallTrainingProgress(batch, syncContentErrors, session);
+                                await TrainingHelper.updateTrainingProgress(batch, userId, subscriberId, session);
+                                if (syncContentErrors.length > 0) {
+                                    throw CustomError(ErrorName.FAILED, syncContentErrors[0]);
+                                }
+                            }
+                        });
+                        success = true;
                     }
-
+                } catch (err) {
+                    lastError = err;
+                    console.error('syncOfflineDataAndUpdateProgress batch error:', err, err.stack, err.errorLabels);
+                    if (session && session.inTransaction()) {
+                        await session.abortTransaction();
+                    }
+                    if (err.hasErrorLabel && err.hasErrorLabel('TransientTransactionError')) {
+                        attempt++;
+                        await new Promise(res => setTimeout(res, 100 * Math.pow(2, attempt)));
+                    } else {
+                        break;
+                    }
+                } finally {
+                    if (session && session.endSession) {
+                        await session.endSession();
+                    }
                 }
-
-            });
-
-            return {
-                status: 1,
-                message: "Progress updated successfully!"
-            };
-
+            }
+            if (!success) {throw Error(lastError && lastError.message ? lastError.message : String(lastError))}
+            else {
+                console.log(`Batch processed successfully: ${JSON.stringify(batch)}`);
+            }
+        }
+        return {
+            status: 1,
+            message: "Progress updated successfully!"
+        }
         } catch (error) {
-            throw Error(error.message);
+            console.error("Error syncing offline data:", error);
+            throw CustomError(ErrorName.FAILED, error.message || "Failed to sync offline data");
         }
 
     },

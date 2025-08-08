@@ -371,7 +371,7 @@ const performCustomReportGeneration = async ({ input, subscriberId, userId, user
                 titleValue: `Custom Report Export Failed`,
                 messageValue: `An error occurred while generating the custom report(${await ReportsHelper.getAppliedFilters(
                     input
-                )}). ${error?.message}.`,
+                )}).`,
                 notificationType: NotificationType.REPORT_EXPORT_FAILED,
                 notifyAllAdmin: false,
                 isNotificatonForAdmin: true,
