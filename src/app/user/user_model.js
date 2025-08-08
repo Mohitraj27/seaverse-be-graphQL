@@ -92,6 +92,10 @@ const userSchema = new Schema(
             type: Boolean,
             default: true,
         },
+        lastUnregisteredAt: {
+            type: Date,
+            default: null,
+        },
         isProfileCompleted: {
             type: Boolean,
             default: false,
@@ -172,9 +176,9 @@ const userSchema = new Schema(
                 timestamps: { type: Date, default: Date.now }
             }
         ],
-        country: {
-            type: String,
-        },
+        // country: {
+        //     type: String,
+        // },
         isEmailNotification:{
             type: Boolean,
             default: true
