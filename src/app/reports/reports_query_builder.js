@@ -296,7 +296,7 @@ const singleLearnerModuleReportQuery = queryStages => {
     const { matchUsers, deteledUsersStage, matchStage } = queryStages;
 
     const pipline = [
-        ...matchUsers,
+        ...(matchUsers ?? []),
         {
             $match: {
                 $or: [{ isEnrolled: true }, { status: "COMPLETED" }],
@@ -454,7 +454,7 @@ const singleLearnerModuleReportQuery = queryStages => {
                 preserveNullAndEmptyArrays: true,
             },
         },
-        ...deteledUsersStage,
+        ...(deteledUsersStage ?? []),
         {
             $lookup: {
                 from: "trainingprogresses",
@@ -644,7 +644,7 @@ const singleLearnerModuleReportQuery = queryStages => {
                 preserveNullAndEmptyArrays: false,
             },
         },
-        ...matchStage,
+        ...(matchStage ?? []),
         {
             $group: {
                 _id: {
