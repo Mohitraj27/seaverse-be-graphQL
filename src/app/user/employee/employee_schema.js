@@ -171,7 +171,6 @@ type userVessels {
             USER_ROLE
             VESSEL_TYPE
             LAST_SEEN
-            COUNTRY
         }
         input changeRegisterInput {
             users: [ID!]!
@@ -245,7 +244,6 @@ type userVessels {
             vesselType: [ID]
             lastSeen: LastSeenEnum
             showInvited: Boolean
-            country : [String]
         }
         input SortFieldInput {
             field : SortableFieldEnum

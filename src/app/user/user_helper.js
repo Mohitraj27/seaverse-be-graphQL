@@ -116,9 +116,7 @@ module.exports = {
 
             if (input.lastName) existingUser.lastName = encrypt(input.lastName.trim().toLowerCase());
 
-            if (input.country) existingUser.country = input.country.toUpperCase();
 
-            if(input.country === '') existingUser.country = null;
 
             if (input.lastName === '') existingUser.lastName = null;
 
@@ -225,7 +223,6 @@ module.exports = {
                         ctx._source.firstName = params.firstName;
                         ctx._source.lastName = params.lastName;
                         ctx._source.email = params.email;
-                        ctx._source.country = params.country;
                         ctx._source.civilIdOrPassport = params.civilIdOrPassport;
                         ctx._source.isRegistered = params.isRegistered;
                         ctx._source.vesselStatus = params.vesselStatus;
@@ -243,7 +240,6 @@ module.exports = {
                         lastName: savedUser.lastName,
                         email: savedUser.email,
                         phone: savedUser.phone,
-                        country: savedUser.country,
                         civilIdOrPassport: savedUser.civilIdOrPassport,
                         avatar: savedUser.avatar,
                         languagePreference: savedUser.languagePreference,

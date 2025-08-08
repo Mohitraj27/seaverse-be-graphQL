@@ -2574,17 +2574,7 @@ const validateUserRow = async (row, { empIds, emails, dbemployeeIds, dbEmails, d
         row["Vessel IMO Number"] = '';
     }
 
-    const country = row["Country"].toLowerCase();
-    if (row["Country"] && !countriesListed.includes(row["Country"].toLowerCase())) {
-        errors.push(`Invalid Country in row ${rowIndex + 1} as ${row["Country"]}`);
-        return errors;
-    } else if (row["Country"] && countriesListed.includes(row["Country"].toLowerCase())) {
-        row["Country"] = row["Country"].toUpperCase();
-    }
 
-    if (!row["Country"]) {
-        row["Country"] = null
-    }
 
     return errors;
 }
@@ -2612,7 +2602,6 @@ function mapCSVRowToUser(row) {
         designation: row["Employee Designation*"]?.toLowerCase(),
         imoNumber: row["Vessel IMO Number"],
         vesselStatus: row["Vessel Status"],
-        country: row["Country"] ?? null,
     };
 
     return result;
@@ -3159,7 +3148,6 @@ module.exports = {
                 lastName: savedEmployee.user?.lastName,
                 email: savedEmployee.user?.email,
                 civilIdOrPassport: savedEmployee.user?.civilIdOrPassport,
-                country: savedEmployee.user?.country,
                 languagePreference: savedEmployee.user?.languagePreference,
                 role: savedEmployee.user?.role,
                 subRoles: savedEmployee.user?.subRoles,
@@ -3718,7 +3706,6 @@ module.exports = {
                                         firstName: user.firstName,
                                         lastName: user.lastName,
                                         civilIdOrPassport: user.civilIdOrPassport,
-                                        country: user.country ?? null,
                                         vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                                         currentVessel: user?.imoNumber && user?.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
                                     },
@@ -3753,7 +3740,6 @@ module.exports = {
                                     firstName: user.firstName,
                                     lastName: user.lastName,
                                     email: user.email,
-                                    country: user.country ?? null,
                                     vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                                     currentVessel: user?.imoNumber && user?.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
                                 },
@@ -3798,7 +3784,6 @@ module.exports = {
                                         firstName: user.firstName,
                                         lastName: user.lastName,
                                         email: user.email,
-                                        country: user.country ?? null,
                                         vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                                         currentVessel: user?.imoNumber && user?.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
                                     },
@@ -3833,7 +3818,6 @@ module.exports = {
                                     firstName: user.firstName,
                                     lastName: user.lastName,
                                     civilIdOrPassport: user.civilIdOrPassport,
-                                    country: user.country ?? null,
                                     vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                                     currentVessel: user?.imoNumber && user?.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
                                 },
@@ -3877,7 +3861,6 @@ module.exports = {
                         firstName: user.firstName,
                         lastName: user.lastName,
                         email: user.email,
-                        country: user.country ?? null,
                         vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                         currentVessel: user.imoNumber && user.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
                         password: await CryptoHelper.hash(password, 10),
@@ -4225,7 +4208,6 @@ module.exports = {
                         lastName: user?.lastName,
                         email: user?.email,
                         civilIdOrPassport: user?.civilIdOrPassport,
-                        country: user?.country,
                         languagePreference: user?.languagePreference,
                         role: user?.role,
                         subRoles: user?.subRoles,
