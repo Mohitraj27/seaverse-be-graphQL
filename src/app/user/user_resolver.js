@@ -686,14 +686,14 @@ module.exports.mutations = {
                 await SignUpOtp.create({
                     email: lowercaseEmail,
                     otp: encryptedOtp,
-                    generatedtoken: generatedtoken
+                    generatedtoken: generatedtoken,
                 });
             }
             return {
                 status: true,
                 message: `OTP sent successfully to ${email}`,
                 generatedtoken: generatedtoken,
-                email: email
+                email: email,
             };
         } catch (error) {
             throw CustomError(ErrorName.EMAIL_VERIFICATION_FAILED, error.message);
@@ -714,7 +714,7 @@ module.exports.mutations = {
             return {
                 status: true,
                 message: "OTP verified successfully!",
-                email: savedOtp.email
+                email: savedOtp.email,
             };
 
         } catch (error) {

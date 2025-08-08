@@ -126,7 +126,6 @@ module.exports = {
             timestamp: String
         }
         input SignInInput {
-            countryCode: String
             emailOrCivilIdOrPassport: String!
             password: String!
             firebaseToken: String
