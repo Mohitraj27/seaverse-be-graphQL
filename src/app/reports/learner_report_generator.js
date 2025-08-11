@@ -310,7 +310,7 @@ const performLearnerReportGeneration = async (payload) => {
                     learnerReportsByUser[learnerName].push({
                         Name: learnerName,
                         Email: item?.email ? decrypt(item.email):'' || null,
-                        'Country': item.country || 'Not Applicable',
+                        
                         'User Id': item.employeeId ? decrypt(item.employeeId) : '' || null,
                         Designation: item.designation || null,
                         'Current Vessel': item.vesselName || 'Not Applicable',
@@ -362,7 +362,6 @@ const performLearnerReportGeneration = async (payload) => {
                     const headers = [
                         "Name",
                         "Email",
-                        "Country",
                         "User Id",
                         "Designation",
                         "Current Vessel",
@@ -456,7 +455,6 @@ const performLearnerReportGeneration = async (payload) => {
                         const designation = learner?.designation || '';
                         const firstName = learner?.firstName ? decrypt(learner?.firstName,true) : '';
                         const lastName = learner?.lastName ? decrypt(learner?.lastName,true) : '';
-                        const country = learner?.country || 'Not Applicable';
                         const currentVessel = learner?.currentVessel || 'Not Applicable';
                         const vesselType = learner?.vesselType || 'Not Applicable';
                         const status = learner?.status || 'Not Applicable';
@@ -484,7 +482,6 @@ const performLearnerReportGeneration = async (payload) => {
                                 flattenedData.push({
                                     Name: `${firstName} ${lastName}`,
                                     Email: email,
-                                    Country: country,
                                     'User Id': learner?.empId ? decrypt(learner?.empId) :'Not Applicable',
                                     Designation: designation,
                                     'Current Vessel': currentVessel,
@@ -526,7 +523,6 @@ const performLearnerReportGeneration = async (payload) => {
                             [
                                 "Name",
                                 "Email",
-                                "Country",
                                 "User Id",
                                 "Designation",
                                 "Current Vessel",
