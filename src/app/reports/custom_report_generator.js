@@ -105,7 +105,6 @@ const performCustomReportGeneration = async ({ input, subscriberId, userId, user
                     item?.startDate && item.startDate !== "startDate"
                         ? ReportsHelper.formatDate(item.startDate)
                         : "Not Applicable";
-                const country = item?.country || "Not Applicable";
                 const vesselType = item?.vesselType || "Not Applicable";
                 const currentVessel = item?.currentVessel || "Not Applicable";
                 const unenrollmentDate = item?.unenrollmentDate
@@ -123,7 +122,6 @@ const performCustomReportGeneration = async ({ input, subscriberId, userId, user
                 dataToExport.push({
                     Name: learnerName ?? "-",
                     Email: item.email ? decrypt(item.email) : null,
-                    Country: country,
                     "User Id": item.employeeId ? decrypt(item.employeeId) : null,
                     Designation: item.designation || null,
                     "Current Vessel": currentVessel,
@@ -149,7 +147,6 @@ const performCustomReportGeneration = async ({ input, subscriberId, userId, user
                 if (learner) {
                     const email = learner?.email ? decrypt(learner?.email) : "";
                     const designation = learner?.designation || "";
-                    const country = learner?.country || "Not Applicable";
                     const firstName = learner?.firstName ? decrypt(learner?.firstName, true) : "";
                     const lastName = learner?.lastName ? decrypt(learner?.lastName, true) : "";
                     const empId = learner?.empId ? decrypt(learner?.empId) : "";
@@ -187,7 +184,6 @@ const performCustomReportGeneration = async ({ input, subscriberId, userId, user
                                 flattenedData.push({
                                     Name: `${firstName} ${lastName}`,
                                     Email: email,
-                                    Country: country,
                                     "User Id": empId,
                                     Designation: designation,
                                     "Current Vessel": currentVessel,
@@ -236,7 +232,6 @@ const performCustomReportGeneration = async ({ input, subscriberId, userId, user
            const enrollmentReportHeaders = [
                 "Name",
                 "Email",
-                "Country",
                 "User Id",
                 "Designation",
                 "Current Vessel",
@@ -256,7 +251,6 @@ const performCustomReportGeneration = async ({ input, subscriberId, userId, user
             const quizReportHeaders = [
                 "Name",
                 "Email",
-                "Country",
                 "User Id",
                 "Designation",
                 "Current Vessel",
