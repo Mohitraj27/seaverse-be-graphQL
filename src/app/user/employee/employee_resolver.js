@@ -3226,7 +3226,7 @@ module.exports.mutations = {
                 role: userRole,
                 ...userPasswordInfo,
                 isSignupAdminAprroved: true,
-                lastUnregisteredAt: isRegistered === false ? new Date() : null,
+                lastUnregisteredAt: input.user.isRegistered === false ? new Date() : null,
                 UID: await EmployeeHelper.generateUserUID({ session }),
             });
 
