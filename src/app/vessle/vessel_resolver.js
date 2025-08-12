@@ -125,10 +125,22 @@ module.exports.queries = {
                 };
             }
 
+            let ownerNameIdsToMatch = null;
             if (filterInput?.ownerName?.length > 0) {
-                filterConditions.ownerName = {
-                    $in: filterInput.ownerName.map(ownerName => new RegExp(".*" + ownerName + ".*", "i")),
-                };
+                const vesselsWithOwners = await Vessel.find(
+                    { subscriber: subscriberId, isDeleted: { $ne: true } },
+                    { _id: 1, ownerName: 1 }
+                );
+    
+                const matchedOwnerIds = vesselsWithOwners
+                    .map(v => ({ id: v._id, ownerName: decrypt(v.ownerName) }))
+                    .filter(v => filterInput.ownerName.some(searchTerm =>
+                        new RegExp(".*" + searchTerm + ".*", "i").test(v.ownerName)
+                    ))
+                    .map(v => v.id);
+    
+                ownerNameIdsToMatch = matchedOwnerIds;
+                filterConditions._id = { $in: ownerNameIdsToMatch };
             }
 
             if (filterInput?.search) {
