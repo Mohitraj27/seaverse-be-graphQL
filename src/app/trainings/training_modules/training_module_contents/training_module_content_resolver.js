@@ -264,6 +264,7 @@ module.exports.queries = {
                 }
             );
 
+
             if (contents.contents.length === 0) {
                 return {
                     contents: [],
@@ -287,8 +288,6 @@ module.exports.queries = {
                     updatedBy: decryptedUpdatedBy,
                 };
             });
-
-
 
             return {
                 contents: decryptedContents,
@@ -1512,6 +1511,7 @@ module.exports.mutations = {
             updateData.audios = [];
             updateData.images = [];
             updateData.files = [];
+            updateData.compressing = true;
         }
 
 
@@ -1721,6 +1721,8 @@ module.exports.mutations = {
             updateData.modifiedDate = new Date();
             updateData.isPublished = usedInCourses.length > 0;
 
+            console.log(updateData);
+
             const savedContentData = new TrainingModuleContent({
                 ...updateData,
                 subscriber: subscriberId,
@@ -1761,6 +1763,8 @@ module.exports.mutations = {
 
         if (savedContent.videos && savedContent.videos.length > 0) {
             const videoUrls = savedContent?.videos.map(video => video.url);
+
+            console.log(savedContent);
 
             if (videoUrls && videoUrls.length > 0) {
 
