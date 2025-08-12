@@ -25,7 +25,7 @@ const LearningPlanStatus = require('../learning-plan/enumFields/learning_plan_st
 const targetAudienceEnum = require('../learning-plan/enumFields/targetAudienceEnum.json')
 const typeOfConditionalCustomFieldEnum = require('../learning-plan/enumFields/typeOfConditionalCustomField.json');
 const { filterLearningPlans } = require("../user/employee/employee_helper");
-const { decrypt } = require("../../util/encryption_helper");
+const { encrypt,decrypt } = require("../../util/encryption_helper");
 const { updateByQueryToElasticSearch } = require('../../util/elastic_helper');
 const checkVesselLinkedToActiveLearningPlan = async (vesselId, vesselTypeId) => {
     try {
@@ -125,10 +125,22 @@ module.exports.queries = {
                 };
             }
 
+            let ownerNameIdsToMatch = null;
             if (filterInput?.ownerName?.length > 0) {
-                filterConditions.ownerName = {
-                    $in: filterInput.ownerName.map(ownerName => new RegExp(".*" + ownerName + ".*", "i")),
-                };
+                const vesselsWithOwners = await Vessel.find(
+                    { subscriber: subscriberId, isDeleted: { $ne: true } },
+                    { _id: 1, ownerName: 1 }
+                );
+    
+                const matchedOwnerIds = vesselsWithOwners
+                    .map(v => ({ id: v._id, ownerName: decrypt(v.ownerName) }))
+                    .filter(v => filterInput.ownerName.some(searchTerm =>
+                        new RegExp(".*" + searchTerm + ".*", "i").test(v.ownerName)
+                    ))
+                    .map(v => v.id);
+    
+                ownerNameIdsToMatch = matchedOwnerIds;
+                filterConditions._id = { $in: ownerNameIdsToMatch };
             }
 
             if (filterInput?.search) {
@@ -215,9 +227,19 @@ module.exports.queries = {
                     allowDiskUse: true,
                 }
             );
+            let decryptedVessels = vessels.vessels.map(vessel => {
+                if(vessel?.ownerName?.length > 0 && vessel?.address?.length > 0){
+                    return {
+                        ...vessel,
+                        ownerName: decrypt(vessel.ownerName),
+                        address: decrypt(vessel.address),
+                    }
+                   }
+                return vessel;
+            });
 
             return {
-                vessels: vessels.vessels,
+                vessels: decryptedVessels,
                 totalCount: vessels?.totalCount || 0,
             };
 
@@ -234,8 +256,12 @@ module.exports.queries = {
             if (!vessel) {
                 throw CustomError(ErrorName.NOT_FOUND, 'Vessel not found.');
             }
-
-            return vessel;
+            const decryptedVessels = {
+                ...vessel.toObject(),
+                ownerName: vessel?.ownerName ? decrypt(vessel.ownerName) : vessel?.ownerName,
+                address: vessel?.address ? decrypt(vessel.address) : vessel?.address,
+            };
+            return decryptedVessels;
         } catch (error) {
             throw Error(error.message);
         }
@@ -297,8 +323,7 @@ module.exports.mutations = {
                     await existingOwner.save();
                 }
 
-                ownerName = existingOwner?.name;
-
+                ownerName = decrypt(existingOwner?.name);
                 if (!ownerName) {
                     throw CustomError(ErrorName.FAILED, 'Owner Name does not exist');
                 }
@@ -312,8 +337,8 @@ module.exports.mutations = {
                 isActive: isActive,
                 companyName: companyName,
                 ownerId: ownerId ?? null,
-                ownerName: ownerName ?? null,
-                address: address ?? null,
+                ownerName: encrypt(ownerName) ?? null,
+                address: encrypt(address) ??  null,
                 createdBy: userId,
                 updatedBy: userId,
             });
@@ -369,7 +394,11 @@ module.exports.mutations = {
             if (!vessel) {
                 throw new CustomError(ErrorName.NOT_FOUND, 'Vessel not found.');
             }
-            if(vessel && input.name?.toLowerCase()===vessel.name?.toLowerCase()){
+            const existingVesselName = await Vessel.findOne({
+                _id: { $ne: vessel.id }, 
+                name: input.name
+            });
+            if (existingVesselName) {
                 throw CustomError(ErrorName.ALREADY_EXIST, 'Vessel name already exists.');
             }
 
@@ -414,7 +443,7 @@ module.exports.mutations = {
             vessel.isActive = isActive;
             vessel.companyName = companyName;
             vessel.ownerId = ownerId ?? vessel.ownerId;
-            vessel.ownerName = ownerName ?? vessel.ownerName;
+            vessel.ownerName = ownerName ?? encrypt(vessel.ownerName);
             vessel.subscriber = subscriberId;
 
             const updatedVessel = await vessel.save();
@@ -440,7 +469,8 @@ module.exports.mutations = {
             }
 
             const vesselData = await Vessel.findOne({ _id: vessel._id }).populate('typeOfVessel');
-
+            vesselData.address = encrypt(vesselData.address);
+            await vesselData.save();
             //AUTO ENROLLMENT
             const userIds = await User.find({ currentVessel: vessel._id }).select('_id').lean();
             const learningPlans = await LearningPlan.find({ isDeleted: false, status: 'ACTIVE' });

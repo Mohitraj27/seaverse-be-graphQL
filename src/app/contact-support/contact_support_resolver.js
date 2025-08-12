@@ -3,6 +3,7 @@ const  ContactSupportUser  = require("./contact_support_model");
 const AWSHelper = require("../../util/aws_helper");
 const {User} = require("../../app/user/user_model");
 const { sendUserSupportAcknowledgment, sendAdminSupportNotification } = require('../../app/email-template/contactSupport');
+const { encrypt } = require("../../util/encryption_helper");
 module.exports.mutations = {
     contactSupport: async ({ input }) => {
         try {
@@ -59,7 +60,7 @@ module.exports.mutations = {
                 htmlContent: sendUserSupportAcknowledgment(email, subject, message),
             });
             const contactSupportData = new ContactSupportUser({
-                email,
+                email: encrypt(email),
                 subject,
                 message,
                 consents: processedConsents
