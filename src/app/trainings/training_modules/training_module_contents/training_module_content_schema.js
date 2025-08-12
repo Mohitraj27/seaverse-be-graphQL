@@ -84,6 +84,7 @@ module.exports = {
             quizAttemptDetails: JSON
             quizAttempts: [String]
             status: String
+            compressing: Boolean
             trainingModuleContentDetails: [TrainingModuleContent]
         }
         type TrainingModuleContentList {
