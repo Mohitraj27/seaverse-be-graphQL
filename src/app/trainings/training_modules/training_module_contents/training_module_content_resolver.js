@@ -264,6 +264,10 @@ module.exports.queries = {
                 }
             );
 
+            console.log('contents');
+            console.log(contents);
+
+
             if (contents.contents.length === 0) {
                 return {
                     contents: [],
@@ -288,7 +292,8 @@ module.exports.queries = {
                 };
             });
 
-
+            console.log('decryptedContents');
+            console.log(decryptedContents);
 
             return {
                 contents: decryptedContents,
