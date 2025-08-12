@@ -144,11 +144,20 @@ module.exports.queries = {
             }
 
             if (filterInput?.search) {
+
+                const vesselsWithOwners = await Vessel.find(
+                    { subscriber: subscriberId, isDeleted: { $ne: true } },
+                    { _id: 1, ownerName: 1 }
+                );
+                const matchedOwnerIds = vesselsWithOwners
+                    .map(v => ({ id: v._id, ownerName: decrypt(v.ownerName) }))
+                    .filter(v => new RegExp(".*" + filterInput.search + ".*", "i").test(v.ownerName))
+                    .map(v => v.id);
                 filterConditions.$or = [
                     { name: { $regex: ".*" + filterInput.search + ".*", $options: "i" } },
                     { imoNumber: { $regex: ".*" + filterInput.search + ".*", $options: "i" } },
                     { companyName: { $regex: ".*" + filterInput.search + ".*", $options: "i" } },
-                    { ownerName: { $regex: ".*" + filterInput.search + ".*", $options: "i" } },
+                     { _id: { $in: matchedOwnerIds } } 
                 ];
             }
 
