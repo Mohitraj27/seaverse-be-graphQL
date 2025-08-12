@@ -264,6 +264,7 @@ module.exports.queries = {
                 }
             );
 
+
             if (contents.contents.length === 0) {
                 return {
                     contents: [],
@@ -287,8 +288,6 @@ module.exports.queries = {
                     updatedBy: decryptedUpdatedBy,
                 };
             });
-
-
 
             return {
                 contents: decryptedContents,
