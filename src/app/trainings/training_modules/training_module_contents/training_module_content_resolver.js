@@ -948,6 +948,7 @@ module.exports.mutations = {
                 });
 
                 input.videos = vData;
+                input.compressing = true;
 
                 contentTypeNotification = 'Videos';
             }
@@ -1504,6 +1505,8 @@ module.exports.mutations = {
                         duration: meta.duration
                     });
                 }
+                console.log('reached above compressing...');
+                updateData.compressing = true;
             }
 
             isUpdated = true;
@@ -1511,7 +1514,6 @@ module.exports.mutations = {
             updateData.audios = [];
             updateData.images = [];
             updateData.files = [];
-            updateData.compressing = true;
         }
 
 

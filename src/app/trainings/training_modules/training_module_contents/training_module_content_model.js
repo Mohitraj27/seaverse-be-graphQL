@@ -187,7 +187,7 @@ const trainingModuleContentSchema = new Schema(
         },
         compressing: {
             type: Boolean,
-            default: true,
+            default: false,
         }
     },
     { timestamps: true }
