@@ -39,6 +39,7 @@ const { generateRandomString } = require("../user/user-profile/user_profile_help
 const { BatchHelper } = require("../batches/batch_helper");
 const { createTrainingProgressForMigrationUsersHelper } = require("../training-registrations/training_registration_helper");
 const { decrypt, encrypt } = require('../../util/encryption_helper');
+const { runQuery, runQueryStream } = require("../../util/mysql_helper");
 
 const uploadTrainingImages = async ({ coverImage, folderName }) => {
     coverImage._id = coverImage._id ?? ObjectId();
@@ -1235,7 +1236,7 @@ const updateTimeSpendInOverallTrainingProgress = async (input, session) => {
         trainingModules.forEach(module => {
             module.contentDetails.forEach(content => {
                 // if (typeof content.duration === 'number') {
-                    totalDuration += content.duration;
+                totalDuration += content.duration;
                 // }
             });
         });
@@ -1869,14 +1870,54 @@ const quizEvaluationBulk = async (evaluationData, userId, overallDocs, session) 
 
 const dataMigrationBackground = async (migrationcourseId, trainingId) => {
 
+    console.log('reached inside dataMigrationBackground');
+
     // Convert migrationcourseId to ObjectId if it's a string
     if (typeof migrationcourseId === 'string') {
         migrationcourseId = ObjectId(migrationcourseId);
     }
 
-    const completedMigrationUsers = await UserCourseMap.find({ course: migrationcourseId })
-        .populate("user")
-        .populate("course");
+    const migrationCourse = await MigrationCourse.findById(migrationcourseId).select('UID');
+
+    if (!migrationCourse) return;
+
+    const migrationCourseUID = migrationCourse?.UID;
+
+    console.log('migrationCourseUID');
+    console.log(migrationCourseUID);
+
+    const completedMigrationUsers = [];
+
+    try {
+
+        const sql = `SELECT EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME
+        FROM (
+            SELECT EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME
+            FROM crew_certificates_synergy
+            WHERE EMAIL IS NOT NULL 
+            AND COURSE_ID = ?
+
+            UNION
+
+            SELECT EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME
+            FROM crew_certificates_denmark
+            WHERE EMAIL IS NOT NULL 
+            AND COURSE_ID = ?
+        ) AS combined
+        GROUP BY EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME
+        ORDER BY FIRST_NAME, LAST_NAME;`;
+
+        // const sql = `SELECT EMPLOYEE_ID, EMAIL FROM crew_certificates_synergy LIMIT 5`;
+
+        // const users = await runQueryStream(sql);
+
+        for await (const row of runQueryStream(sql, [migrationCourseUID, migrationCourseUID])) {
+            completedMigrationUsers.push(row);
+        }
+
+    } catch (error) {
+        console.error("❌ SQL query error:", error);
+    }
 
 
     if (completedMigrationUsers.length === 0) return;
@@ -1887,8 +1928,8 @@ const dataMigrationBackground = async (migrationcourseId, trainingId) => {
         const userBulkOps = [];
         const employeeBulkOps = [];
 
-        const emails = completedMigrationUsers.map(({ user }) => user.email);
-        const ids = completedMigrationUsers.map(({ user }) => user.civilIdOrPassport);
+        const emails = completedMigrationUsers.map((user) => encrypt(user.EMAIL));
+        const ids = completedMigrationUsers.map((user) => encrypt(user.EMPLOYEE_ID));
 
         const existingUsers = await User.find({
             $or: [
@@ -1911,9 +1952,13 @@ const dataMigrationBackground = async (migrationcourseId, trainingId) => {
             userIds.push(user._id);
         });
 
-        for (const { user } of completedMigrationUsers) {
+        for (const user of completedMigrationUsers) {
 
-            const { firstName, lastName, email, civilIdOrPassport } = user;
+            const { FIRST_NAME, LAST_NAME, EMAIL, EMPLOYEE_ID } = user;
+            const encryptedFirstName = encrypt(FIRST_NAME);
+            const encryptedLastName = encrypt(LAST_NAME);
+            const encryptedEmail = encrypt(EMAIL);
+            const encryptedEmployeeId = encrypt(EMPLOYEE_ID);
 
             let userPasswordInfo = {};
             let generatePassword = generateRandomString(10);
@@ -1922,7 +1967,7 @@ const dataMigrationBackground = async (migrationcourseId, trainingId) => {
             userPasswordInfo.dummyPassword = `${dummyPasswordHash}~~~${generatePassword}`;
             userPasswordInfo.password = dummyPasswordHash;
 
-            if (existingEmails.has(email) || existingIds.has(civilIdOrPassport)) {
+            if (existingEmails.has(encryptedEmail) || existingIds.has(encryptedEmployeeId)) {
                 continue;
             }
 
@@ -1934,10 +1979,10 @@ const dataMigrationBackground = async (migrationcourseId, trainingId) => {
                     document: {
                         _id: userId,
                         subscriber: subscriberId,
-                        firstName,
-                        lastName,
-                        email,
-                        civilIdOrPassport: civilIdOrPassport?.toUpperCase(),
+                        firstName: encryptedFirstName,
+                        lastName: encryptedLastName,
+                        email: encryptedEmail,
+                        civilIdOrPassport: encryptedEmployeeId,
                         isRegistered: false,
                         ...userPasswordInfo,
                         role: Role.LEARNER,
@@ -2211,7 +2256,7 @@ module.exports = {
                         infoData: {
                             _id: notificationData.createdBy._id,
                             firstName: decrypt(notificationData.createdBy.firstName),
-                            lastName: notificationData.createdBy.lastName ? decrypt(notificationData.createdBy.lastName):'',
+                            lastName: notificationData.createdBy.lastName ? decrypt(notificationData.createdBy.lastName) : '',
                         },
                     },
                     {
