@@ -231,6 +231,7 @@ module.exports = {
                         ctx._source.role = params.role;
                         ctx._source.isActive = params.isActive;
                         ctx._source.isVerified = params.isVerified;
+                        ctx._source.avatar = params.avatar;
                     `,
                     {
                         term: { userId: savedUser._id.toString() }
@@ -252,6 +253,7 @@ module.exports = {
                         isVerified: savedUser.isVerified,
                         isOrganizationManager: savedUser.isOrganizationManager,
                         managingOrganization: savedUser.managingOrganization,
+                        avatar: savedUser.avatar,
                     }
                 );
             } catch (error) {
