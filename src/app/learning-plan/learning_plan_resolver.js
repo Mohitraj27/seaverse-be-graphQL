@@ -618,7 +618,7 @@ module.exports.queries = {
             };
             if (filterInput?.title) {
                 delete queryConditions.title;
-                filterInput={ ...filterInput, title:encrypt(filterInput.title.trim()) };
+                filterInput={ ...filterInput, title:filterInput.title.trim() };
             }
 
             if (filterInput?.status && Array.isArray(filterInput.status)) {
