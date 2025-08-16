@@ -150,52 +150,66 @@ const searchEmployeesFromElastic = async ({
   const mustNot = [];
 
   if (filterInput?.search?.trim()) {
-  const searchTerm = filterInput.search.trim();
-  const encryptedLower = encrypt(searchTerm.toLowerCase());
-  const encryptedUpper = encrypt(searchTerm.toUpperCase());
+    const searchTerm = filterInput.search.trim();
+    const encryptedLower = encrypt(searchTerm.toLowerCase());
+    const encryptedUpper = encrypt(searchTerm.toUpperCase());
 
-  // must.push({
-  //   bool: {
-  //     should: [
-  //       { match_phrase_prefix: { firstName: encryptedLower } },
-  //       { match_phrase_prefix: { lastName: encryptedLower } },
-  //       { match_phrase_prefix: { email: encryptedLower } },
-  //       { match_phrase_prefix: { civilIdOrPassport: encryptedUpper } },
-  //       { match_phrase_prefix: { designation: searchTerm } },
-  //       { match_phrase_prefix: { vesselName: searchTerm } },
-  //     ],
-  //     minimum_should_match: 1,
-  //   },
-  // });
+    // Check if search term contains space (indicating full name search)
+    const hasSpace = searchTerm.includes(' ');
+    const shouldClauses = [];
 
-  if (reports) {
+    if (hasSpace) {
+      // Split the search term for full name search
+      const nameParts = searchTerm.split(' ').filter(part => part.trim());
+
+      if (nameParts.length >= 2) {
+        // Search for full name combinations
+        const firstName = nameParts[0];
+        const lastName = nameParts.slice(1).join(' '); // Handle multiple last names
+
+        const encryptedFirstName = encrypt(firstName.toLowerCase());
+        const encryptedLastName = encrypt(lastName.toLowerCase());
+
+        // Add full name search - firstName + lastName combination
+        shouldClauses.push({
+          bool: {
+            must: [
+              { match_phrase_prefix: { firstName: encryptedFirstName } },
+              { match_phrase_prefix: { lastName: encryptedLastName } }
+            ]
+          }
+        });
+
+        // Also search if fullName field exists (if indexed)
+        shouldClauses.push({
+          match_phrase_prefix: { fullName: encryptedLower }
+        });
+      }
+    }
+
+    // Add individual field searches (existing logic)
+    shouldClauses.push(
+      { match_phrase_prefix: { firstName: encryptedLower } },
+      { match_phrase_prefix: { lastName: encryptedLower } },
+      { match_phrase_prefix: { email: encryptedLower } },
+      { match_phrase_prefix: { civilIdOrPassport: encryptedUpper } }
+    );
+
+    // Add additional fields for reports
+    if (reports) {
+      shouldClauses.push(
+        { match_phrase_prefix: { designation: searchTerm } },
+        { match_phrase_prefix: { vesselName: searchTerm } }
+      );
+    }
+
     must.push({
       bool: {
-        should: [
-          { match_phrase_prefix: { firstName: encryptedLower } },
-          { match_phrase_prefix: { lastName: encryptedLower } },
-          { match_phrase_prefix: { email: encryptedLower } },
-          { match_phrase_prefix: { civilIdOrPassport: encryptedUpper } },
-          { match_phrase_prefix: { designation: searchTerm } },
-          { match_phrase_prefix: { vesselName: searchTerm } },
-        ],
-        minimum_should_match: 1,
-      },
-    });
-  } else {
-    must.push({
-      bool: {
-        should: [
-          { match_phrase_prefix: { firstName: encryptedLower } },
-          { match_phrase_prefix: { lastName: encryptedLower } },
-          { match_phrase_prefix: { email: encryptedLower } },
-          { match_phrase_prefix: { civilIdOrPassport: encryptedUpper } },
-        ],
+        should: shouldClauses,
         minimum_should_match: 1,
       },
     });
   }
-}
 
 
   if (filterInput?.empDesignation?.length > 0) {
