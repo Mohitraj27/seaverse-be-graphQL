@@ -878,7 +878,7 @@ module.exports.queries = {
 
             let sanitizedSearch;
             if (filterInput?.search) {
-                sanitizedSearch = filterInput.search.trim().replace(/\s+/g, " ");
+                sanitizedSearch = filterInput.search;
             }
             // const results = await fetchResult([
             //     {
