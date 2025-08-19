@@ -50,6 +50,7 @@ module.exports = {
             isEmailNotification: Boolean
             isPushNotification: Boolean
             country: String
+            lastUnregisteredAt: String
         }
         type TermsAndConditions {
             _id: ID
@@ -80,7 +81,6 @@ module.exports = {
             firstName: String
             lastName: String
             email: String!
-            country: String
             password: String!
             confirmPassword: String!
             consents: [TermsAndConditionsInput!]
@@ -117,7 +117,6 @@ module.exports = {
             isOrganizationManager: Boolean
             address: UserAddressInput
             designation: String
-            country: String
             consents:[TermsAndConditionsforUpdateEmployee!]
             isEmailNotification: Boolean
             isPushNotification: Boolean
@@ -129,7 +128,6 @@ module.exports = {
             timestamp: String
         }
         input SignInInput {
-            countryCode: String
             emailOrCivilIdOrPassport: String!
             password: String!
             firebaseToken: String
@@ -181,7 +179,6 @@ module.exports = {
             refreshToken: String!
         }
         input emailVertificationInput{
-            country: String
             email: String!
         }
         type emailVerification{
@@ -189,7 +186,6 @@ module.exports = {
             message: String!
             generatedtoken: String!
             email:String!
-            country: String!
         }
         input OTPVerificationInput{
             email: String
@@ -200,7 +196,6 @@ module.exports = {
             status: String!
             message: String!
             email: String!
-            country: String!
         }
         type contentLanguage{
             status: String!

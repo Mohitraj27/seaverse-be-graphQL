@@ -7,6 +7,7 @@ const { sendEmailToLearner } = require('../../email-template/sendWelcomeEmail');
 const AwsHelper = require("../../../util/aws_helper");
 const { SqliteEmailHelper } = require('../../../util');
 const { decrypt } = require('../../../util/encryption_helper');
+const { updateByQueryToElasticSearch } = require('../../../util/elastic_helper');
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -93,6 +94,22 @@ const deleteProfilePictureHelper = async (url, userId) => {
             existingUser.avatar = null;
            const result = await AwsHelper.deleteFile(url);
             await existingUser.save();
+            try {
+                await updateByQueryToElasticSearch(
+                "users", 
+                `
+                    ctx._source.avatar = params.avatar;
+                `,
+                {
+                    term: { userId: existingUser._id.toString() }
+                },
+                {
+                    avatar: null,
+                }
+                );
+                } catch (error) {
+                    throw CustomError(ErrorName.NOT_FOUND);
+                }
             return result;
 
         } catch (error) {

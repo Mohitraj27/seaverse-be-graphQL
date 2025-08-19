@@ -19,9 +19,9 @@ module.exports = {
 
         const accessToken = JwtHelper.sign(tokenPayload, process.env.APP_SECRET, { expiresIn: "15m" });
         const refreshToken = JwtHelper.sign({ userId: user._id }, process.env.REFRESH_SECRET, { expiresIn: "7d" });
-        console.log('🧪 TEST MODE: Created tokens with short expiration');
-        console.log(`📅 Access Token expires in: 15 minutes`);
-        console.log(`📅 Refresh Token expires in: 7 days`);
+        // console.log('🧪 TEST MODE: Created tokens with short expiration');
+        // console.log(`📅 Access Token expires in: 15 minutes`);
+        // console.log(`📅 Refresh Token expires in: 7 days`);
         return {
             user: user,
             token: accessToken,
@@ -116,9 +116,7 @@ module.exports = {
 
             if (input.lastName) existingUser.lastName = encrypt(input.lastName.trim().toLowerCase());
 
-            if (input.country) existingUser.country = input.country.toUpperCase();
 
-            if(input.country === '') existingUser.country = null;
 
             if (input.lastName === '') existingUser.lastName = null;
 
@@ -225,7 +223,6 @@ module.exports = {
                         ctx._source.firstName = params.firstName;
                         ctx._source.lastName = params.lastName;
                         ctx._source.email = params.email;
-                        ctx._source.country = params.country;
                         ctx._source.civilIdOrPassport = params.civilIdOrPassport;
                         ctx._source.isRegistered = params.isRegistered;
                         ctx._source.vesselStatus = params.vesselStatus;
@@ -234,6 +231,7 @@ module.exports = {
                         ctx._source.role = params.role;
                         ctx._source.isActive = params.isActive;
                         ctx._source.isVerified = params.isVerified;
+                        ctx._source.avatar = params.avatar;
                     `,
                     {
                         term: { userId: savedUser._id.toString() }
@@ -243,7 +241,6 @@ module.exports = {
                         lastName: savedUser.lastName,
                         email: savedUser.email,
                         phone: savedUser.phone,
-                        country: savedUser.country,
                         civilIdOrPassport: savedUser.civilIdOrPassport,
                         avatar: savedUser.avatar,
                         languagePreference: savedUser.languagePreference,
@@ -256,6 +253,7 @@ module.exports = {
                         isVerified: savedUser.isVerified,
                         isOrganizationManager: savedUser.isOrganizationManager,
                         managingOrganization: savedUser.managingOrganization,
+                        avatar: savedUser.avatar,
                     }
                 );
             } catch (error) {

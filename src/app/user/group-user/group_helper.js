@@ -10,7 +10,7 @@ const { GroupMember } = require("./group_member_model");
 const { ObjectId } = require("../../../tools");
 const { CustomError, ErrorName, AuthUser, Role, UploadHelper, groupTypes } = require("../../../util");
 const { getAutoSyncUsers, getCustomGroupUsers, fetchUserFromAutoSyncedGroups } = require("../../training-registrations/training_registration_helper");
-
+const { decrypt } = require("../../../util/encryption_helper");
 const mergedGroupDetails = (allGroups, groupDetails) => {
 
     const groupDetailsMap = new Map(groupDetails.map(group => [group._id, group]));
@@ -1019,7 +1019,14 @@ module.exports = {
                 }
             }
         ]);
-
+        const decryptedOwnerGroups = ownerGroups.map(group => {
+            const decryptedName = decrypt(group.groupName);
+            return {
+                ...group,
+                groupName: decryptedName,
+                description: group.description.replace(group.groupName, decryptedName)
+            };
+        });
         let allGroups = [];
         if (
             empDesignationGroups ||
@@ -1027,7 +1034,7 @@ module.exports = {
             vesselGroups ||
             vesselTypeGroups ||
             vesselStatusGroups ||
-            ownerGroups
+            decryptedOwnerGroups
         ) {
             allGroups = [
                 ...empDesignationGroups,
@@ -1035,7 +1042,7 @@ module.exports = {
                 ...vesselGroups,
                 ...vesselTypeGroups,
                 ...vesselStatusGroups,
-                ...ownerGroups,
+                ...decryptedOwnerGroups,
             ];
         }
         return allGroups;

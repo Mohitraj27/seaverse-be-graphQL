@@ -190,7 +190,7 @@ module.exports.mutations = {
         try {
             const signUp = await DbTransactionHelper.performDbTransaction(async session => {
 
-                const { password, confirmPassword, country, TermsAndConditions, email, firstName, lastName } = input;
+                const { password, confirmPassword, TermsAndConditions, email, firstName, lastName } = input;
 
                 if (!password || !confirmPassword || !email) {
                     throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Required fields are missing");
@@ -231,7 +231,6 @@ module.exports.mutations = {
                         directSignup: true,
                         isSignupAdminAprroved: false,
                         isResetPasswordDialog: true,
-                        country: country ?? null,
                         TermsAndConditions: TermsAndConditions ?? null,
                         UID: await EmployeeHelper.generateUserUID({ session }),
                     }
@@ -270,7 +269,6 @@ module.exports.mutations = {
                     lastName: savedEmployee.user?.lastName,
                     email: savedEmployee.user?.email,
                     civilIdOrPassport: savedEmployee.user?.civilIdOrPassport,
-                    country: savedEmployee.user?.country,
                     languagePreference: savedEmployee.user?.languagePreference,
                     role: savedEmployee.user?.role,
                     subRoles: savedEmployee.user?.subRoles,
@@ -303,7 +301,6 @@ module.exports.mutations = {
                     firstName: encrypt(firstName.toLowerCase()),
                     lastName: encrypt(lastName.toLowerCase()),
                     email: encrypt(email?.toLowerCase()),
-                    country: country,
                     signupStatus: signupstatus.PENDING,
                     userId: createUser[0]._id,
                 }], { session });
@@ -630,7 +627,7 @@ module.exports.mutations = {
     },
     signUpVerifyEmail: async ({ input }) => {
         try {
-            const { country, email } = input;
+            const { email } = input;
             if (!email) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Email is required!");
             const lowercaseEmail = encrypt(email.toLowerCase());
             const existingUser = await User.findOne({ email: lowercaseEmail, isDeleted: false });
@@ -690,7 +687,6 @@ module.exports.mutations = {
                     email: lowercaseEmail,
                     otp: encryptedOtp,
                     generatedtoken: generatedtoken,
-                    country: country
                 });
             }
             return {
@@ -698,7 +694,6 @@ module.exports.mutations = {
                 message: `OTP sent successfully to ${email}`,
                 generatedtoken: generatedtoken,
                 email: email,
-                country: country
             };
         } catch (error) {
             throw CustomError(ErrorName.EMAIL_VERIFICATION_FAILED, error.message);
@@ -720,7 +715,6 @@ module.exports.mutations = {
                 status: true,
                 message: "OTP verified successfully!",
                 email: savedOtp.email,
-                country: savedOtp.country
             };
 
         } catch (error) {

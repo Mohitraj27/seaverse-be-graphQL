@@ -87,6 +87,7 @@ async function pollMessages() {
                                         const videoToUpdate = savedContent.videos.find(v => v.url === url);
                                         if (videoToUpdate) {
                                             videoToUpdate.url = uploadedFile;
+                                            savedContent.compressing = false;
                                         }
                                         console.log('savedContent');
                                         console.log(savedContent);

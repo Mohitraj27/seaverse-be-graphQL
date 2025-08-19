@@ -6,6 +6,7 @@ const {
 
 const { ObjectId } = require("../../../tools");
 const { Owner } = require("../owner/owner_model");
+const { encrypt,decrypt } = require("../../../util/encryption_helper"); 
 
 module.exports.queries = {
     getOwners: async ({ search }, context) => {
@@ -15,13 +16,22 @@ module.exports.queries = {
                 subscriber: ObjectId(subscriberId),
                 isDeleted: false
             };
-            if (search) {
-                query.name = { $regex: search, $options: "i" };
-            }
+            
             const owners = await Owner.find(query);
-
+            let decryptedOwnersName = owners.map(owner => {
+                return {
+                    ...owner.toObject(),
+                    name: decrypt(owner.name)
+                };
+            });
+            if (search) {
+                const searchLower = search.toLowerCase();
+                decryptedOwnersName = decryptedOwnersName.filter(owner =>
+                    owner.name.toLowerCase().includes(searchLower)
+                );
+            }
             return {
-                owners,
+                owners: decryptedOwnersName,
                 totalCount: owners.length
             }
         } catch (error) {
@@ -37,7 +47,7 @@ module.exports.mutations = {
             const { name } = input;
             const owner = new Owner({
                 subscriber: subscriberId,
-                name: name,
+                name: encrypt(name),
                 createdBy: userId,
                 updatedBy: userId
             });

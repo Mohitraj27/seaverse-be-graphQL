@@ -42,7 +42,6 @@ const rejectSignUpRequests = async signupRequests => {
                 userId: req.userId,
                 requestDate: req.requestDate,
                 signupStatus: signupStatus?.REJECTED,
-                country: req.country,
                 decisionDate: new Date(),
             }));
             await HistorySignupRequest.insertMany(historyRecords, { session });
