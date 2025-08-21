@@ -123,7 +123,8 @@ async function updateByQueryToElasticSearch(indexName, scriptSource, query, para
           params: params
         },
         query: query
-      }
+      },
+      conflicts: 'proceed',
     });
     return response;
   } catch (err) {
