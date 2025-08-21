@@ -1311,7 +1311,7 @@ const updateTimeSpendInOverallTrainingProgress = async (input, session) => {
     const durationMap = new Map(
         result.map(item => [item._id.toString(), item.totalLastAccessedDuration])
     );
-    // console.log(durationMap);
+    console.log(durationMap);
     // Map input to overallDurationMap using aggregation result
     input.forEach(({ overallId, finishedCourseFirstTime }) => {
         overallDurationMap.set(overallId.toString(), {
