@@ -1483,7 +1483,7 @@ module.exports.mutations = {
             if (!input.users) {
                 throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Pass all the required fields!");
             }
-            const inputUserIds = await User.find({ email: { $in: input.users } }).select("_id");
+            const inputUserIds = await User.find({ email: { $in: input.users.map(email => encrypt(email)) } }).select("_id");
             let existingTraining = null;
             if (input.training) {
                 existingTraining = await OverallTrainingProgress.find({ training: input.training, user: { $in: inputUserIds } });
@@ -1518,7 +1518,7 @@ module.exports.mutations = {
                 if (input.type === "ENROLL") {
 
                     if (verifiedUsers.alreadyEnrolledEmails.length > 0) {
-                        alreadyEnrolledEmails.push(...verifiedUsers.alreadyEnrolledEmails);
+                        alreadyEnrolledEmails.push(...verifiedUsers.alreadyEnrolledEmails.map(email => decrypt(email)));
                     }
 
                 }
