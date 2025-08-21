@@ -39,6 +39,7 @@ const { generateRandomString } = require("../user/user-profile/user_profile_help
 const { BatchHelper } = require("../batches/batch_helper");
 const { createTrainingProgressForMigrationUsersHelper } = require("../training-registrations/training_registration_helper");
 const { decrypt, encrypt } = require('../../util/encryption_helper');
+const { updateCoursesCountAndProgressInElasticSearch } = require("../training-registrations/overall-course-progress/overall_progress_helper");
 
 const uploadTrainingImages = async ({ coverImage, folderName }) => {
     coverImage._id = coverImage._id ?? ObjectId();
@@ -1035,6 +1036,7 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
 const updateOverallProgressPercentage = async (overallDocs, session) => {
 
     const overallIds = overallDocs.map((item) => item._id);
+    const userIds = [...new Set(overallDocs.map(item => item.user))];
 
     let trainingProgressInput = [];
     overallDocs.forEach((doc) => {
@@ -1133,6 +1135,7 @@ const updateOverallProgressPercentage = async (overallDocs, session) => {
 
     if (bulkOperations.length > 0) {
         await OverallTrainingProgress.bulkWrite(bulkOperations, { session });
+        await updateCoursesCountAndProgressInElasticSearch(userIds, session);
     }
 };
 
@@ -1248,7 +1251,7 @@ const updateTimeSpendInOverallTrainingProgress = async (input, session) => {
 
     const bulkUpdates = Array.from(overallDurationMap.entries()).map(([overallId, { totalDuration, finishedCourseFirstTime }]) => {
         const update = {
-            $inc: { timeSpend: totalDuration }
+            $set: { timeSpend: totalDuration }
         };
 
         if (typeof finishedCourseFirstTime === 'boolean') {
