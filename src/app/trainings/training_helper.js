@@ -1228,10 +1228,27 @@ const updateOverallProgressPercentage = async (overallDocs, session) => {
 //         console.error('Error calculating timeSpend for overallIds:', error.message);
 //     }
 // }
-const updateTimeSpendInOverallTrainingProgress = async (input, session) => {
+/* const updateTimeSpendInOverallTrainingProgress = async (input, session) => {
 
     const overallDurationMap = new Map();
+    const uniqueOverallIds = [...new Set(input.map(item => item.overallId))];
+    console.log(uniqueOverallIds);
+    const result = await TrainingProgress.aggregate([
+        {
+            $match: {
+                overallTrainingProgress: { $in: uniqueOverallIds },
+                isDeleted: false, 
+            },
+        },
+        {
+            $group: {
+                _id: "$overallTrainingProgress",
+                totalLastAccessedDuration: { $sum: "$lastAccessedDuration" },
+            },
+        },
+    ]);
 
+    console.log(result);
     input.forEach(({ overallId, trainingModules, finishedCourseFirstTime }) => {
         let totalDuration = 0;
 
@@ -1268,7 +1285,67 @@ const updateTimeSpendInOverallTrainingProgress = async (input, session) => {
 
     await OverallTrainingProgress.bulkWrite(bulkUpdates, { session });
 
-}
+} */
+
+const updateTimeSpendInOverallTrainingProgress = async (input, session) => {
+    const overallDurationMap = new Map();
+    const uniqueOverallIds = [...new Set(input.map(item => item.overallId))];
+
+    // Aggregation to fetch total lastAccessedDuration per overallTrainingProgress
+    const result = await TrainingProgress.aggregate([
+        {
+            $match: {
+                overallTrainingProgress: { $in: uniqueOverallIds },
+                isDeleted: false,
+            },
+        },
+        {
+            $group: {
+                _id: "$overallTrainingProgress",
+                totalLastAccessedDuration: { $sum: "$lastAccessedDuration" },
+            },
+        },
+    ]).session(session);
+    console.log(result);
+    // Convert aggregation result into a map for quick lookup
+    const durationMap = new Map(
+        result.map(item => [item._id.toString(), item.totalLastAccessedDuration])
+    );
+    console.log(durationMap);
+    // Map input to overallDurationMap using aggregation result
+    input.forEach(({ overallId, finishedCourseFirstTime }) => {
+        overallDurationMap.set(overallId.toString(), {
+            totalDuration: durationMap.get(overallId.toString()) || 0,
+            finishedCourseFirstTime,
+        });
+    });
+
+    // Prepare bulk updates
+    const bulkUpdates = Array.from(overallDurationMap.entries()).map(
+        ([overallId, { totalDuration, finishedCourseFirstTime }]) => {
+            const update = {
+                $set: { timeSpend: totalDuration },
+            };
+
+            if (typeof finishedCourseFirstTime === "boolean") {
+                update.$set.finishedCourseFirstTime = finishedCourseFirstTime;
+            }
+
+            return {
+                updateOne: {
+                    filter: { _id: overallId },
+                    update,
+                },
+            };
+        }
+    );
+
+    if (bulkUpdates.length > 0) {
+        await OverallTrainingProgress.bulkWrite(bulkUpdates, { session });
+    }
+};
+
+
 
 const updateTrainingProgress = async (input, userId, subscriberId, session) => {
 
