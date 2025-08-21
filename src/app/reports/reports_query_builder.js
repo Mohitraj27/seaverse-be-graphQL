@@ -81,13 +81,13 @@ const singleLearnerEnrollmentReportQuery = queryStages => {
                     attemptCount: "$attemptCount",
                 },
                 pipeline: [
-                    {
-                        $match: {
-                            $expr: {
-                                $eq: ["$attemptCount", "$$attemptCount"],
-                            },
-                        },
-                    },
+                    // {
+                    //     $match: {
+                    //         $expr: {
+                    //             $eq: ["$attemptCount", "$$attemptCount"],
+                    //         },
+                    //     },
+                    // },
                     {
                         $lookup: {
                             from: "trainingmodulecontents",
@@ -932,7 +932,7 @@ const customEnrollmentReportQuery = (matchStage = []) => {
                 as: "quizevaluationInfo",
                 let: { attemptCount: "$attemptCount" },
                 pipeline: [
-                    { $match: { $expr: { $eq: ["$attemptCount", "$$attemptCount"] } } },
+                    // { $match: { $expr: { $eq: ["$attemptCount", "$$attemptCount"] } } },
                     {
                         $lookup: {
                             from: "trainingmodulecontents",
