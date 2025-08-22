@@ -109,7 +109,7 @@ async function pollMessages() {
                                         fileName: newFileName,
                                         filePath: { url: saveCSV },
                                         importStatus: "SUCCESS",
-                                        description: `Successfully created ${insertedUsers.length} user(s)`
+                                        description: `Successfully created ${insertedCount ?? 0} user(s)`
                                     })
                                     if (!createImportLog) throw CustomError(ErrorName.FAILED, 'Failed to create import log');
 
