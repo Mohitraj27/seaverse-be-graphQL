@@ -80,10 +80,14 @@ async function pollMessages() {
                             const updatedCount = fetchJob?.processedBatches?.updatedCount || 0;
                             const totalRecords = fetchJob?.totalRecords || 0;
                             const progressCompleted = fetchJob?.progressCompleted;
-
+                            console.log(`\n Import Job ${jobId} - Inserted: ${insertedCount}, Updated: ${updatedCount}, Total: ${totalRecords}, Progress Completed: ${progressCompleted}`);
                             if ((insertedCount + updatedCount === totalRecords) && progressCompleted) {
+                                
+                                console.log(`\n🎉 Import Job ${jobId} completed successfully.`);
 
                                 if (insertedCount > 0 && updatedCount === 0) {
+                                    
+                                    console.log('\nOnly Inserted:', insertedCount);
 
                                     await EmployeeHelper.sendNotificationOnBULK({
                                         subscriber: subscriberId,
@@ -112,6 +116,8 @@ async function pollMessages() {
                                 }
 
                                 if ((updatedCount > 0) && insertedCount === 0) {
+                                    
+                                    console.log('\nOnly Updated:', updatedCount);
 
                                     await EmployeeHelper.sendNotificationOnBULK({
                                         subscriber: subscriberId,
@@ -142,6 +148,8 @@ async function pollMessages() {
 
                                 if ((insertedCount > 0) && (updatedCount > 0)) {
 
+                                    console.log('\nInserted and Updated:', insertedCount, updatedCount);
+
                                     await EmployeeHelper.sendNotificationOnBULK({
                                         subscriber: subscriberId,
                                         action: "Bulk Import Success",
@@ -169,6 +177,8 @@ async function pollMessages() {
 
                                 }
 
+                            }else{
+                                console.log(`\n⏳ Import Job ${jobId} is still in progress...`);
                             }
 
                             console.log(`✅ CSV Import Job ${message.MessageId} (${jobId}) processed successfully`);
