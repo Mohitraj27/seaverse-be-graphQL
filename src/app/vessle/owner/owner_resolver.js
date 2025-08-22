@@ -6,7 +6,7 @@ const {
 
 const { ObjectId } = require("../../../tools");
 const { Owner } = require("../owner/owner_model");
-const { encrypt,decrypt } = require("../../../util/encryption_helper"); 
+const { encrypt, decrypt } = require("../../../util/encryption_helper");
 
 module.exports.queries = {
     getOwners: async ({ search }, context) => {
@@ -36,7 +36,9 @@ module.exports.queries = {
                     ...obj,
                     // name: obj.name ? decrypt(obj.name) : "",
                     firstName: obj.firstName ? decrypt(obj.firstName) : "",
-                    lastName: obj.lastName ? decrypt(obj.lastName) : ""
+                    lastName: obj.lastName ? decrypt(obj.lastName) : "",
+                    address: obj.address ? decrypt(obj.address) : "",
+
                 };
             });
 
