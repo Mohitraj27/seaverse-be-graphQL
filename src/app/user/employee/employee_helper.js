@@ -3128,7 +3128,7 @@ module.exports = {
 
         try {
             const userVesselsDetails = await Vessel.find({ _id: savedEmployee.user?.currentVessel, isDeleted: false, isActive: true }).populate('typeOfVessel', '_id name');
-            console.log('this is userVesselsDetails', userVesselsDetails);
+            // console.log('this is userVesselsDetails', userVesselsDetails);
 
             const document = {
                 employeeId: savedEmployee._id?.toString(),

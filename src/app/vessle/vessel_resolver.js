@@ -237,14 +237,13 @@ module.exports.queries = {
                 }
             );
             let decryptedVessels = vessels.vessels.map(vessel => {
-                if(vessel?.ownerName?.length > 0 && vessel?.address?.length > 0){
+              
                     return {
                         ...vessel,
-                        ownerName: decrypt(vessel.ownerName),
-                        address: decrypt(vessel.address),
+                        ownerName:vessel?.ownerName ? decrypt(vessel.ownerName) : "",
+                        address:vessel?.address ? decrypt(vessel.address) : "",
                     }
-                   }
-                return vessel;
+                   
             });
 
             return {

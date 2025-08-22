@@ -49,7 +49,8 @@ async function updateDocumenttoElasticSearch(indexName, id, document) {
       refresh: true,
       id: id.toString(),
       body: {
-        doc: document 
+        doc: document,
+        doc_as_upsert: true 
       },
     });
   } catch (err) {
@@ -125,6 +126,7 @@ async function updateByQueryToElasticSearch(indexName, scriptSource, query, para
         query: query
       },
       conflicts: 'proceed',
+
     });
     return response;
   } catch (err) {
