@@ -3,6 +3,8 @@ module.exports = {
         type Owner {
             _id: ID
             name: String!
+            firstName: String
+            lastName: String
             address: String
             isActive: Boolean
             createdAt: String
@@ -11,6 +13,9 @@ module.exports = {
         input OwnerInput {
             _id: ID
             name: String!
+            firstName: String
+            lastName: String
+            address: String
             isActive: Boolean
         }
 

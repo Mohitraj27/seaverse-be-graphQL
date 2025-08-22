@@ -16,28 +16,42 @@ module.exports.queries = {
                 subscriber: ObjectId(subscriberId),
                 isDeleted: false
             };
-            
+
+            // If search is provided → encrypt it
+            if (search) {
+                const encryptedSearch = encrypt(search, true); // deterministic encryption
+                query.$or = [
+                    { firstName: { $regex: encryptedSearch, $options: "i" } },
+                    { lastName: { $regex: encryptedSearch, $options: "i" } }
+                ];
+            }
+
+            // Fetch from DB
             const owners = await Owner.find(query);
-            let decryptedOwnersName = owners.map(owner => {
+
+            // Decrypt before returning
+            const decryptedOwners = owners.map(owner => {
+                const obj = owner.toObject();
                 return {
-                    ...owner.toObject(),
-                    name: decrypt(owner.name)
+                    ...obj,
+                    // name: obj.name ? decrypt(obj.name) : "",
+                    firstName: obj.firstName ? decrypt(obj.firstName) : "",
+                    lastName: obj.lastName ? decrypt(obj.lastName) : ""
                 };
             });
-            if (search) {
-                const searchLower = search.toLowerCase();
-                decryptedOwnersName = decryptedOwnersName.filter(owner =>
-                    owner.name.toLowerCase().includes(searchLower)
-                );
-            }
+
+
             return {
-                owners: decryptedOwnersName,
-                totalCount: owners.length
-            }
+                owners: decryptedOwners,
+                totalCount: decryptedOwners.length
+            };
+
         } catch (error) {
             throw Error(error.message);
         }
-    },
+    }
+
+
 };
 
 module.exports.mutations = {
