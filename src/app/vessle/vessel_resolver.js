@@ -25,8 +25,43 @@ const LearningPlanStatus = require('../learning-plan/enumFields/learning_plan_st
 const targetAudienceEnum = require('../learning-plan/enumFields/targetAudienceEnum.json')
 const typeOfConditionalCustomFieldEnum = require('../learning-plan/enumFields/typeOfConditionalCustomField.json');
 const { filterLearningPlans } = require("../user/employee/employee_helper");
-const { encrypt,decrypt } = require("../../util/encryption_helper");
+const { encrypt, decrypt } = require("../../util/encryption_helper");
 const { updateByQueryToElasticSearch } = require('../../util/elastic_helper');
+
+// Utility function to safely decrypt data
+const safeDecrypt = (encryptedData, fieldName = 'field') => {
+    if (!encryptedData) return '';
+
+    // Check if data looks corrupted (too long or contains invalid patterns)
+    if (encryptedData.length > 10000) {
+        console.warn(`${fieldName} appears corrupted - too long: ${encryptedData.length} characters`);
+        return '';
+    }
+
+    try {
+        return decrypt(encryptedData);
+    } catch (error) {
+        console.warn(`Failed to decrypt ${fieldName}:`, error.message);
+        return '';
+    }
+};
+
+// Utility function to safely encrypt data
+const safeEncrypt = (plainData, fieldName = 'field') => {
+    if (!plainData || plainData.length === 0) return null;
+
+    // Strict length validation
+    if (plainData.length > 100) {
+        throw new Error(`${fieldName} is too long: ${plainData.length} characters`);
+    }
+
+    try {
+        return encrypt(plainData);
+    } catch (error) {
+        console.error(`Failed to encrypt ${fieldName}:`, error.message);
+        throw new Error(`Failed to process ${fieldName}`);
+    }
+};
 const checkVesselLinkedToActiveLearningPlan = async (vesselId, vesselTypeId) => {
     try {
         const result = await LearningPlan.aggregate([
@@ -127,37 +162,48 @@ module.exports.queries = {
 
             let ownerNameIdsToMatch = null;
             if (filterInput?.ownerName?.length > 0) {
-                const vesselsWithOwners = await Vessel.find(
+                const ownersWithNames = await Owner.find(
                     { subscriber: subscriberId, isDeleted: { $ne: true } },
-                    { _id: 1, ownerName: 1 }
+                    { _id: 1, firstName: 1, lastName: 1 }
                 );
-    
-                const matchedOwnerIds = vesselsWithOwners
-                    .map(v => ({ id: v._id, ownerName: decrypt(v.ownerName) }))
-                    .filter(v => filterInput.ownerName.some(searchTerm =>
-                        new RegExp(".*" + searchTerm + ".*", "i").test(v.ownerName)
+
+                const matchedOwnerIds = ownersWithNames
+                    .map(owner => {
+                        const firstName = owner.firstName ? safeDecrypt(owner.firstName, 'owner firstName') : '';
+                        const lastName = owner.lastName ? safeDecrypt(owner.lastName, 'owner lastName') : '';
+                        const fullName = `${firstName} ${lastName}`.trim();
+                        return { id: owner._id, ownerName: fullName };
+                    })
+                    .filter(owner => filterInput.ownerName.some(searchTerm =>
+                        new RegExp(".*" + searchTerm + ".*", "i").test(owner.ownerName)
                     ))
-                    .map(v => v.id);
-    
+                    .map(owner => owner.id);
+
                 ownerNameIdsToMatch = matchedOwnerIds;
-                filterConditions._id = { $in: ownerNameIdsToMatch };
+                filterConditions.ownerId = { $in: ownerNameIdsToMatch };
             }
 
             if (filterInput?.search) {
-
-                const vesselsWithOwners = await Vessel.find(
+                const ownersWithNames = await Owner.find(
                     { subscriber: subscriberId, isDeleted: { $ne: true } },
-                    { _id: 1, ownerName: 1 }
+                    { _id: 1, firstName: 1, lastName: 1 }
                 );
-                const matchedOwnerIds = vesselsWithOwners
-                    .map(v => ({ id: v._id, ownerName: decrypt(v.ownerName) }))
-                    .filter(v => new RegExp(".*" + filterInput.search + ".*", "i").test(v.ownerName))
-                    .map(v => v.id);
+
+                const matchedOwnerIds = ownersWithNames
+                    .map(owner => {
+                        const firstName = owner.firstName ? safeDecrypt(owner.firstName, 'owner firstName') : '';
+                        const lastName = owner.lastName ? safeDecrypt(owner.lastName, 'owner lastName') : '';
+                        const fullName = `${firstName} ${lastName}`.trim();
+                        return { id: owner._id, ownerName: fullName };
+                    })
+                    .filter(owner => new RegExp(".*" + filterInput.search + ".*", "i").test(owner.ownerName))
+                    .map(owner => owner.id);
+
                 filterConditions.$or = [
                     { name: { $regex: ".*" + filterInput.search + ".*", $options: "i" } },
                     { imoNumber: { $regex: ".*" + filterInput.search + ".*", $options: "i" } },
                     { companyName: { $regex: ".*" + filterInput.search + ".*", $options: "i" } },
-                     { _id: { $in: matchedOwnerIds } } 
+                    { ownerId: { $in: matchedOwnerIds } }
                 ];
             }
 
@@ -182,7 +228,7 @@ module.exports.queries = {
                         foreignField: "_id",
                         as: "owner",
                         pipeline: [
-                            { $project: { _id: 1, name: 1, address: 1 } },
+                            { $project: { _id: 1, name: 1, firstName: 1, lastName: 1, address: 1 } },
                         ],
                     },
                 },
@@ -205,7 +251,7 @@ module.exports.queries = {
                 const sortFieldMap = {
                     name: "name",
                     companyName: "companyName",
-                    ownerName: "owner.name",
+                    ownerName: "owner.firstName",
                     vesselType: "typeOfVessel.name"
                 };
 
@@ -237,13 +283,31 @@ module.exports.queries = {
                 }
             );
             let decryptedVessels = vessels.vessels.map(vessel => {
-              
-                    return {
-                        ...vessel,
-                        ownerName:vessel?.ownerName ? decrypt(vessel.ownerName) : "",
-                        address:vessel?.address ? decrypt(vessel.address) : "",
-                    }
-                   
+                let ownerName = "";
+                if (vessel.owner) {
+                    const firstName = vessel.owner.firstName ? safeDecrypt(vessel.owner.firstName, 'owner firstName') : '';
+                    const lastName = vessel.owner.lastName ? safeDecrypt(vessel.owner.lastName, 'owner lastName') : '';
+                    const address = vessel.owner.address ? safeDecrypt(vessel.owner.address, 'owner address') : '';
+                    const name = vessel.owner.name ? safeDecrypt(vessel.owner.name, 'owner name') : '';
+
+                    ownerName = `${firstName} ${lastName}`.trim() || name;
+
+                    // Update the owner object with all decrypted fields
+                    vessel.owner = {
+                        ...vessel.owner,
+                        name: ownerName,
+                        firstName: firstName,
+                        lastName: lastName,
+                        address: address
+                    };
+                }
+
+                return {
+                    ...vessel,
+                    ownerName: ownerName,
+                    address: vessel?.address ? safeDecrypt(vessel.address, 'vessel address') : "",
+                }
+
             });
 
             return {
@@ -264,10 +328,21 @@ module.exports.queries = {
             if (!vessel) {
                 throw CustomError(ErrorName.NOT_FOUND, 'Vessel not found.');
             }
+            // Get owner details if ownerId exists
+            let ownerName = "";
+            if (vessel.ownerId) {
+                const owner = await Owner.findById(vessel.ownerId);
+                if (owner) {
+                    const firstName = owner.firstName ? safeDecrypt(owner.firstName, 'owner firstName') : '';
+                    const lastName = owner.lastName ? safeDecrypt(owner.lastName, 'owner lastName') : '';
+                    ownerName = `${firstName} ${lastName}`.trim();
+                }
+            }
+
             const decryptedVessels = {
                 ...vessel.toObject(),
-                ownerName: vessel?.ownerName ? decrypt(vessel.ownerName) : vessel?.ownerName,
-                address: vessel?.address ? decrypt(vessel.address) : vessel?.address,
+                ownerName: ownerName,
+                address: vessel?.address ? safeDecrypt(vessel.address, 'vessel address') : vessel?.address,
             };
             return decryptedVessels;
         } catch (error) {
@@ -321,19 +396,67 @@ module.exports.mutations = {
                 throw CustomError(ErrorName.ALREADY_EXIST, 'IMO number already exist.');
             }
 
-            let ownerName;
-
             if (ownerId && ownerId !== '') {
-                const existingOwner = await Owner.findById(ownerId);
-                if (!existingOwner) throw CustomError(ErrorName.FAILED, 'Owner does not exist');
-                if (address) {
-                    existingOwner.address = address;
-                    await existingOwner.save();
-                }
+                try {
+                    const existingOwner = await Owner.findById(ownerId);
+                    if (!existingOwner) throw CustomError(ErrorName.FAILED, 'Owner does not exist');
 
-                ownerName = decrypt(existingOwner?.name);
-                if (!ownerName) {
-                    throw CustomError(ErrorName.FAILED, 'Owner Name does not exist');
+                    let needsUpdate = false;
+                    const updateData = {};
+
+                    // Handle name field construction with strict validation
+                    if (!existingOwner.name && (existingOwner.firstName || existingOwner.lastName)) {
+                        try {
+                            let firstName = '';
+                            let lastName = '';
+
+                            if (existingOwner.firstName) {
+                                if (existingOwner.firstName.length > 50) {
+                                    firstName = safeDecrypt(existingOwner.firstName, 'owner firstName');
+                                } else {
+                                    firstName = existingOwner.firstName;
+                                }
+                            }
+
+                            if (existingOwner.lastName) {
+                                if (existingOwner.lastName.length > 50) {
+                                    lastName = safeDecrypt(existingOwner.lastName, 'owner lastName');
+                                } else {
+                                    lastName = existingOwner.lastName;
+                                }
+                            }
+
+                            const fullName = `${firstName} ${lastName}`.trim();
+                            if (fullName && fullName.length < 50) {
+                                updateData.name = safeEncrypt(fullName, 'owner name');
+                                needsUpdate = true;
+                            }
+                        } catch (decryptError) {
+                            console.error('Error processing owner name in createVessel:', decryptError.message);
+                        }
+                    }
+
+                    if (address && address.length < 200) {
+                        try {
+                            updateData.address = safeEncrypt(address, 'owner address');
+                            needsUpdate = true;
+                        } catch (encryptError) {
+                            console.error('Error encrypting address in createVessel:', encryptError.message);
+                            throw CustomError(ErrorName.FAILED, 'Failed to process address data');
+                        }
+                    } else if (address && address.length >= 200) {
+                        throw CustomError(ErrorName.FAILED, 'Address is too long');
+                    }
+
+                    if (needsUpdate) {
+                        await Owner.updateOne({ _id: ownerId }, { $set: updateData });
+                    }
+                } catch (ownerError) {
+                    console.error('Error updating owner in createVessel:', ownerError.message);
+                    if (ownerError.message.includes('offset')) {
+                        throw CustomError(ErrorName.FAILED, 'Owner data is corrupted. Please contact support.');
+                    }
+                    throw ownerError;
                 }
             }
 
@@ -345,8 +468,7 @@ module.exports.mutations = {
                 isActive: isActive,
                 companyName: companyName,
                 ownerId: ownerId ?? null,
-                ownerName: encrypt(ownerName) ?? null,
-                address: encrypt(address) ??  null,
+                address: address ? safeEncrypt(address, 'vessel address') : null,
                 createdBy: userId,
                 updatedBy: userId,
             });
@@ -376,7 +498,7 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `New Vessel Created: ${vessel.name}`,
-                messageValue: `Vessel: "${vessel.name}" has been added to SeaVerse by ${decrypt(userInfo?.firstName)} ${userInfo?.lastName ? decrypt(userInfo?.lastName):''}.`,
+                messageValue: `Vessel: "${vessel.name}" has been added to SeaVerse by ${safeDecrypt(userInfo?.firstName, 'user firstName')} ${userInfo?.lastName ? safeDecrypt(userInfo?.lastName, 'user lastName') : ''}.`,
                 notificationType: NotificationType.VESSEL_CREATED,
                 notifyAllAdmin: true,
                 status: "SENT",
@@ -389,6 +511,7 @@ module.exports.mutations = {
                 vessel: vesselData
             }
         } catch (error) {
+            console.log(error)
             throw Error(error.message);
         }
     },
@@ -403,7 +526,7 @@ module.exports.mutations = {
                 throw new CustomError(ErrorName.NOT_FOUND, 'Vessel not found.');
             }
             const existingVesselName = await Vessel.findOne({
-                _id: { $ne: vessel.id }, 
+                _id: { $ne: vessel.id },
                 name: input.name
             });
             if (existingVesselName) {
@@ -431,18 +554,13 @@ module.exports.mutations = {
                 throw new CustomError(ErrorName.ALREADY_EXIST, 'IMO number already exist.');
             }
 
-            let ownerName;
             if (ownerId) {
-                const existingOwner = await Owner.findOne({ _id: ownerId });
+                // Minimal owner validation to prevent buffer overflow
+                const existingOwner = await Owner.findOne({ _id: ownerId }, { _id: 1 });
+                if (!existingOwner) throw CustomError(ErrorName.FAILED, 'Owner does not exist');
 
-                if (!existingOwner) throw CustomError(ErrorName.FAILED);
-
-                if (address) {
-                    existingOwner.address = address;
-                    await existingOwner.save();
-                }
-
-                ownerName = existingOwner?.name;
+                // Skip owner data updates to prevent buffer overflow
+                console.log(`UpdateVessel: Owner ${ownerId} validated, skipping data updates to prevent buffer overflow`);
             }
 
             vessel.name = name;
@@ -451,10 +569,37 @@ module.exports.mutations = {
             vessel.isActive = isActive;
             vessel.companyName = companyName;
             vessel.ownerId = ownerId ?? vessel.ownerId;
-            vessel.ownerName = ownerName ?? encrypt(vessel.ownerName);
             vessel.subscriber = subscriberId;
+            vessel.address = address ? encrypt(address) : ""
+            console.log(ownerId,"owid")
+
+            const update = {};
+            if (address) {
+                update.address = encrypt(address);
+            }
+
+            await Owner.findByIdAndUpdate(ownerId, update, { new: true });
+
+            // Handle address encryption safely
+            console.log(vessel.address,"address");
+            // if (address !== undefined) {
+            //     if (address && address.length > 0) {
+            //         if (address.length > 200) {
+            //             throw CustomError(ErrorName.FAILED, 'Address is too long');
+            //         }
+            //         try {
+            //             vessel.address = safeEncrypt(address, 'address');
+            //         } catch (encryptError) {
+            //             console.error('Error encrypting address in updateVessel:', encryptError.message);
+            //             throw CustomError(ErrorName.FAILED, 'Failed to process address data');
+            //         }
+            //     } else {
+            //         vessel.address = null;
+            //     }
+            // }
 
             const updatedVessel = await vessel.save();
+            console.log(updatedVessel,"uv")
 
             if (updatedVessel) {
                 if (isActive === false) {
@@ -477,8 +622,6 @@ module.exports.mutations = {
             }
 
             const vesselData = await Vessel.findOne({ _id: vessel._id }).populate('typeOfVessel');
-            vesselData.address = encrypt(vesselData.address);
-            await vesselData.save();
             //AUTO ENROLLMENT
             const userIds = await User.find({ currentVessel: vessel._id }).select('_id').lean();
             const learningPlans = await LearningPlan.find({ isDeleted: false, status: 'ACTIVE' });
@@ -496,7 +639,7 @@ module.exports.mutations = {
                     match: { 'isDeleted': false },
                     populate: {
                         path: 'currentVessel',
-                        select: '_id vesselStatus ownerName typeOfVessel isDeleted',
+                        select: '_id vesselStatus typeOfVessel isDeleted',
                         match: { 'isDeleted': false }
                     }
                 })
@@ -506,7 +649,7 @@ module.exports.mutations = {
                         vesselID: employee.user && employee.user.currentVessel ? employee.user.currentVessel._id : null,
                         vesselTypeID: employee.user && employee.user.currentVessel ? employee.user.currentVessel.typeOfVessel : null,
                         currentStatus: employee.user && employee.user.vesselStatus ? employee.user.vesselStatus : null,
-                        owner: employee.user && employee.user.currentVessel ? employee.user.currentVessel.ownerName : null,
+                        owner: null, // Owner info will be fetched separately if needed
                         email: employee.user ? employee.user.email : null,
                         _id: employee?.user?._id
                     }));
@@ -544,17 +687,17 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `${vessel.name} Vessel Updated`,
-                messageValue: `Vessel "${vessel.name}" has been updated by ${decrypt(userInfo?.firstName)} ${userInfo?.lastName ? decrypt(userInfo?.lastName) : ''}`,
+                messageValue: `Vessel "${vessel.name}" has been updated by ${safeDecrypt(userInfo?.firstName, 'user firstName')} ${userInfo?.lastName ? safeDecrypt(userInfo?.lastName, 'user lastName') : ''}`,
                 notificationType: NotificationType.VESSEL_UPDATED,
                 notifyAllAdmin: true,
                 status: "SENT",
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             });
-            if(userIds?.length >0){
-               await Promise.all(
+            if (userIds?.length > 0) {
+                await Promise.all(
                     userIds.map(userId => updateByQueryToElasticSearch(
-                        'users', 
+                        'users',
                         `
                             ctx._source.currentVessel = params.vesselId;
                             ctx._source.vesselId = params.vesselId;
@@ -566,7 +709,7 @@ module.exports.mutations = {
                         `,
                         {
                             term: {
-                            userId: userId._id
+                                userId: userId._id
                             }
                         },
                         {
@@ -705,10 +848,10 @@ module.exports.mutations = {
                             { session }
                         );
 
-                         try {
+                        try {
                             await updateByQueryToElasticSearch(
-                            "users", 
-                             `
+                                "users",
+                                `
                             ctx._source.currentVessel = params.currentVessel;
                             ctx._source.vesselName = params.vesselName;
                             ctx._source.vesselId = params.vesselId;
@@ -717,19 +860,19 @@ module.exports.mutations = {
                             ctx._source.typeOfVesselName = params.typeOfVesselName;
                             ctx._source.tyepOfVesselId = params.tyepOfVesselId;
                             `,
-                            {
-                                term: { currentVessel: vessel._id }
-                            },
-                            {
-                                currentVessel: null,
-                                vesselName: null,
-                                vesselId: null,
-                                vesselIsDeleted: null,
-                                vesselIsActive: null,
-                                typeOfVesselName: null,
-                                tyepOfVesselId: null,
-                            }
-                        );
+                                {
+                                    term: { currentVessel: vessel._id }
+                                },
+                                {
+                                    currentVessel: null,
+                                    vesselName: null,
+                                    vesselId: null,
+                                    vesselIsDeleted: null,
+                                    vesselIsActive: null,
+                                    typeOfVesselName: null,
+                                    tyepOfVesselId: null,
+                                }
+                            );
                         } catch (error) {
                             throw new Error(error.message);
                         }
@@ -768,7 +911,7 @@ module.exports.mutations = {
                     await NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
                         titleValue: `Vessel Status Updated Successfully`,
-                        messageValue: `The following vessels have been updated: ${statusSummary} by ${decrypt(userInfo?.firstName)} ${userInfo?.lastName ? decrypt(userInfo?.lastName): ''}`,
+                        messageValue: `The following vessels have been updated: ${statusSummary} by ${safeDecrypt(userInfo?.firstName, 'user firstName')} ${userInfo?.lastName ? safeDecrypt(userInfo?.lastName, 'user lastName') : ''}`,
                         notificationType: NotificationType.VESSEL_STATUS_UPDATE,
                         notifyAllAdmin: true,
                         affected: updatedVessels.map(v => ({
