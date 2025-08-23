@@ -110,7 +110,7 @@ function rejectionEmailTemplate(data) {
               <div class="support-box">
                   <p class="support-title">Need Help?</p>
                   <p class="support-text">If you have any questions or need assistance, feel free to reach out:</p>
-                  <p class="support-text">Email: support@seaverse.com</p>
+                  <p class="support-text">Email: support@thesealearning.com</p>
               </div>
           </div>
           
