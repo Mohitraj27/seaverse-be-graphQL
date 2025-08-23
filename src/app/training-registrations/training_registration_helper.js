@@ -357,7 +357,7 @@ const enrolUserVerificationHelper = async (inputUsers, existingTrainings, fromUn
             if (!Validator.isEmail(decrypt(user.email) ?? '')) {
                 invalidEmails.push(user.email);
             } else if (!user.isRegistered) {
-                unRegEmails.push(user.email);
+                unRegEmails.push(decrypt(user.email));
                 if (fromUnenroll) {
                     remainingUsers.push(user);
                 }
