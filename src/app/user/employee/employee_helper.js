@@ -647,10 +647,12 @@ const summarizeResults = (results) => {
 };
 const sendCourseMailsWithRetry = async (emailBatch, retryCount = 0) => {
     try {
+        console.log(`\nSending batch of ${emailBatch.length} emails, Attempt: ${retryCount + 1}`);
         const emailPromises = emailBatch.map(async (email) => {
             const { to, subject, html } = email;
             if (to?.trim()?.length) {
-                return await sendEmail({ receiverEmail: to, subject: subject, htmlContent: html });
+                const emailResponse = await sendEmail({ receiverEmail: to, subject: subject, htmlContent: html });
+                return emailResponse;
             } else {
                 return Promise.reject(new Error("Invalid email address"));
             }
@@ -1287,8 +1289,8 @@ const sendNotificationAndMailForAutoEnrollment = async (userObjectIds, trainingO
 
                 if (courses.length) {
                     emailData.push({
-                        receiverEmail: user.email,
-                        firstName: user.firstName,
+                        receiverEmail: decrypt(user.email),
+                        firstName: decrypt(user.firstName, true),
                         isAdmin: user?.subRoles?.includes(subRoleAdminId?._id),
                         courses
                     });
