@@ -285,6 +285,30 @@ module.exports.queries = {
         }
 
     },
+    isCourseEnrolledForCurrentUser: async ({ trainingId }, context) => {
+
+        const {userId} = AuthUser(context);
+
+        if(!userId){
+            throw CustomError(ErrorName.NOT_FOUND, "User not found!");
+        }
+
+        if(!trainingId){
+            throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Training ID is required!");
+        }
+
+        const enrollment = await OverallTrainingProgress.findOne({
+            training: trainingId,
+            user: userId,
+        }).select("isEnrolled -_id").lean();
+        
+        if(!enrollment){
+            throw CustomError(ErrorName.NOT_FOUND, "Enrollment data not found!");
+        }
+
+        return  enrollment ? enrollment.isEnrolled : false;
+
+    }
 };
 
 module.exports.mutations = {
