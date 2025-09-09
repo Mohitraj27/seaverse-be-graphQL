@@ -709,6 +709,19 @@ module.exports.mutations = {
         // Preprocess input: handle offline sync, structure extraction, and validation outside transaction
         let processedInput = input;
         const modifiedCourseIds = new Set();
+       const overallIds = input.map(item => item.overallId.toString());
+
+        const notEnrolled = await OverallTrainingProgress.exists({
+            _id: { $in: overallIds },
+            isEnrolled: false,
+        });
+
+        if (notEnrolled) {
+            return {
+                status: 0,
+                message: "User is not enrolled in one or more courses.",
+            };
+        }
 
         if (input[0]?.isFromOfflineSync) {
             if (!input[0].overallId) {
