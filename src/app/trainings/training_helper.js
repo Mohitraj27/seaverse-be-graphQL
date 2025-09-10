@@ -1341,6 +1341,8 @@ const updateTimeSpendInOverallTrainingProgress = async (input, session) => {
     );
 
     if (bulkUpdates.length > 0) {
+        console.log('overallIds: ', uniqueOverallIds);
+        console.log("insertingTimeSpend: ", bulkUpdates);
         await OverallTrainingProgress.bulkWrite(bulkUpdates, { session });
     }
 };
