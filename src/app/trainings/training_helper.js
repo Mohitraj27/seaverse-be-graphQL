@@ -1324,7 +1324,7 @@ const updateTimeSpendInOverallTrainingProgress = async (input, session) => {
     const bulkUpdates = Array.from(overallDurationMap.entries()).map(
         ([overallId, { totalDuration, finishedCourseFirstTime }]) => {
             const update = {
-                $set: { timeSpend: totalDuration },
+                $max: { timeSpend: totalDuration },
             };
 
             if (typeof finishedCourseFirstTime === "boolean") {
@@ -1341,6 +1341,8 @@ const updateTimeSpendInOverallTrainingProgress = async (input, session) => {
     );
 
     if (bulkUpdates.length > 0) {
+        console.log('overallIds: ', uniqueOverallIds);
+        console.log("insertingTimeSpend: ", bulkUpdates);
         await OverallTrainingProgress.bulkWrite(bulkUpdates, { session });
     }
 };
