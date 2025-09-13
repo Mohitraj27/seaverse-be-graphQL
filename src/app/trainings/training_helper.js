@@ -1342,8 +1342,11 @@ const updateTimeSpendInOverallTrainingProgress = async (input, session) => {
 
     if (bulkUpdates.length > 0) {
         console.log('overallIds: ', uniqueOverallIds);
-        console.log("insertingTimeSpend: ", bulkUpdates);
-        await OverallTrainingProgress.bulkWrite(bulkUpdates, { session });
+        
+        console.log("insertingTimeSpend: ", bulkUpdates[0].updateOne.update.$max.timeSpend);
+        const result = await OverallTrainingProgress.bulkWrite(bulkUpdates, { session });
+        console.log("TimeSpend Update Result: ", result);
+
     }
 };
 
