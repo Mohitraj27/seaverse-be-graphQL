@@ -525,13 +525,7 @@ module.exports.mutations = {
             if (!vessel) {
                 throw new CustomError(ErrorName.NOT_FOUND, 'Vessel not found.');
             }
-            const existingVesselName = await Vessel.findOne({
-                _id: { $ne: vessel.id },
-                name: input.name
-            });
-            if (existingVesselName) {
-                throw CustomError(ErrorName.ALREADY_EXIST, 'Vessel name already exists.');
-            }
+          
 
             if (!input) throw CustomError(ErrorName.FIELD_REQUIRED, 'Input is required.');
             if (!input.name) throw CustomError(ErrorName.FIELD_REQUIRED, 'Name is required.');
