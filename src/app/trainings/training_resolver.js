@@ -921,7 +921,6 @@ module.exports.mutations = {
             if (!success) {throw Error(lastError && lastError.message ? lastError.message : String(lastError))}
             else {
                 console.log(`Batch processed successfully: ${JSON.stringify(batch)}`);
-                console.log('total duration recieved from FE',batch[0]?.trainingModules[0]?.contentDetails[0]?.duration ?? ' Unavailable')
             }
         }
         return {

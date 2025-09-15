@@ -1306,19 +1306,46 @@ const updateTimeSpendInOverallTrainingProgress = async (input, session) => {
             },
         },
     ]).session(session);
-    // console.log(result);
+
     // Convert aggregation result into a map for quick lookup
     const durationMap = new Map(
         result.map(item => [item._id.toString(), item.totalLastAccessedDuration])
     );
-   // console.log(durationMap);
+    
+    //OLD IMPLEMENTATION WHERE WE ARE TAKING ONLY DB DURATION
+
     // Map input to overallDurationMap using aggregation result
+    /* 
     input.forEach(({ overallId, finishedCourseFirstTime }) => {
         overallDurationMap.set(overallId.toString(), {
             totalDuration: durationMap.get(overallId.toString()) || 0,
             finishedCourseFirstTime,
         });
+    }); 
+    */
+    // Hybrid approach: Compare FE durations with DB durations
+    input.forEach(({ overallId, finishedCourseFirstTime, trainingModules }) => {
+    // Flatten contentDetails durations from all modules
+    const feDurations = trainingModules.flatMap(m =>
+        m.contentDetails.map(cd => cd.duration || 0)
+    );
+
+    const feTotal = feDurations.reduce((a, b) => a + b, 0); // Sum all FE durations
+    const dbTotal = durationMap.get(overallId.toString()) || 0;
+
+    // Hybrid: take whichever is larger
+    const finalDuration = Math.max(dbTotal, feTotal);
+
+    overallDurationMap.set(overallId.toString(), {
+        totalDuration: finalDuration,
+        finishedCourseFirstTime,
     });
+
+    console.log(
+        `OverallID=${overallId}: DB=${dbTotal}, FE=${feTotal}, Final=${finalDuration}`
+    );
+});
+
 
     // Prepare bulk updates
     const bulkUpdates = Array.from(overallDurationMap.entries()).map(
@@ -1342,10 +1369,8 @@ const updateTimeSpendInOverallTrainingProgress = async (input, session) => {
 
     if (bulkUpdates.length > 0) {
         console.log('overallIds: ', uniqueOverallIds);
-        
         console.log("insertingTimeSpend: ", bulkUpdates[0].updateOne.update.$max.timeSpend);
         const result = await OverallTrainingProgress.bulkWrite(bulkUpdates, { session });
-        console.log("TimeSpend Update Result: ", result);
 
     }
 };
