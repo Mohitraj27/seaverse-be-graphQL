@@ -707,11 +707,12 @@ module.exports.mutations = {
                             }
                         },
                         {
-                            vesselId: vesselData?._id ?? null,
-                            vesselName: vesselData?.name ?? null,
+                            vesselId: vesselData?.isActive ? vesselData?._id : null,
+                            vesselStatus: vesselData?.isActive ? vesselData?.vesselStatus : null,
+                            vesselName: vesselData?.isActive ? vesselData?.name : null,
                             vesselIsActive: vesselData?.isActive ?? null,
-                            typeOfVesselName: vesselData?.typeOfVessel?.name ?? null,
-                            tyepOfVesselId: vesselData?.typeOfVessel?._id ?? null
+                            typeOfVesselName: vesselData?.isActive ? vesselData?.typeOfVessel?.name : null,
+                            typeOfVesselId: vesselData?.isActive ? vesselData?.typeOfVessel?._id : null
                         }
                     ))
                 );
