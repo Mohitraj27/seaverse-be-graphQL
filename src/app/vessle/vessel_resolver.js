@@ -135,7 +135,7 @@ module.exports.queries = {
 
             if (filterInput?.vesselName?.length > 0) {
                 filterConditions.name = {
-                    $in: filterInput.vesselName.map(name => new RegExp(".*" + name + ".*", "i")),
+                    $in: filterInput.vesselName,
                 };
             }
 
@@ -525,7 +525,7 @@ module.exports.mutations = {
             if (!vessel) {
                 throw new CustomError(ErrorName.NOT_FOUND, 'Vessel not found.');
             }
-          
+
 
             if (!input) throw CustomError(ErrorName.FIELD_REQUIRED, 'Input is required.');
             if (!input.name) throw CustomError(ErrorName.FIELD_REQUIRED, 'Name is required.');
@@ -565,7 +565,7 @@ module.exports.mutations = {
             vessel.ownerId = ownerId ?? vessel.ownerId;
             vessel.subscriber = subscriberId;
             vessel.address = address ? encrypt(address) : ""
-            console.log(ownerId,"owid")
+            console.log(ownerId, "owid")
 
             const update = {};
             if (address) {
@@ -575,7 +575,7 @@ module.exports.mutations = {
             await Owner.findByIdAndUpdate(ownerId, update, { new: true });
 
             // Handle address encryption safely
-            console.log(vessel.address,"address");
+            console.log(vessel.address, "address");
             // if (address !== undefined) {
             //     if (address && address.length > 0) {
             //         if (address.length > 200) {
@@ -593,7 +593,7 @@ module.exports.mutations = {
             // }
 
             const updatedVessel = await vessel.save();
-            console.log(updatedVessel,"uv")
+            console.log(updatedVessel, "uv")
 
             if (updatedVessel) {
                 if (isActive === false) {
