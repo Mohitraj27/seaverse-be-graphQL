@@ -1,4 +1,4 @@
-const { CustomError, ErrorName, AuthUser, DbTransactionHelper, UploadHelper } = require("../../../../util");
+const { CustomError, ErrorName, AuthUser, DbTransactionHelper, UploadHelper, escapeRegex } = require("../../../../util");
 
 const { TrainingModuleContent } = require("./training_module_content_model");
 const { AnswerChoice } = require("./question/answer_choice_model");
@@ -47,10 +47,6 @@ const sqsClient = new SQSClient({
         secretAccessKey: process.env.SQS_AWS_SECRET_ACCESS_KEY,
     },
 });
-
-function escapeRegex(str) {
-    return str.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&");
-}
 
 const uploadPpt = async (file) => {
     const ext = path.extname(file.filename || '').toLowerCase();
@@ -105,8 +101,8 @@ module.exports.queries = {
             }
 
             if (search) {
-                // const escapedSearch = escapeRegex(search);
-                filterConditions['title.value'] = { $regex: search?.trim(), $options: "i" };
+                const escapedSearch = escapeRegex(search?.trim());
+                filterConditions['title.value'] = { $regex: escapedSearch, $options: "i" };
             }
             const totalCountBeforePagination = await TrainingModuleContent.countDocuments(filterConditions);
             const skip = pageInput?.skip ?? 0;
