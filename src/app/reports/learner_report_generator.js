@@ -1,5 +1,5 @@
 const XLSX = require("xlsx");
-const { CustomError, ErrorName, AuthUser, Role, UploadHelper, courseStatus } = require("../../util");
+const { CustomError, ErrorName, AuthUser, Role, UploadHelper, courseStatus, escapeRegex } = require("../../util");
 const { connectDb, closeDb } = require("../../util/child_process_db_helper");
 const ReportsHelper = require("./reports_helper");
 const { singleLearnerEnrollmentReportQuery, singleLearnerModuleReportQuery } = require("./reports_query_builder");
@@ -28,13 +28,16 @@ const performLearnerReportGeneration = async (payload) => {
         if (input && Object.keys(input).length > 0) {
             if (!input?.selectVesselOrLearner) input.selectVesselOrLearner = 'LEARNER';
             const filterInput = input.filter || {};
+
             if (filterInput?.title) {
+                const escapedTitle = escapeRegex(filterInput.title);
+
                 matchStage.push({
                     $match: {
                         "trainingInfo.title.value": {
-                            $regex: filterInput.title,
-                            $options: 'i'
-                        }
+                            $regex: escapedTitle,
+                            $options: "i",
+                        },
                     },
                 });
             }
