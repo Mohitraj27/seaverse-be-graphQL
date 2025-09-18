@@ -8,7 +8,9 @@ const SubscriptionHelper = require("../app/saas/subscriber/subscription/subscrip
 
 const Role = require("./role");
 const VesselStatus = require("./vessel_status");
-
+const escapeRegex = function(str) {
+    return str.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&");
+}
 const parseDateTime = dateTime => {
     try {
         if (dateTime) {
@@ -90,6 +92,7 @@ const VerifyUser = async context => {
 };
 
 module.exports = {
+    escapeRegex,
     AuthUser: (context, throwError = true) => {
         let isAuthenticated = false,
             masterLogin = false,

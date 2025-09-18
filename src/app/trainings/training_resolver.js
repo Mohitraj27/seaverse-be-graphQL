@@ -5,6 +5,7 @@ const {
     Role,
     DbTransactionHelper,
     CurrentDateTime,
+    escapeRegex,
 } = require("../../util");
 const { ObjectId } = require("../../tools");
 const { Training } = require("./training_model");
@@ -53,6 +54,7 @@ module.exports.queries = {
             throw CustomError(ErrorName.FORBIDDEN);
         }
 
+        try {
         const skip = pageInput?.skip ?? 0;
         let limit = pageInput?.limit ?? 50;
 
@@ -61,8 +63,9 @@ module.exports.queries = {
 
         if (filterInput) {
             if (filterInput.search) {
+                const escapedSearch = escapeRegex(filterInput?.search);
                 const searchRegex = {
-                    $regex: ".*" + filterInput.search + ".*",
+                    $regex: ".*" + escapedSearch + ".*",
                     $options: "i",
                 };
 
@@ -143,6 +146,10 @@ module.exports.queries = {
             totalCount: totalCount,
             trainings: decryptedTrainings,
         };
+        } catch (error) {
+            console.error("Error in getTrainings:", error);
+            throw CustomError(ErrorName.FAILED, error.message);
+        }
     },
     getTraining: async ({ id }, context) => {
         const { role, userPermissions, subscriberId } = AuthUser(context);
