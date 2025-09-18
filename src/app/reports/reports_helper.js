@@ -467,11 +467,17 @@ function buildLearnerAggregationPipelineFilterStages(input = {}) {
         : [];
 
     // 1. Title filter
+    function escapeRegex(str) {
+        return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    }
+
     if (filterInput?.title) {
+        const escapedTitle = escapeRegex(filterInput.title);
+
         matchStage.push({
             $match: {
                 "trainingInfo.title.value": {
-                    $regex: filterInput.title,
+                    $regex: escapedTitle,
                     $options: "i",
                 },
             },

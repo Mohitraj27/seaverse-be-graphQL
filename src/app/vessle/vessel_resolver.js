@@ -182,8 +182,13 @@ module.exports.queries = {
                 ownerNameIdsToMatch = matchedOwnerIds;
                 filterConditions.ownerId = { $in: ownerNameIdsToMatch };
             }
+            function escapeRegex(str) {
+                return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            }
 
             if (filterInput?.search) {
+                const escapedSearch = escapeRegex(filterInput.search);
+
                 const ownersWithNames = await Owner.find(
                     { subscriber: subscriberId, isDeleted: { $ne: true } },
                     { _id: 1, firstName: 1, lastName: 1 }
@@ -191,19 +196,25 @@ module.exports.queries = {
 
                 const matchedOwnerIds = ownersWithNames
                     .map(owner => {
-                        const firstName = owner.firstName ? safeDecrypt(owner.firstName, 'owner firstName') : '';
-                        const lastName = owner.lastName ? safeDecrypt(owner.lastName, 'owner lastName') : '';
+                        const firstName = owner.firstName
+                            ? safeDecrypt(owner.firstName, "owner firstName")
+                            : "";
+                        const lastName = owner.lastName
+                            ? safeDecrypt(owner.lastName, "owner lastName")
+                            : "";
                         const fullName = `${firstName} ${lastName}`.trim();
                         return { id: owner._id, ownerName: fullName };
                     })
-                    .filter(owner => new RegExp(".*" + filterInput.search + ".*", "i").test(owner.ownerName))
+                    .filter(owner =>
+                        new RegExp(".*" + escapedSearch + ".*", "i").test(owner.ownerName)
+                    )
                     .map(owner => owner.id);
 
                 filterConditions.$or = [
-                    { name: { $regex: ".*" + filterInput.search + ".*", $options: "i" } },
-                    { imoNumber: { $regex: ".*" + filterInput.search + ".*", $options: "i" } },
-                    { companyName: { $regex: ".*" + filterInput.search + ".*", $options: "i" } },
-                    { ownerId: { $in: matchedOwnerIds } }
+                    { name: { $regex: ".*" + escapedSearch + ".*", $options: "i" } },
+                    { imoNumber: { $regex: ".*" + escapedSearch + ".*", $options: "i" } },
+                    { companyName: { $regex: ".*" + escapedSearch + ".*", $options: "i" } },
+                    { ownerId: { $in: matchedOwnerIds } },
                 ];
             }
 

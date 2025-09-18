@@ -28,13 +28,19 @@ const performLearnerReportGeneration = async (payload) => {
         if (input && Object.keys(input).length > 0) {
             if (!input?.selectVesselOrLearner) input.selectVesselOrLearner = 'LEARNER';
             const filterInput = input.filter || {};
+            function escapeRegex(str) {
+                return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            }
+
             if (filterInput?.title) {
+                const escapedTitle = escapeRegex(filterInput.title);
+
                 matchStage.push({
                     $match: {
                         "trainingInfo.title.value": {
-                            $regex: filterInput.title,
-                            $options: 'i'
-                        }
+                            $regex: escapedTitle,
+                            $options: "i",
+                        },
                     },
                 });
             }
