@@ -5,6 +5,7 @@ const {
     Role,
     DbTransactionHelper,
     CurrentDateTime,
+    escapeRegex,
 } = require("../../util");
 const { ObjectId } = require("../../tools");
 const { Training } = require("./training_model");
@@ -62,9 +63,6 @@ module.exports.queries = {
 
         if (filterInput) {
             if (filterInput.search) {
-                function escapeRegex(str) {
-                    return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-                }
                 const escapedSearch = escapeRegex(filterInput?.search);
                 const searchRegex = {
                     $regex: ".*" + escapedSearch + ".*",

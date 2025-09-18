@@ -1,4 +1,4 @@
-const { UploadHelper } = require("../../util");
+const { UploadHelper, escapeRegex } = require("../../util");
 const { OverallTrainingProgress } = require("../training-registrations/overall-course-progress/overall_progress_model");
 const Export = require("../user/exportUser/exportUser_model");
 const { customEnrollmentReportQuery, customQuizReportQuery } = require("./reports_query_builder");
@@ -467,9 +467,6 @@ function buildLearnerAggregationPipelineFilterStages(input = {}) {
         : [];
 
     // 1. Title filter
-    function escapeRegex(str) {
-        return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    }
 
     if (filterInput?.title) {
         const escapedTitle = escapeRegex(filterInput.title);

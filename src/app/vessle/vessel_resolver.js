@@ -4,6 +4,7 @@ const {
     AuthUser,
     SendEmail,
     DbTransactionHelper,
+    escapeRegex,
 } = require("../../util");
 
 const { ObjectId } = require("../../tools");
@@ -182,10 +183,7 @@ module.exports.queries = {
                 ownerNameIdsToMatch = matchedOwnerIds;
                 filterConditions.ownerId = { $in: ownerNameIdsToMatch };
             }
-            function escapeRegex(str) {
-                return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-            }
-
+            
             if (filterInput?.search) {
                 const escapedSearch = escapeRegex(filterInput.search);
 
