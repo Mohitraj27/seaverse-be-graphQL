@@ -229,6 +229,7 @@ const { httpsServer, httpServer, apolloServer } = (() => {
 })();
 firebaseHelper.init();
 const elasticConnect = async () => {
+    console.log("Connecting to Elasticsearch...");
     try {
         await client.info();
         console.log("Elasticsearch is connected");
@@ -273,6 +274,10 @@ DbHelper.initDb({ httpsServer, httpServer, apolloServer });
 ExpressServer.use("/api", RestResolver);
 
 ExpressServer.get('/health-check', (req, res) => {
+    res.status(200).send('App is up and running');
+});
+
+ExpressServer.get('/api/ci-cd', (req, res) => {
     res.status(200).send('App is up and running');
 });
 
