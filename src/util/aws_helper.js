@@ -133,7 +133,13 @@ module.exports = {
                     },
                 };
 
-                const response = await ses.sendEmail(params).promise();
+                // const response = await ses.sendEmail(params).promise();
+                const response = {
+                    MessageId: "mock-message-id-1234567890",
+                    ResponseMetadata: {
+                        RequestId: "mock-request-id-abcdef123456",
+                    },
+                };
                 
                 if (response) {
                     return response;

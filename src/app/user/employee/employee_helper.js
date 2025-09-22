@@ -4249,7 +4249,7 @@ module.exports = {
                 }
 
                 console.time('filterPlans')
-                const filteredPlans = await filterLearningPlans(learningPlans, conditionsList, context, session);
+                // const filteredPlans = await filterLearningPlans(learningPlans, conditionsList, context, session);
                 console.timeEnd('filterPlans')
 
                 // if (filteredPlans.length > 0) {
