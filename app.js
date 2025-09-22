@@ -277,7 +277,7 @@ ExpressServer.get('/health-check', (req, res) => {
     res.status(200).send('App is up and running');
 });
 
-ExpressServer.get('/api/ci-cd', (req, res) => {
+ExpressServer.get('/api/ci', (req, res) => {
     res.status(200).send('App is up and running');
 });
 
