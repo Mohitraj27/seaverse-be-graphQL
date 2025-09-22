@@ -49,7 +49,7 @@ module.exports = {
                 subscriberId: user.subscriber?._id ?? user.subscriber,
                 employeeId: user.employee?._id ?? user.employee,
             };
-            const newAccessToken = JwtHelper.sign(tokenPayload, process.env.APP_SECRET, { expiresIn: "15m" });
+            const newAccessToken = JwtHelper.sign(tokenPayload, process.env.APP_SECRET, { expiresIn: "1d" });
             const newRefreshToken = JwtHelper.sign({ userId: user._id }, process.env.REFRESH_SECRET, { expiresIn: "7d" });
             console.log('🟢 TEST: Token refresh successful');
             console.log(`📅 New Access Token expires in: 15 minutes`);
