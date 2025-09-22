@@ -965,13 +965,13 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
             await NotificationHelper.createNotification(notifications);
 
             if (emails.length > 0) {
-                for (const item of emails) {
-                    await sendEmail({
-                        receiverEmail: decrypt(item.email),
-                        subject: `Congratulations on Completing the ${item?.trainingTitle} Course!`,
-                        htmlContent: item.emailContent,
-                    });
-                }
+                // for (const item of emails) {
+                //     await sendEmail({
+                //         receiverEmail: decrypt(item.email),
+                //         subject: `Congratulations on Completing the ${item?.trainingTitle} Course!`,
+                //         htmlContent: item.emailContent,
+                //     });
+                // }
             }
 
             if (idsToUpdate.length > 0) {
