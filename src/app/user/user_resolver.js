@@ -329,7 +329,7 @@ module.exports.mutations = {
 
                 if (!tokenPayload) throw CustomError(ErrorName.FAILED, "Signup request creation failed!");
 
-                const accessToken = JwtHelper.sign(tokenPayload, process.env.APP_SECRET, { expiresIn: "8h" });
+                const accessToken = JwtHelper.sign(tokenPayload, process.env.APP_SECRET, { expiresIn: "1d" });
                 const refreshToken = JwtHelper.sign({ userId: savedEmployee?.user?._id }, process.env.REFRESH_SECRET, { expiresIn: "7d" });
                 const viewRequestPath = `${process.env.APP_URL}/admin/signup-request`;
                 const signupRequestNotifcation = {
