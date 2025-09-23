@@ -9,6 +9,7 @@ const AwsHelper = require("../../../util/aws_helper");
 const { getTheContent } = require("./content_zip_helper");
 const { TrainingModuleContent } = require("../training_modules/training_module_contents/training_module_content_model");
 const { User } = require("../../user/user_model");
+const { ObjectId } = require("../../../tools");
 
 module.exports.queries = {
 
@@ -47,9 +48,16 @@ module.exports.mutations = {
             const trainingContentsAndModules = [];
             if (trainingContentIds.length > 0) {
 
-                const contentIdsOnly = trainingContentIds.map(item => item.trainingContent);
-                const trainingContents = await TrainingModuleContent.find({ _id: { $in: contentIdsOnly } });
+                const contentIdsOnly = trainingContentIds.flatMap(item => {
+                    if (Array.isArray(item.trainingContent)) {
+                        return item.trainingContent.map(id => ObjectId(id));
+                    }
+                    return [ObjectId(item.trainingContent)];
+                });
 
+                const trainingContents = await TrainingModuleContent.find({
+                    _id: { $in: contentIdsOnly },
+                });
                 trainingContentIds.map((item) => {
                     const trainingModuleContent = trainingContents.find(content => content._id.toString() === item.trainingContent.toString());
                     if (trainingModuleContent) {
@@ -103,11 +111,11 @@ module.exports.mutations = {
 
             if (!getContent) throw CustomError(ErrorName.SERVER_ERROR);
 
-            const metadata = await AwsHelper.fetchFile(getContent);
+            // const metadata = getContent.length > 0 ? await AwsHelper.fetchFile(getContent) : "Zip is ready to be downloaded";
 
             return {
                 status: "01",
-                zipUrl: metadata
+                zipUrl: 'Zip is ready to be downloaded',
             }
 
         } catch (error) {
