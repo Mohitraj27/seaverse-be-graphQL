@@ -17,7 +17,7 @@ module.exports = {
             subscriberId: user.subscriber?._id ?? user.subscriber,
         };
 
-        const accessToken = JwtHelper.sign(tokenPayload, process.env.APP_SECRET, { expiresIn: "15m" });
+        const accessToken = JwtHelper.sign(tokenPayload, process.env.APP_SECRET, { expiresIn: "1d" });
         const refreshToken = JwtHelper.sign({ userId: user._id }, process.env.REFRESH_SECRET, { expiresIn: "7d" });
         // console.log('🧪 TEST MODE: Created tokens with short expiration');
         // console.log(`📅 Access Token expires in: 15 minutes`);
