@@ -40,6 +40,7 @@ const { BatchHelper } = require("../batches/batch_helper");
 const { createTrainingProgressForMigrationUsersHelper } = require("../training-registrations/training_registration_helper");
 const { decrypt, encrypt } = require('../../util/encryption_helper');
 const { runQuery, runQueryStream } = require("../../util/mysql_helper");
+const { updateCoursesCountAndProgressInElasticSearch } = require("../training-registrations/overall-course-progress/overall_progress_helper");
 
 const uploadTrainingImages = async ({ coverImage, folderName }) => {
     coverImage._id = coverImage._id ?? ObjectId();
@@ -1036,6 +1037,7 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
 const updateOverallProgressPercentage = async (overallDocs, session) => {
 
     const overallIds = overallDocs.map((item) => item._id);
+    const userIds = [...new Set(overallDocs.map(item => item.user))];
 
     let trainingProgressInput = [];
     overallDocs.forEach((doc) => {
@@ -1134,6 +1136,7 @@ const updateOverallProgressPercentage = async (overallDocs, session) => {
 
     if (bulkOperations.length > 0) {
         await OverallTrainingProgress.bulkWrite(bulkOperations, { session });
+        await updateCoursesCountAndProgressInElasticSearch(userIds, session);
     }
 };
 
@@ -1226,10 +1229,27 @@ const updateOverallProgressPercentage = async (overallDocs, session) => {
 //         console.error('Error calculating timeSpend for overallIds:', error.message);
 //     }
 // }
-const updateTimeSpendInOverallTrainingProgress = async (input, session) => {
+/* const updateTimeSpendInOverallTrainingProgress = async (input, session) => {
 
     const overallDurationMap = new Map();
+    const uniqueOverallIds = [...new Set(input.map(item => item.overallId))];
+    console.log(uniqueOverallIds);
+    const result = await TrainingProgress.aggregate([
+        {
+            $match: {
+                overallTrainingProgress: { $in: uniqueOverallIds },
+                isDeleted: false, 
+            },
+        },
+        {
+            $group: {
+                _id: "$overallTrainingProgress",
+                totalLastAccessedDuration: { $sum: "$lastAccessedDuration" },
+            },
+        },
+    ]);
 
+    console.log(result);
     input.forEach(({ overallId, trainingModules, finishedCourseFirstTime }) => {
         let totalDuration = 0;
 
@@ -1249,7 +1269,7 @@ const updateTimeSpendInOverallTrainingProgress = async (input, session) => {
 
     const bulkUpdates = Array.from(overallDurationMap.entries()).map(([overallId, { totalDuration, finishedCourseFirstTime }]) => {
         const update = {
-            $inc: { timeSpend: totalDuration }
+            $set: { timeSpend: totalDuration }
         };
 
         if (typeof finishedCourseFirstTime === 'boolean') {
@@ -1266,7 +1286,97 @@ const updateTimeSpendInOverallTrainingProgress = async (input, session) => {
 
     await OverallTrainingProgress.bulkWrite(bulkUpdates, { session });
 
-}
+} */
+
+const updateTimeSpendInOverallTrainingProgress = async (input, session) => {
+    const overallDurationMap = new Map();
+    const uniqueOverallIds = [...new Set(input.map(item => item.overallId))];
+
+    // Aggregation to fetch total lastAccessedDuration per overallTrainingProgress
+    const result = await TrainingProgress.aggregate([
+        {
+            $match: {
+                overallTrainingProgress: { $in: uniqueOverallIds },
+                isDeleted: false,
+            },
+        },
+        {
+            $group: {
+                _id: "$overallTrainingProgress",
+                totalLastAccessedDuration: { $sum: "$lastAccessedDuration" },
+            },
+        },
+    ]).session(session);
+
+    // Convert aggregation result into a map for quick lookup
+    const durationMap = new Map(
+        result.map(item => [item._id.toString(), item.totalLastAccessedDuration])
+    );
+    
+    //OLD IMPLEMENTATION WHERE WE ARE TAKING ONLY DB DURATION
+
+    // Map input to overallDurationMap using aggregation result
+    /* 
+    input.forEach(({ overallId, finishedCourseFirstTime }) => {
+        overallDurationMap.set(overallId.toString(), {
+            totalDuration: durationMap.get(overallId.toString()) || 0,
+            finishedCourseFirstTime,
+        });
+    }); 
+    */
+    // Hybrid approach: Compare FE durations with DB durations
+    input.forEach(({ overallId, finishedCourseFirstTime, trainingModules }) => {
+    // Flatten contentDetails durations from all modules
+    const feDurations = trainingModules.flatMap(m =>
+        m.contentDetails.map(cd => cd.duration || 0)
+    );
+
+    const feTotal = feDurations.reduce((a, b) => a + b, 0); // Sum all FE durations
+    const dbTotal = durationMap.get(overallId.toString()) || 0;
+
+    // Hybrid: take whichever is larger
+    const finalDuration = Math.max(dbTotal, feTotal);
+
+    overallDurationMap.set(overallId.toString(), {
+        totalDuration: finalDuration,
+        finishedCourseFirstTime,
+    });
+
+    console.log(
+        `OverallID=${overallId}: DB=${dbTotal}, FE=${feTotal}, Final=${finalDuration}`
+    );
+});
+
+
+    // Prepare bulk updates
+    const bulkUpdates = Array.from(overallDurationMap.entries()).map(
+        ([overallId, { totalDuration, finishedCourseFirstTime }]) => {
+            const update = {
+                $max: { timeSpend: totalDuration },
+            };
+
+            if (typeof finishedCourseFirstTime === "boolean") {
+                update.$set.finishedCourseFirstTime = finishedCourseFirstTime;
+            }
+
+            return {
+                updateOne: {
+                    filter: { _id: overallId },
+                    update,
+                },
+            };
+        }
+    );
+
+    if (bulkUpdates.length > 0) {
+        console.log('overallIds: ', uniqueOverallIds);
+        console.log("insertingTimeSpend: ", bulkUpdates[0].updateOne.update.$max.timeSpend);
+        const result = await OverallTrainingProgress.bulkWrite(bulkUpdates, { session });
+
+    }
+};
+
+
 
 const updateTrainingProgress = async (input, userId, subscriberId, session) => {
 

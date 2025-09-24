@@ -210,7 +210,8 @@ function mapElasticToOldAPI(elasticResults) {
     return {
         totalCount: elasticResults.total,
         totalEmployees: elasticResults.total,
-        employees: elasticResults.employees.map(emp => {
+        employees: elasticResults.employees.map(async(emp) => {
+            const avatarUrl = emp.avatar ? await AwsHelper.fetchFile(emp.avatar) : null;
             return {
                 user: {
                     _id: emp.userId || null,
@@ -224,6 +225,7 @@ function mapElasticToOldAPI(elasticResults) {
                     vesselStatus: emp.vesselStatus || null,
                     subRoles: emp.subRoles || [],
                     isResetPasswordDialog: emp.isResetPasswordDialog || false,
+                    avatar: avatarUrl|| null,
                     __typename: "User",
                 },
                 empDesignation: emp.empDesignation
@@ -876,7 +878,7 @@ module.exports.queries = {
 
             let sanitizedSearch;
             if (filterInput?.search) {
-                sanitizedSearch = filterInput.search.trim().replace(/\s+/g, " ");
+                sanitizedSearch = filterInput.search;
             }
             // const results = await fetchResult([
             //     {

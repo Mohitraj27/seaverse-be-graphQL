@@ -278,6 +278,7 @@ module.exports = {
         getTrainings(pageInput: PageInput, filterInput: TrainingFilterInput): TrainingList!
         getTraining(id: ID!): Training!
         checkCourseUpdateBeforeSync(input: courseUpdateInput!): offlineSyncRes!
+        isCourseEnrolledForCurrentUser(trainingId: ID!): Boolean
     `,
     mutations: `
         createOrUpdateTraining(input: TrainingInput!, bannerImage: Upload, coverImage: Upload): creationRes!

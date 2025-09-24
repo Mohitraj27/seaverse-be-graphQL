@@ -647,10 +647,12 @@ const summarizeResults = (results) => {
 };
 const sendCourseMailsWithRetry = async (emailBatch, retryCount = 0) => {
     try {
+        console.log(`\nSending batch of ${emailBatch.length} emails, Attempt: ${retryCount + 1}`);
         const emailPromises = emailBatch.map(async (email) => {
             const { to, subject, html } = email;
             if (to?.trim()?.length) {
-                return await sendEmail({ receiverEmail: to, subject: subject, htmlContent: html });
+                const emailResponse = await sendEmail({ receiverEmail: to, subject: subject, htmlContent: html });
+                return emailResponse;
             } else {
                 return Promise.reject(new Error("Invalid email address"));
             }
@@ -1075,7 +1077,7 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
 
     }
 
-    // await sendNotificationAndMailForAutoEnrollment(uniqueUserIds, uniqueTrainingIds, nonNotificationRecievers,userToLearningPlansObject, context);
+    await sendNotificationAndMailForAutoEnrollment(uniqueUserIds, uniqueTrainingIds, nonNotificationRecievers,userToLearningPlansObject, context);
 
     return filteredPlans.filter(Boolean);
 }
@@ -1287,8 +1289,8 @@ const sendNotificationAndMailForAutoEnrollment = async (userObjectIds, trainingO
 
                 if (courses.length) {
                     emailData.push({
-                        receiverEmail: user.email,
-                        firstName: user.firstName,
+                        receiverEmail: decrypt(user.email),
+                        firstName: decrypt(user.firstName, true),
                         isAdmin: user?.subRoles?.includes(subRoleAdminId?._id),
                         courses
                     });
@@ -3128,7 +3130,7 @@ module.exports = {
 
         try {
             const userVesselsDetails = await Vessel.find({ _id: savedEmployee.user?.currentVessel, isDeleted: false, isActive: true }).populate('typeOfVessel', '_id name');
-            console.log('this is userVesselsDetails', userVesselsDetails);
+            // console.log('this is userVesselsDetails', userVesselsDetails);
 
             const document = {
                 employeeId: savedEmployee._id?.toString(),
@@ -3164,12 +3166,12 @@ module.exports = {
                 isPushNotification: savedEmployee.user?.isPushNotification,
                 lastLoginAt: savedEmployee.user?.lastLoginAt,
                 isSignupAdminAprroved: savedEmployee.user?.isSignupAdminAprroved,
-                vesselName: userVesselsDetails[0]?.name,
-                vesselIsActive: userVesselsDetails[0]?.isActive,
-                vesselId: userVesselsDetails[0]?._id,
-                vesselIsDeleted: userVesselsDetails[0]?.isDeleted,
-                typeOfVesselName: userVesselsDetails[0]?.typeOfVessel?.name,
-                tyepOfVesselId: userVesselsDetails[0]?.typeOfVessel?._id,
+                vesselName: userVesselsDetails[0]?.name===undefined?null:userVesselsDetails[0]?.name,
+                vesselIsActive: userVesselsDetails[0]?.isActive===undefined?null:userVesselsDetails[0]?.isActive,
+                vesselId: userVesselsDetails[0]?._id===undefined?null:userVesselsDetails[0]?._id.toString(),
+                vesselIsDeleted: userVesselsDetails[0]?.isDeleted===undefined?null:userVesselsDetails[0]?.isDeleted,
+                typeOfVesselName: userVesselsDetails[0]?.typeOfVessel?.name===undefined?null:userVesselsDetails[0]?.typeOfVessel?.name,
+                tyepOfVesselId: userVesselsDetails[0]?.typeOfVessel?._id===undefined?null:userVesselsDetails[0]?.typeOfVessel?._id.toString(),
                 userCreatedAt: savedEmployee.user?.createdAt,
                 userUpdatedAt: savedEmployee.user?.updatedAt,
             };

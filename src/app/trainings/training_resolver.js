@@ -5,6 +5,7 @@ const {
     Role,
     DbTransactionHelper,
     CurrentDateTime,
+    escapeRegex,
 } = require("../../util");
 const { ObjectId } = require("../../tools");
 const { Training } = require("./training_model");
@@ -53,6 +54,7 @@ module.exports.queries = {
             throw CustomError(ErrorName.FORBIDDEN);
         }
 
+        try {
         const skip = pageInput?.skip ?? 0;
         let limit = pageInput?.limit ?? 50;
 
@@ -61,8 +63,9 @@ module.exports.queries = {
 
         if (filterInput) {
             if (filterInput.search) {
+                const escapedSearch = escapeRegex(filterInput?.search);
                 const searchRegex = {
-                    $regex: ".*" + filterInput.search + ".*",
+                    $regex: ".*" + escapedSearch + ".*",
                     $options: "i",
                 };
 
@@ -143,6 +146,10 @@ module.exports.queries = {
             totalCount: totalCount,
             trainings: decryptedTrainings,
         };
+        } catch (error) {
+            console.error("Error in getTrainings:", error);
+            throw CustomError(ErrorName.FAILED, error.message);
+        }
     },
     getTraining: async ({ id }, context) => {
         const { role, userPermissions, subscriberId } = AuthUser(context);
@@ -285,6 +292,30 @@ module.exports.queries = {
         }
 
     },
+    isCourseEnrolledForCurrentUser: async ({ trainingId }, context) => {
+
+        const {userId} = AuthUser(context);
+
+        if(!userId){
+            throw CustomError(ErrorName.NOT_FOUND, "User not found!");
+        }
+
+        if(!trainingId){
+            throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Training ID is required!");
+        }
+
+        const enrollment = await OverallTrainingProgress.findOne({
+            training: trainingId,
+            user: userId,
+        }).select("isEnrolled -_id").lean();
+        
+        if(!enrollment){
+            throw CustomError(ErrorName.NOT_FOUND, "Enrollment data not found!");
+        }
+
+        return  enrollment ? enrollment.isEnrolled : false;
+
+    }
 };
 
 module.exports.mutations = {
@@ -685,6 +716,19 @@ module.exports.mutations = {
         // Preprocess input: handle offline sync, structure extraction, and validation outside transaction
         let processedInput = input;
         const modifiedCourseIds = new Set();
+       const overallIds = input.map(item => item.overallId.toString());
+
+        const notEnrolled = await OverallTrainingProgress.exists({
+            _id: { $in: overallIds },
+            isEnrolled: false,
+        });
+
+        if (notEnrolled) {
+            return {
+                status: 0,
+                message: "User is not enrolled in one or more courses.",
+            };
+        }
 
         if (input[0]?.isFromOfflineSync) {
             if (!input[0].overallId) {
