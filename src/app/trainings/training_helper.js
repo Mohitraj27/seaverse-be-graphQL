@@ -2036,14 +2036,16 @@ const dataMigrationBackground = async (migrationcourseId, trainingId) => {
     // User creation start
     const savedRegistrations = await DbTransactionHelper.performDbTransaction(async session => {
 
+        const emails = completedMigrationUsers.map(user => {
+            return encrypt(user.EMAIL.trim().toLowerCase());
+        });
 
-        const emails = completedMigrationUsers.map((user) => encrypt(user.EMAIL));
-        const ids = completedMigrationUsers.map((user) => encrypt(user.EMPLOYEE_ID));
+        // const ids = completedMigrationUsers.map((user) => encrypt(user.EMPLOYEE_ID));
 
         const existingUsers = await User.find({
             $or: [
                 { email: { $in: emails } },
-                { civilIdOrPassport: { $in: ids } }
+                // { civilIdOrPassport: { $in: ids } }
             ]
         }).session(session).lean();
 
@@ -2113,7 +2115,7 @@ const dataMigrationBackground = async (migrationcourseId, trainingId) => {
             trainingProgressIds = await createTrainingProgressForMigrationUsersHelper(userIds, trainingId, subscriberId, trainingRegistrationId, session);
 
         }
-
+        console.log('✅ Courese Migration completed for users count: ', userIds?.length);
         return {
             message: "Course enrollment successful!",
         };
