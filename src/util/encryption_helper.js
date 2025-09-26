@@ -65,6 +65,8 @@ function generateMappingsFromSecret(secret) {
 }
 
 function encrypt(input) {
+    input = normalizeString(input);
+    console.log("Normalized Input: ", input);
     let encrypted = "";
     firstChar = input?.charAt?.(0)?.toLowerCase();
     if(input===null||input===undefined||input.length===0||input.trim().length===0){
@@ -113,6 +115,14 @@ function toPascalCase(string) {
 // Initialize mappings
 generateMappingsFromSecret(SECRET_KEY);
 
+/**
+ * 
+ * Function to normalize strings by removing diacritics
+ * example "Štefan" -> "Stefan"
+ */
+function normalizeString(string) {
+  return string.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
 
 const encryptFields = async (fields) => {
     const encryptedFields = {};
