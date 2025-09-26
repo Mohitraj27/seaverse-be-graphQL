@@ -12,9 +12,13 @@ module.exports = {
        }
   input MigrationCoursesFilter{
         search:String
-       } 
+       }
+  type extractCourseRes{
+        message: String
+      }
      `,
     queries: `
     getMigrationCourses(pageInput: pageInput, filterInput: MigrationCoursesFilter): MigrationCoursePage!   
-`
+    extractMigrationCourses: extractCourseRes!
+    `,
 };
