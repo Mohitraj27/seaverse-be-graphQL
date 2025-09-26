@@ -41,6 +41,7 @@ const { createTrainingProgressForMigrationUsersHelper } = require("../training-r
 const { decrypt, encrypt } = require('../../util/encryption_helper');
 const { runQuery, runQueryStream } = require("../../util/mysql_helper");
 const { updateCoursesCountAndProgressInElasticSearch } = require("../training-registrations/overall-course-progress/overall_progress_helper");
+const { isNullableType } = require("graphql");
 
 const uploadTrainingImages = async ({ coverImage, folderName }) => {
     coverImage._id = coverImage._id ?? ObjectId();
@@ -2035,8 +2036,6 @@ const dataMigrationBackground = async (migrationcourseId, trainingId) => {
     // User creation start
     const savedRegistrations = await DbTransactionHelper.performDbTransaction(async session => {
 
-        const userBulkOps = [];
-        const employeeBulkOps = [];
 
         const emails = completedMigrationUsers.map((user) => encrypt(user.EMAIL));
         const ids = completedMigrationUsers.map((user) => encrypt(user.EMPLOYEE_ID));
@@ -2047,9 +2046,6 @@ const dataMigrationBackground = async (migrationcourseId, trainingId) => {
                 { civilIdOrPassport: { $in: ids } }
             ]
         }).session(session).lean();
-
-        const existingEmails = new Set(existingUsers.map(u => u.email));
-        const existingIds = new Set(existingUsers.map(u => u.civilIdOrPassport));
 
         const subscriber = await Subscriber.findOne().session(session).lean();
         let subscriberId;
@@ -2062,68 +2058,6 @@ const dataMigrationBackground = async (migrationcourseId, trainingId) => {
             userIds.push(user._id);
         });
 
-        for (const user of completedMigrationUsers) {
-
-            const { FIRST_NAME, LAST_NAME, EMAIL, EMPLOYEE_ID } = user;
-            const encryptedFirstName = encrypt(FIRST_NAME);
-            const encryptedLastName = encrypt(LAST_NAME);
-            const encryptedEmail = encrypt(EMAIL);
-            const encryptedEmployeeId = encrypt(EMPLOYEE_ID);
-
-            let userPasswordInfo = {};
-            let generatePassword = generateRandomString(10);
-            const dummyPasswordHash = await CryptoHelper.hash(generatePassword, 10);
-
-            userPasswordInfo.dummyPassword = `${dummyPasswordHash}~~~${generatePassword}`;
-            userPasswordInfo.password = dummyPasswordHash;
-
-            if (existingEmails.has(encryptedEmail) || existingIds.has(encryptedEmployeeId)) {
-                continue;
-            }
-
-            const userId = ObjectId();
-
-            userIds.push(userId);
-            userBulkOps.push({
-                insertOne: {
-                    document: {
-                        _id: userId,
-                        subscriber: subscriberId,
-                        firstName: encryptedFirstName,
-                        lastName: encryptedLastName,
-                        email: encryptedEmail,
-                        civilIdOrPassport: encryptedEmployeeId,
-                        isRegistered: false,
-                        ...userPasswordInfo,
-                        role: Role.LEARNER,
-                        UID: await employeeHelper.generateUserUID({ subscriberId }),
-                    },
-                },
-            });
-
-            employeeBulkOps.push({
-                insertOne: {
-                    document: {
-                        user: userId,
-                        subscriber: subscriberId,
-                        regType: 1,
-                        designation: 'null',
-                        UID: await employeeHelper.generateEmployeeUID({ subscriberId }),
-                    },
-                },
-            });
-
-        };
-
-        if (userBulkOps.length > 0) {
-            await User.bulkWrite(userBulkOps, { session });
-        }
-
-        if (employeeBulkOps.length > 0) {
-            await Employee.bulkWrite(employeeBulkOps, { session });
-        }
-        // User creation end
-
         // Course enrollment start
         let existingTrainingRegistration;
         let existingTrainingRegId;
@@ -2135,7 +2069,6 @@ const dataMigrationBackground = async (migrationcourseId, trainingId) => {
             }
         }
 
-        const batchUID = await BatchHelper.generateBatchUID({ subscriberId });
 
         const updateFields = { subscriber: subscriberId, $addToSet: {} };
         if (userIds?.length) {
