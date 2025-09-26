@@ -2004,21 +2004,21 @@ const dataMigrationBackground = async (migrationcourseId, trainingId) => {
         const sql = `SELECT EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME
         FROM (
             SELECT EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME
-            FROM crew_certificates_synergy
+            FROM crew_certificates_synergy_new
             WHERE EMAIL IS NOT NULL 
             AND COURSE_ID = ?
 
             UNION
 
             SELECT EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME
-            FROM crew_certificates_denmark
+            FROM crew_certificates_denmark_new
             WHERE EMAIL IS NOT NULL 
             AND COURSE_ID = ?
         ) AS combined
         GROUP BY EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME
         ORDER BY FIRST_NAME, LAST_NAME;`;
 
-        // const sql = `SELECT EMPLOYEE_ID, EMAIL FROM crew_certificates_synergy LIMIT 5`;
+        // const sql = `SELECT EMPLOYEE_ID, EMAIL FROM crew_certificates_synergy_new LIMIT 5`;
 
         // const users = await runQueryStream(sql);
 

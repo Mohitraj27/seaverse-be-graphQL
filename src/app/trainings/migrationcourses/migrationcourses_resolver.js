@@ -51,9 +51,9 @@ module.exports.queries = {
 
             const sql = `
       SELECT COURSE_ID, COURSE_NAME FROM (
-        SELECT DISTINCT COURSE_ID, COURSE_NAME FROM crew_certificates_synergy
+        SELECT DISTINCT COURSE_ID, COURSE_NAME FROM crew_certificates_synergy_new
         UNION
-        SELECT DISTINCT COURSE_ID, COURSE_NAME FROM crew_certificates_denmark
+        SELECT DISTINCT COURSE_ID, COURSE_NAME FROM crew_certificates_denmark_new
       ) AS combined
       WHERE COURSE_ID IS NOT NULL AND COURSE_ID != ''
     `;
