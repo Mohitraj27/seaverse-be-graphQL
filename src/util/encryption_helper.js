@@ -66,7 +66,6 @@ function generateMappingsFromSecret(secret) {
 
 function encrypt(input) {
     input = normalizeString(input);
-    console.log("Normalized Input: ", input);
     let encrypted = "";
     firstChar = input?.charAt?.(0)?.toLowerCase();
     if(input===null||input===undefined||input.length===0||input.trim().length===0){
