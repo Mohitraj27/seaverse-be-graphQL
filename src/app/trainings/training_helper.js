@@ -2035,10 +2035,16 @@ const dataMigrationBackground = async (migrationcourseId, trainingId) => {
 
     // User creation start
     const savedRegistrations = await DbTransactionHelper.performDbTransaction(async session => {
+        
+       const emails = completedMigrationUsers.map(user => {
+           try {
+               return encrypt(user.EMAIL.trim().toLowerCase());
+           } catch (err) {
+               console.error("Encryption failed for email:", user.EMAIL);
+               throw err; 
+           }
+       });
 
-        const emails = completedMigrationUsers.map(user => {
-            return encrypt(user.EMAIL.trim().toLowerCase());
-        });
 
         // const ids = completedMigrationUsers.map((user) => encrypt(user.EMPLOYEE_ID));
 
