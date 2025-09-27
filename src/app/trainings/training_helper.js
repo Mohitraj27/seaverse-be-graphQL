@@ -2089,7 +2089,7 @@ const dataMigrationBackground = async (migrationcourseId, trainingId) => {
 
         if (existingTrainingRegistration) {
 
-            let existingOverallProgresses = await OverallTrainingProgress.find({ training: trainingId, user: { $in: userIds } }).session(session).lean();
+            let existingOverallProgresses = await OverallTrainingProgress.find({ training: ObjectId(trainingId), user: { $in: userIds } }).session(session).lean();
 
             userIds = userIds.filter(userId =>
                 !existingOverallProgresses.some(progress => progress.user.toString() === userId.toString())
