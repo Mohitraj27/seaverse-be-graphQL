@@ -502,21 +502,34 @@ const createTrainingProgressForMigrationUsersHelper = async (userIds, trainingId
             return acc;
         }, {});
 
-        const newProgressEntries = userIds.map(user => {
-            // const progressKey = `${trainingId.toString()}-${user._id.toString()}`;
+        // Newly added
+        const existingProgressDocs = await OverallTrainingProgress.find(
+            {
+                user: { $in: userIds },
+                training: trainingId,
+            },
+            { _id: 1, user: 1 }
+        ).lean();
 
-            const isCertificatePresent = trainingDataById[trainingId.toString()]?.isCertificate ?? false;
-            const durationHours = trainingDataById[trainingId.toString()]?.durationHours ?? 0;
-            const overallId = ObjectId();
+        const existingMap = new Map();
+        for (const doc of existingProgressDocs) {
+            existingMap.set(doc.user.toString(), doc._id);
+        }
+
+        const newProgressEntries = [];
+        for (const user of userIds) {
+            let overallId;
+
+            if (existingMap.has(user.toString())) {
+                overallId = existingMap.get(user.toString());
+            } else {
+                overallId = new ObjectId();
+            }
+
             overallIds.push(overallId);
-
-            return {
+            newProgressEntries.push({
                 updateOne: {
-                    filter: {
-                        user: user,
-                        training: trainingId,
-                        trainingRegistration: trainingRegistrationId,
-                    },
+                    filter: { user: user, training: trainingId },
                     update: {
                         $set: {
                             directEnrollment: true,
@@ -535,62 +548,55 @@ const createTrainingProgressForMigrationUsersHelper = async (userIds, trainingId
                             user: user,
                             trainingRegistration: trainingRegistrationId,
                             subscriberId: subscriberId,
-                            isCertificatePresent: isCertificatePresent,
+                            isCertificatePresent: trainingDataById[trainingId.toString()]?.isCertificate ?? false,
                             startDate: null,
                             endDate: null,
-                            totalDuration: durationHours,
+                            totalDuration: trainingDataById[trainingId.toString()]?.durationHours ?? 0,
                         },
                     },
                     upsert: true,
                 },
-            };
-        });
-        console.log("newProgressEntries",newProgressEntries);
+            });
+        }
+
         if (newProgressEntries.length > 0) {
             await OverallTrainingProgress.bulkWrite(newProgressEntries, { session });
+        }
 
-            const contentInsertDocs = [];
+        const bulkOps = [];
 
-            for (const overallId of overallIds) {
-                for (const { moduleId, contentIds } of contentData) {
-                    for (const contentId of contentIds) {
-                        contentProgressOps.push({
-                            updateOne: {
-                                filter: {
-                                    trainingRegistration: trainingRegistrationId,
-                                    trainingModule: moduleId,
-                                    trainingModuleContent: contentId,
-                                    overallTrainingProgress: overallId,
-                                },
-                                update: {
-                                    $set: {
-                                        status: "COMPLETED",
-                                        progressPercentage: 100,
-                                    },
-                                    $setOnInsert: {
-                                        _id: ObjectId(),
-                                        lastAccessedDuration: 0,
-                                        trainingRegistration: trainingRegistrationId,
-                                        trainingModule: moduleId,
-                                        trainingModuleContent: contentId,
-                                        overallTrainingProgress: overallId,
-                                        playerSettings: null,
-                                        videoId: null,
-                                        attemptCount: 1,
-                                    },
-                                },
-                                upsert: true,
+        for (const overallId of overallIds) {
+            for (const { moduleId, contentIds } of contentData) {
+                for (const contentId of contentIds) {
+                    bulkOps.push({
+                        updateOne: {
+                            filter: {
+                                overallTrainingProgress: overallId,
+                                trainingModule: moduleId,
+                                trainingModuleContent: contentId,
                             },
-                        });
-                    }
+                            update: {
+                                $set: {
+                                    attemptCount: 1,
+                                    status: "COMPLETED",
+                                    lastAccessedDuration: 0,
+                                    progressPercentage: 100,
+                                    playerSettings: null,
+                                    videoId: null,
+                                },
+                            },
+                            upsert: true,
+                        },
+                    });
                 }
             }
-
-            if (contentInsertDocs.length > 0) {
-                await TrainingProgress.insertMany(contentInsertDocs, { session });
-            }
-            return overallIds;
         }
+
+        if (bulkOps.length > 0) {
+            await TrainingProgress.bulkWrite(bulkOps, { session });
+        }
+        // Newly added
+
 
     } catch (error) {
         throw Error(error.message);
@@ -893,7 +899,7 @@ const sendCourseMailsWithRetry = async (emailBatch, retryCount = 0) => {
             const { to, subject, html } = email;
             if (to?.trim()?.length) {
                 const result = await sendEmail({ receiverEmail: to, subject: subject, htmlContent: html });
-                console.log('data recived',result);
+                console.log('data recived', result);
                 return result;
             } else {
                 return Promise.reject(new Error("Invalid email address"));
@@ -943,7 +949,7 @@ const sendCourseEmailBulk = async (action = 'ENROLL') => {
                     default:
                         throw new Error('Unknown action');
                 }
-                console.log("-----emailsToSend----- ",email.email);
+                console.log("-----emailsToSend----- ", email.email);
                 return { to: email.email, subject: email.subject, html };
             });
             // Send emails (use sendWithRetry logic from existing code)
