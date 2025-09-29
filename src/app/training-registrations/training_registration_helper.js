@@ -511,31 +511,41 @@ const createTrainingProgressForMigrationUsersHelper = async (userIds, trainingId
             overallIds.push(overallId);
 
             return {
-                insertOne: {
-                    document: {
-                        _id: overallId,
-                        directEnrollment: true,
-                        training: trainingId,
+                updateOne: {
+                    filter: {
                         user: user,
+                        training: trainingId,
                         trainingRegistration: trainingRegistrationId,
-                        subscriberId: subscriberId,
-                        status: 'COMPLETED',
-                        isEnrolled: true,
-                        progressPercentage: 100,
-                        completedModules: trainingModuleCount || 0,
-                        contentData: contentData || [],
-                        totalDuration: durationHours,
-                        totalTrainingModules: trainingModuleCount || 0,
-                        startDate: null,
-                        endDate: null,
-                        unenrollmentDate: null,
-                        isCertificatePresent: isCertificatePresent,
-                        isFromMigration: true
                     },
+                    update: {
+                        $set: {
+                            directEnrollment: true,
+                            status: "COMPLETED",
+                            isEnrolled: true,
+                            progressPercentage: 100,
+                            completedModules: trainingModuleCount || 0,
+                            contentData: contentData || [],
+                            totalTrainingModules: trainingModuleCount || 0,
+                            unenrollmentDate: null,
+                            isFromMigration: true,
+                        },
+                        $setOnInsert: {
+                            _id: overallId,
+                            training: trainingId,
+                            user: user,
+                            trainingRegistration: trainingRegistrationId,
+                            subscriberId: subscriberId,
+                            isCertificatePresent: isCertificatePresent,
+                            startDate: null,
+                            endDate: null,
+                            totalDuration: durationHours,
+                        },
+                    },
+                    upsert: true,
                 },
             };
         });
-
+        console.log("newProgressEntries",newProgressEntries);
         if (newProgressEntries.length > 0) {
             await OverallTrainingProgress.bulkWrite(newProgressEntries, { session });
 
@@ -544,17 +554,33 @@ const createTrainingProgressForMigrationUsersHelper = async (userIds, trainingId
             for (const overallId of overallIds) {
                 for (const { moduleId, contentIds } of contentData) {
                     for (const contentId of contentIds) {
-                        contentInsertDocs.push({
-                            trainingRegistration: trainingRegistrationId,
-                            trainingModule: moduleId,
-                            trainingModuleContent: contentId,
-                            overallTrainingProgress: overallId,
-                            attemptCount: 1,
-                            status: "COMPLETED",
-                            lastAccessedDuration: 0,
-                            progressPercentage: 100,
-                            playerSettings: null,
-                            videoId: null,
+                        contentProgressOps.push({
+                            updateOne: {
+                                filter: {
+                                    trainingRegistration: trainingRegistrationId,
+                                    trainingModule: moduleId,
+                                    trainingModuleContent: contentId,
+                                    overallTrainingProgress: overallId,
+                                },
+                                update: {
+                                    $set: {
+                                        status: "COMPLETED",
+                                        progressPercentage: 100,
+                                    },
+                                    $setOnInsert: {
+                                        _id: ObjectId(),
+                                        lastAccessedDuration: 0,
+                                        trainingRegistration: trainingRegistrationId,
+                                        trainingModule: moduleId,
+                                        trainingModuleContent: contentId,
+                                        overallTrainingProgress: overallId,
+                                        playerSettings: null,
+                                        videoId: null,
+                                        attemptCount: 1,
+                                    },
+                                },
+                                upsert: true,
+                            },
                         });
                     }
                 }

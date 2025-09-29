@@ -2091,9 +2091,9 @@ const dataMigrationBackground = async (migrationcourseId, trainingId) => {
 
             let existingOverallProgresses = await OverallTrainingProgress.find({ training: ObjectId(trainingId), user: { $in: userIds } }).session(session).lean();
 
-            userIds = userIds.filter(userId =>
+            /* userIds = userIds.filter(userId =>
                 !existingOverallProgresses.some(progress => progress.user.toString() === userId.toString())
-            );
+            ); */
 
             savedTrainingRegistration = await TrainingRegistration.updateOne(
                 { _id: existingTrainingRegId },
@@ -2102,7 +2102,7 @@ const dataMigrationBackground = async (migrationcourseId, trainingId) => {
             );
 
             const updatedRegistrations = await TrainingRegistration.find({
-                training: { trainingId }
+                training: ObjectId(trainingId), 
             }).session(session);
             trainingRegistrationId = existingTrainingRegId;
 
