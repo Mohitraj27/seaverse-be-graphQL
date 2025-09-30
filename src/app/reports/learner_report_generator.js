@@ -398,7 +398,6 @@ const performLearnerReportGeneration = async (payload) => {
                 });
                 if (excelFilePath) {
                     s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
-                    console.log("S3 Presigned URL of Enrollment Report\t:", s3PresignedUrl);
 
                     //SEND NOTIFICATION TO MAIN THREAD
 
@@ -565,7 +564,6 @@ const performLearnerReportGeneration = async (payload) => {
 
                 if (excelFilePath) {
                     s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
-                    console.log("S3 Presigned URL of Module Level Report\t:", s3PresignedUrl);
 
                     //SEND NOTIFICATION TO MAIN THREAD
                     const notificationData = {
@@ -647,7 +645,6 @@ const performLearnerReportGeneration = async (payload) => {
     process.on('message', async (message) => {
         console.log('Child process received a message from parent.');
         const  payload  = message;
-        console.log('Payload:', message);
         try {
             if (global.gc) {
                 global.gc();
