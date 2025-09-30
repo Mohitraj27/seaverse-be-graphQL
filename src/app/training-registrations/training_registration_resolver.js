@@ -342,15 +342,50 @@ module.exports.queries = {
                         moduleCount: "$totalTrainingModules"
                     }
                 },
-               
-                // Extract the count from the result
+                // Lookup to get count from training modules for NOT_STARTED status
+                {
+                    $lookup: {
+                        from: "trainingmodules",
+                        let: { trainingId: "$training._id" },
+                        pipeline: [
+                            {
+                                $match: {
+                                    $expr: {
+                                        $and: [
+                                            { $eq: ["$training", "$$trainingId"] },
+                                            { $ne: ["$isDeleted", true] }
+                                        ]
+                                    }
+                                }
+                            },
+                            {
+                                $count: "moduleCount"
+                            }
+                        ],
+                        as: "moduleCountResult",
+                    },
+                },
+                // Conditional module count based on status
                 {
                     $addFields: {
                         actualModuleCount: {
                             $cond: {
-                                if: { $isArray: "$contentData" },
-                                then: { $size: "$contentData" },
-                                else: 0
+                                if: { $eq: ["$status", "NOT_STARTED"] },
+                                // For NOT_STARTED, use count from training modules
+                                then: {
+                                    $ifNull: [
+                                        { $arrayElemAt: ["$moduleCountResult.moduleCount", 0] },
+                                        0
+                                    ]
+                                },
+                                // For IN_PROGRESS or COMPLETED, use contentData count
+                                else: {
+                                    $cond: {
+                                        if: { $isArray: "$contentData" },
+                                        then: { $size: "$contentData" },
+                                        else: 0
+                                    }
+                                }
                             }
                         }
                     }
@@ -365,7 +400,12 @@ module.exports.queries = {
                         timeSpend: { $ifNull: ["$timeSpend", 0] }
                     }
                 },
-               
+                // Remove the temporary moduleCountResult field
+                {
+                    $project: {
+                        moduleCountResult: 0
+                    }
+                },
                 { $sort: { createdAt: -1 } }
             ]);
 
