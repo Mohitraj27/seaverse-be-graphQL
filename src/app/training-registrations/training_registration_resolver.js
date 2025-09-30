@@ -342,37 +342,16 @@ module.exports.queries = {
                         moduleCount: "$totalTrainingModules"
                     }
                 },
-                // Modified lookup to get count instead of full documents
-                {
-                    $lookup: {
-                        from: "trainingmodules",
-                        let: { trainingId: "$training._id" },
-                        pipeline: [
-                            {
-                                $match: {
-                                    $expr: {
-                                        $and: [
-                                            { $eq: ["$training", "$$trainingId"] },
-                                            { $ne: ["$isDeleted", true] }  // Exclude deleted modules
-                                        ]
-                                    }
-                                }
-                            },
-                            {
-                                $count: "moduleCount"
-                            }
-                        ],
-                        as: "moduleCountResult",
-                    },
-                },
+               
                 // Extract the count from the result
                 {
                     $addFields: {
                         actualModuleCount: {
-                            $ifNull: [
-                                { $arrayElemAt: ["$moduleCountResult.moduleCount", 0] },
-                                0
-                            ]
+                            $cond: {
+                                if: { $isArray: "$contentData" },
+                                then: { $size: "$contentData" },
+                                else: 0
+                            }
                         }
                     }
                 },
@@ -386,12 +365,7 @@ module.exports.queries = {
                         timeSpend: { $ifNull: ["$timeSpend", 0] }
                     }
                 },
-                // Remove the temporary moduleCountResult field
-                {
-                    $project: {
-                        moduleCountResult: 0
-                    }
-                },
+               
                 { $sort: { createdAt: -1 } }
             ]);
 
