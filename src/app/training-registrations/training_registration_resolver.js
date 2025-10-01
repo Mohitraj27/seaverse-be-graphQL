@@ -342,7 +342,7 @@ module.exports.queries = {
                         moduleCount: "$totalTrainingModules"
                     }
                 },
-                // Modified lookup to get count instead of full documents
+                // Lookup to get count from training modules for NOT_STARTED status
                 {
                     $lookup: {
                         from: "trainingmodules",
@@ -353,7 +353,7 @@ module.exports.queries = {
                                     $expr: {
                                         $and: [
                                             { $eq: ["$training", "$$trainingId"] },
-                                            { $ne: ["$isDeleted", true] }  // Exclude deleted modules
+                                            { $ne: ["$isDeleted", true] }
                                         ]
                                     }
                                 }
@@ -365,14 +365,28 @@ module.exports.queries = {
                         as: "moduleCountResult",
                     },
                 },
-                // Extract the count from the result
+                // Conditional module count based on status
                 {
                     $addFields: {
                         actualModuleCount: {
-                            $ifNull: [
-                                { $arrayElemAt: ["$moduleCountResult.moduleCount", 0] },
-                                0
-                            ]
+                            $cond: {
+                                if: { $eq: ["$status", "NOT_STARTED"] },
+                                // For NOT_STARTED, use count from training modules
+                                then: {
+                                    $ifNull: [
+                                        { $arrayElemAt: ["$moduleCountResult.moduleCount", 0] },
+                                        0
+                                    ]
+                                },
+                                // For IN_PROGRESS or COMPLETED, use contentData count
+                                else: {
+                                    $cond: {
+                                        if: { $isArray: "$contentData" },
+                                        then: { $size: "$contentData" },
+                                        else: 0
+                                    }
+                                }
+                            }
                         }
                     }
                 },
