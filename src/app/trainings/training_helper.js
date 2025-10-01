@@ -465,7 +465,8 @@ const addDataToOverallTrainingProgress = async (input, errors, session, fromDown
                                     $push: {
                                         contentFromDownload: {
                                             courseDetails: contentData,
-                                            version: doc?.version || 1
+                                            version: doc?.version || 1,
+                                            downloadedCertificateLayoutId : doc?.assignedCertificateLayoutId || null
                                         }
                                     }
                                 },

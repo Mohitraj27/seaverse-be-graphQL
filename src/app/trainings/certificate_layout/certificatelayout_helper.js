@@ -101,6 +101,32 @@ const toggleCertificatesOnOrOFF = async (training, disabled) => {
     }
 }
 
+const checkAssociatedUsers = async (id) => {
+    // 1️⃣ Check online users (assignedCertificateLayoutId + status)
+    const onlineUserExists = await OverallTrainingProgress.exists({
+        assignedCertificateLayoutId: id,
+        status: { $in: ['IN_PROGRESS', 'COMPLETED'] }
+    });
+
+    if (onlineUserExists) return true; // early return if found
+
+    // 2️⃣ Check offline users (last element in contentFromDownload)
+    const offlineUsers = await OverallTrainingProgress.find(
+        { contentFromDownload: { $exists: true, $ne: [] } },
+        { contentFromDownload: 1 } // fetch array
+    ).lean();
+
+    for (const user of offlineUsers) {
+        const lastDownload = user.contentFromDownload[user.contentFromDownload.length - 1];
+        if (lastDownload?.downloadedCertificateLayoutId?.toString() === id.toString()) {
+            return true; // found a match
+        }
+    }
+
+    // 3️⃣ No associated users found
+    return false;
+};
+
 
 module.exports = {
     createOrupdateCertificateLayout: async ({ }, context) => {
@@ -140,4 +166,5 @@ module.exports = {
     getLatestCertificateLayoutByTrainingId,
     toggleCertificatesOnOrOFF,
     switchCertificateLayouts,
+    checkAssociatedUsers
 };
