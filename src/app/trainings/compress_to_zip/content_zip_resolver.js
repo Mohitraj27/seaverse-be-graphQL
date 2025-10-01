@@ -36,6 +36,12 @@ module.exports.mutations = {
 
             if (syncContentErrors.length > 0) throw CustomError(ErrorName.NOT_FOUND, syncContentErrors[0]);
 
+            /*****
+            * @downloading_Course is now handled from the fe therefore no need to fetch the content and create zip here
+            * keeping the old code here as comment for reference
+            ******/
+
+            /*
             let trainingContentIds = [];
 
             trainingModuleContentsFromContentData?.contentData.map((content) => {
@@ -110,7 +116,7 @@ module.exports.mutations = {
             }
 
             if (!getContent) throw CustomError(ErrorName.SERVER_ERROR);
-
+ */
             // const metadata = getContent.length > 0 ? await AwsHelper.fetchFile(getContent) : "Zip is ready to be downloaded";
 
             return {
