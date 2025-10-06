@@ -5,7 +5,7 @@ const SubRoleHelper = require("../../user/sub-roles/sub_role_helper");
 const { CustomError, ErrorName, AuthUser, UploadHelper } = require("../../../util");
 const aws_helper = require("../../../util/aws_helper");
 const { ObjectId } = require("../../../tools");
-const { switchCertificateLayouts, createOrupdateCertificateLayout, toggleCertificatesOnOrOFF, getLatestCertificateLayoutByTrainingId } = require("./certificatelayout_helper");
+const { switchCertificateLayouts, createOrupdateCertificateLayout, toggleCertificatesOnOrOFF, getLatestCertificateLayoutByTrainingId, checkAssociatedUsers } = require("./certificatelayout_helper");
 const { OverallTrainingProgress } = require("../../training-registrations/overall-course-progress/overall_progress_model");
 
 module.exports.queries = {
@@ -234,16 +234,12 @@ module.exports.mutations = {
                         throw CustomError(ErrorName.VALIDATION_ERROR, "Additional data must be an array");
                     }
 
-                    let usersAssosciatedToLayout = [];
+                    let hasAssociatedUsers = false;
                     if (id) {
-                        //if there are no users in ['IN_PROGRESS', 'COMPLETED'] states we dont have to store the data
-                        usersAssosciatedToLayout = await OverallTrainingProgress.find({
-                            assignedCertificateLayoutId: id,
-                            status: { $in: ['IN_PROGRESS', 'COMPLETED'] }
-                        }).lean();
+                       hasAssociatedUsers = await checkAssociatedUsers(id); 
                     }
 
-                    if ((!(usersAssosciatedToLayout?.length > 0)) && id) {
+                    if ((!hasAssociatedUsers) && id) { //If there are no users connected with the existing layout
                         if (layout !== undefined) existingLayout.layout = layout;
                         if (training !== undefined) existingLayout.training = training;
                         if (authorName !== undefined) existingLayout.authorName = authorName;
@@ -270,7 +266,7 @@ module.exports.mutations = {
                             logos: logosInput,
                             signature: { url: signatureUrl },
                         };
-                    } else if (((usersAssosciatedToLayout?.length > 0) && id) || ((!(usersAssosciatedToLayout?.length > 0)) && (!id))) { //If there are users connected with the existing layout OR if the admin wants to create a new layout
+                    } else if ((hasAssociatedUsers && id) || (!hasAssociatedUsers && !id)) { //If there are users connected with the existing layout OR if the admin wants to create a new layout
                         let action = 'created';
                         let version = 0;
 
@@ -279,7 +275,7 @@ module.exports.mutations = {
                             layout: layout,
                         }).sort({ version: -1 }).limit(1);
 
-                        if ((usersAssosciatedToLayout?.length > 0) && id) {
+                        if (hasAssociatedUsers && id) {
                             action = 'updated';
                             version = (oldCertificateLayout?.version ?? 0) + 1;
                         }
@@ -378,17 +374,14 @@ module.exports.mutations = {
                 throw CustomError(ErrorName.FORBIDDEN);
             }
 
-            const usersAssosciatedToLayout = await OverallTrainingProgress.find({
-                assignedCertificateLayoutId: layoutId,
-                status: { $in: ['IN_PROGRESS', 'COMPLETED'] }
-            }).lean();
+            const hasAssociatedUsers = await checkAssociatedUsers(layoutId) ?? false;
 
             let existingLayout = await certificateLayout.findById(layoutId);
             if (!existingLayout) {
                 throw new Error('Layout not found');
             }
 
-            if (usersAssosciatedToLayout?.length > 0) {
+            if (hasAssociatedUsers) {
                 const layoutCopy = existingLayout.toObject();
 
                 delete layoutCopy._id;
