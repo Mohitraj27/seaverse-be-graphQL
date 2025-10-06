@@ -1112,11 +1112,18 @@ const updateOverallProgressPercentage = async (overallDocs, session) => {
         const average = progressPercentages.length > 0 ? Math.round(total / progressPercentages.length) : 0;
         const timeSpend = (totalDuration * (average / 100)).toFixed(2);
         const completedCount = progressPercentages?.filter(percentage => percentage === 100).length;
+        const latestContent = overallDoc.contentFromDownload.reduce((prev, current) => {
+            return current.version > prev.version ? current : prev;
+        });
 
+        // Extract downloadedCertificateLayoutId
+        const downloadedCertificateLayoutId = latestContent.downloadedCertificateLayoutId;
         const updateFields = {
             progressPercentage: overallDoc?.adminMarkedAsCompleted ? overallDoc?.progressPercentage : average,
             totalDuration,
-            completedModules: completedCount
+            completedModules: completedCount,
+            assignedCertificateLayoutId: downloadedCertificateLayoutId ??  null,
+            isCertificatePresent: downloadedCertificateLayoutId ? true : false,
         };
 
 
