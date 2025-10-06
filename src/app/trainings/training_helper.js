@@ -42,7 +42,6 @@ const { decrypt, encrypt } = require('../../util/encryption_helper');
 const { runQuery, runQueryStream } = require("../../util/mysql_helper");
 const { updateCoursesCountAndProgressInElasticSearch } = require("../training-registrations/overall-course-progress/overall_progress_helper");
 const { isNullableType } = require("graphql");
-const { assign } = require("lodash");
 
 const uploadTrainingImages = async ({ coverImage, folderName }) => {
     coverImage._id = coverImage._id ?? ObjectId();
