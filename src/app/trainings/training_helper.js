@@ -1036,7 +1036,7 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
 
 }
 
-const updateOverallProgressPercentage = async (overallDocs, session) => {
+const updateOverallProgressPercentage = async (overallDocs,isFromDownload = false, session) => {
 
     const overallIds = overallDocs.map((item) => item._id);
     const userIds = [...new Set(overallDocs.map(item => item.user))];
@@ -1112,19 +1112,32 @@ const updateOverallProgressPercentage = async (overallDocs, session) => {
         const average = progressPercentages.length > 0 ? Math.round(total / progressPercentages.length) : 0;
         const timeSpend = (totalDuration * (average / 100)).toFixed(2);
         const completedCount = progressPercentages?.filter(percentage => percentage === 100).length;
-        const latestContent = overallDoc.contentFromDownload.reduce((prev, current) => {
-            return current.version > prev.version ? current : prev;
-        });
+        let updateFields = {};
+        if (isFromDownload) {
+            const latestContent = overallDoc?.contentFromDownload?.reduce((prev, current) => {
+                return current.version > prev.version ? current : prev;
+            });
 
-        // Extract downloadedCertificateLayoutId
-        const downloadedCertificateLayoutId = latestContent.downloadedCertificateLayoutId;
-        const updateFields = {
-            progressPercentage: overallDoc?.adminMarkedAsCompleted ? overallDoc?.progressPercentage : average,
-            totalDuration,
-            completedModules: completedCount,
-            assignedCertificateLayoutId: downloadedCertificateLayoutId ??  null,
-            isCertificatePresent: downloadedCertificateLayoutId ? true : false,
-        };
+            // Extract downloadedCertificateLayoutId
+            const downloadedCertificateLayoutId = latestContent?.downloadedCertificateLayoutId;
+            updateFields = {
+                progressPercentage: overallDoc?.adminMarkedAsCompleted
+                    ? overallDoc?.progressPercentage
+                    : average,
+                totalDuration,
+                completedModules: completedCount,
+                assignedCertificateLayoutId: downloadedCertificateLayoutId ?? null,
+                isCertificatePresent: downloadedCertificateLayoutId ? true : false,
+            };
+        } else {
+            updateFields = {
+                progressPercentage: overallDoc?.adminMarkedAsCompleted
+                    ? overallDoc?.progressPercentage
+                    : average,
+                totalDuration,
+                completedModules: completedCount,
+            };
+        }
 
 
         if (average == 100) {
@@ -1365,7 +1378,7 @@ const updateTimeSpendInOverallTrainingProgress = async (input, session) => {
 const updateTrainingProgress = async (input, userId, subscriberId, session) => {
 
     const overallIds = input.map((item) => item.overallId);
-
+    const isFromDownload =  input[0]?.isFromOfflineSync ?? false;
     if (overallIds.length == 0) return;
 
     const overallDocs = await OverallTrainingProgress.find({
@@ -1666,7 +1679,7 @@ const updateTrainingProgress = async (input, userId, subscriberId, session) => {
     }
 
     if (overallIds) {
-        await updateOverallProgressPercentage(overallDocs, session);
+        await updateOverallProgressPercentage(overallDocs,isFromDownload, session);
         await updateTimeSpendInOverallTrainingProgress(input, session)
     }
 
