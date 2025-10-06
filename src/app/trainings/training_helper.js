@@ -1119,8 +1119,6 @@ const updateOverallProgressPercentage = async (overallDocs, session) => {
 
         // Extract downloadedCertificateLayoutId
         const downloadedCertificateLayoutId = latestContent.downloadedCertificateLayoutId;
-
-        console.log(downloadedCertificateLayoutId);
         const updateFields = {
             progressPercentage: overallDoc?.adminMarkedAsCompleted ? overallDoc?.progressPercentage : average,
             totalDuration,
