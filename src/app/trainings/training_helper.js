@@ -1121,6 +1121,7 @@ const updateOverallProgressPercentage = async (overallDocs,isFromDownload = fals
 
             // Extract downloadedCertificateLayoutId
             const downloadedCertificateLayoutId = latestContent?.downloadedCertificateLayoutId;
+            console.log('downloadedCertificateLayoutId:', downloadedCertificateLayoutId);
             updateFields = {
                 progressPercentage: overallDoc?.adminMarkedAsCompleted
                     ? overallDoc?.progressPercentage
