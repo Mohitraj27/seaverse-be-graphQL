@@ -296,20 +296,21 @@ const evaluateConditionalCustomFields = async (conditionType, conditionalCustomF
         : results.some(Boolean);
 };
 
-const createEnrollmentObject = (userId, trainingId, enrollData, trainingRegistrationIds, trainingModuleCounts, isCertificatePresent, currentCertificateLayout) => ({
+const createEnrollmentObject = (userId, trainingId, enrollData, trainingRegistrationIds, trainingModuleCounts, isCertificatePresent, currentCertificateLayout, status, progressPercentage, isFromMigration) => ({
     isComplete: false,
     isCertificateGenerated: false,
     learningPlan: enrollData.learningPlan ? [new mongodbObject(enrollData.learningPlan)] : [],
     training: new mongodbObject(trainingId),
     user: new mongodbObject(userId),
     trainingRegistration: new mongodbObject(trainingRegistrationIds[0]),
-    status: "NOT_STARTED",
+    status: status || "NOT_STARTED",
     isEnrolled: true,
-    progressPercentage: 0,
+    progressPercentage: progressPercentage || 0,
     completedModules: 0,
     totalTrainingModules: trainingModuleCounts || 0,
     isCertificatePresent: isCertificatePresent ?? false,
-    currentCertificateLayout: currentCertificateLayout ?? null
+    currentCertificateLayout: currentCertificateLayout ?? null,
+    isFromMigration: isFromMigration || false
 });
 
 async function enrollUsers(enrollDataArray, context) {
@@ -326,6 +327,14 @@ async function enrollUsers(enrollDataArray, context) {
             allUserIds.push(...userIds);
             allTrainingIds.push(...trainingIds);
         }
+
+        // Get the migration mapped training IDs
+        // Find the trainings with trainingIds that have migrationcoursesId
+        const trainingsWithMigration = await Training.find({
+            _id: { $in: allTrainingIds },
+            migrationcoursesId: { $exists: true, $ne: null }
+        }, { _id: 1, migrationcoursesId: 1 }).lean();
+
 
         const userObjectIds = [...new Set(allUserIds)].map(id => new mongoose.Types.ObjectId(id));
         const trainingObjectIds = [...new Set(allTrainingIds)].map(id => new mongoose.Types.ObjectId(id));
@@ -374,6 +383,7 @@ async function enrollUsers(enrollDataArray, context) {
         );
 
         const bulkOps = [];
+        const updateProgressOps = [];
         const insertedEnrollments = [];
 
         const trainings = [...new Set(enrollDataArray.flatMap(el => el.trainings))];
@@ -385,6 +395,12 @@ async function enrollUsers(enrollDataArray, context) {
             return acc;
         }, {});
 
+        // get the trainingModuleIds and trainingModuleContentIds
+        if (trainingsWithMigration.length > 0) {
+            
+        }
+
+
         for (const enrollData of enrollDataArray) {
             const userIds = Array.isArray(enrollData.users) ? enrollData.users : [enrollData.users];
             const trainingIds = Array.isArray(enrollData.trainings) ? enrollData.trainings : [enrollData.trainings];
@@ -395,15 +411,56 @@ async function enrollUsers(enrollDataArray, context) {
                     const existingEnrollment = existingEnrollmentMap.get(key);
 
                     if (existingEnrollment) {
+                        // bulkOps.push({
+                        //     updateOne: {
+                        //         filter: { _id: existingEnrollment._id },
+                        //         update: {
+                        //             $addToSet: { learningPlan: enrollData.learningPlan }
+                        //         }
+                        //     }
+                        // })
+
+                        // Check if trainingId is in trainingsWithMigration
+                        const isMigrationTraining = trainingsWithMigration.some(t => t._id.toString() === trainingId.toString());
+
+                        const update = {
+                            $addToSet: { learningPlan: enrollData.learningPlan }
+                        };
+                        if (isMigrationTraining) {
+                            update.$set = { status: "COMPLETED", isFromMigration: true };
+                        }
                         bulkOps.push({
                             updateOne: {
                                 filter: { _id: existingEnrollment._id },
-                                update: {
-                                    $addToSet: { learningPlan: enrollData.learningPlan }
-                                }
+                                update
                             }
                         });
+
+                        // If migration, create dataset to update all related TrainingProgress documents to COMPLETED
+                        if (isMigrationTraining) {
+                            updateProgressOps.push({
+                                updateMany: {
+                                    filter: {
+                                        overallTrainingProgress: existingEnrollment._id,
+                                    },
+                                    update: { $set: { status: "COMPLETED", progressPercentage: 100 } }
+                                }
+                            });
+                        }
+
                     } else {
+                        // Check if migration training for new enrollment
+                        const isMigrationTraining = trainingsWithMigration.some(t => t._id.toString() === trainingId.toString());
+
+                        let status = "NOT_STARTED";
+                        let progressPercentage = 0;
+                        let isFromMigration = false;
+                        if (isMigrationTraining) {
+                            status = "COMPLETED";
+                            progressPercentage = 100;
+                            isFromMigration = true;
+                        }
+
                         const newEnrollment = createEnrollmentObject(
                             userId,
                             trainingId,
@@ -412,8 +469,15 @@ async function enrollUsers(enrollDataArray, context) {
                             trainingModuleCounts,
                             trainingDataById[trainingId?.toString()]?.isCertificate ?? false,
                             trainingDataById[trainingId?.toString()]?.currentCertificateLayout,
+                            status,
+                            progressPercentage,
+                            isFromMigration
                         );
                         insertedEnrollments.push(newEnrollment);
+
+                        // If isMigrationTraining, create docs in trainingProgresses collection with COMPLETED status for each content
+
+
                     }
                 }
             }
@@ -494,6 +558,9 @@ async function enrollUsers(enrollDataArray, context) {
         console.time('OTP bulkWrite LP')
         if (bulkOps.length > 0) {
             await OverallTrainingProgress.bulkWrite(bulkOps);
+        }
+        if (updateProgressOps.length > 0) {
+            await TrainingProgress.bulkWrite(updateProgressOps);
         }
         console.timeEnd('OTP bulkWrite LP')
 
@@ -773,8 +840,6 @@ async function findGroupBasedPublishedLearningPlans(plan, userConditions) {
 
 
 const filterLearningPlans = async (learningPlans, userConditions, context, session) => {
-
-    console.log('reached here 123!');
 
     if (!Array.isArray(learningPlans)) {
         throw new Error("learningPlans should be an array");
@@ -1077,7 +1142,7 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
 
     }
 
-    await sendNotificationAndMailForAutoEnrollment(uniqueUserIds, uniqueTrainingIds, nonNotificationRecievers,userToLearningPlansObject, context);
+    await sendNotificationAndMailForAutoEnrollment(uniqueUserIds, uniqueTrainingIds, nonNotificationRecievers, userToLearningPlansObject, context);
 
     return filteredPlans.filter(Boolean);
 }
@@ -3166,12 +3231,12 @@ module.exports = {
                 isPushNotification: savedEmployee.user?.isPushNotification,
                 lastLoginAt: savedEmployee.user?.lastLoginAt,
                 isSignupAdminAprroved: savedEmployee.user?.isSignupAdminAprroved,
-                vesselName: userVesselsDetails[0]?.name===undefined?null:userVesselsDetails[0]?.name,
-                vesselIsActive: userVesselsDetails[0]?.isActive===undefined?null:userVesselsDetails[0]?.isActive,
-                vesselId: userVesselsDetails[0]?._id===undefined?null:userVesselsDetails[0]?._id.toString(),
-                vesselIsDeleted: userVesselsDetails[0]?.isDeleted===undefined?null:userVesselsDetails[0]?.isDeleted,
-                typeOfVesselName: userVesselsDetails[0]?.typeOfVessel?.name===undefined?null:userVesselsDetails[0]?.typeOfVessel?.name,
-                tyepOfVesselId: userVesselsDetails[0]?.typeOfVessel?._id===undefined?null:userVesselsDetails[0]?.typeOfVessel?._id.toString(),
+                vesselName: userVesselsDetails[0]?.name === undefined ? null : userVesselsDetails[0]?.name,
+                vesselIsActive: userVesselsDetails[0]?.isActive === undefined ? null : userVesselsDetails[0]?.isActive,
+                vesselId: userVesselsDetails[0]?._id === undefined ? null : userVesselsDetails[0]?._id.toString(),
+                vesselIsDeleted: userVesselsDetails[0]?.isDeleted === undefined ? null : userVesselsDetails[0]?.isDeleted,
+                typeOfVesselName: userVesselsDetails[0]?.typeOfVessel?.name === undefined ? null : userVesselsDetails[0]?.typeOfVessel?.name,
+                tyepOfVesselId: userVesselsDetails[0]?.typeOfVessel?._id === undefined ? null : userVesselsDetails[0]?.typeOfVessel?._id.toString(),
                 userCreatedAt: savedEmployee.user?.createdAt,
                 userUpdatedAt: savedEmployee.user?.updatedAt,
             };
