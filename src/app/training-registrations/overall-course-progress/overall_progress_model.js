@@ -125,7 +125,8 @@ const overallProgressSchema = new Schema(
                 version: {
                     type: Number,
                     required: true
-                }
+                },
+                downloadedCertificateLayoutId: ObjectId,
             }
         ]
     },

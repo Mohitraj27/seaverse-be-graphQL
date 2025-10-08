@@ -465,7 +465,8 @@ const addDataToOverallTrainingProgress = async (input, errors, session, fromDown
                                     $push: {
                                         contentFromDownload: {
                                             courseDetails: contentData,
-                                            version: doc?.version || 1
+                                            version: doc?.version || 1,
+                                            downloadedCertificateLayoutId : doc?.assignedCertificateLayoutId || null
                                         }
                                     }
                                 },
@@ -1035,7 +1036,7 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
 
 }
 
-const updateOverallProgressPercentage = async (overallDocs, session) => {
+const updateOverallProgressPercentage = async (overallDocs,isFromDownload = false, session) => {
 
     const overallIds = overallDocs.map((item) => item._id);
     const userIds = [...new Set(overallDocs.map(item => item.user))];
@@ -1100,7 +1101,7 @@ const updateOverallProgressPercentage = async (overallDocs, session) => {
     });
 
     let bulkOperations = [];
-
+    console.log(isFromDownload, 'isFromDownload in the updateOverallProgressPercentage function');
     overallIdModuleProgressMap.forEach(({ progressPercentages, durations }, overallId) => {
 
         // Find doc with overallId
@@ -1111,12 +1112,35 @@ const updateOverallProgressPercentage = async (overallDocs, session) => {
         const average = progressPercentages.length > 0 ? Math.round(total / progressPercentages.length) : 0;
         const timeSpend = (totalDuration * (average / 100)).toFixed(2);
         const completedCount = progressPercentages?.filter(percentage => percentage === 100).length;
+        let updateFields = {};
+        if (isFromDownload) {
+            console.log('in download block')
+            const latestContent = overallDoc?.contentFromDownload?.reduce((prev, current) => {
+                return current.version > prev.version ? current : prev;
+            });
 
-        const updateFields = {
-            progressPercentage: overallDoc?.adminMarkedAsCompleted ? overallDoc?.progressPercentage : average,
-            totalDuration,
-            completedModules: completedCount
-        };
+            // Extract downloadedCertificateLayoutId
+            const downloadedCertificateLayoutId = latestContent?.downloadedCertificateLayoutId;
+            console.log('downloadedCertificateLayoutId:', downloadedCertificateLayoutId);
+            updateFields = {
+                progressPercentage: overallDoc?.adminMarkedAsCompleted
+                    ? overallDoc?.progressPercentage
+                    : average,
+                totalDuration,
+                completedModules: completedCount,
+                assignedCertificateLayoutId: downloadedCertificateLayoutId ?? null,
+                isCertificatePresent: downloadedCertificateLayoutId ? true : false,
+            };
+        } else {
+            console.log('not in download block')
+            updateFields = {
+                progressPercentage: overallDoc?.adminMarkedAsCompleted
+                    ? overallDoc?.progressPercentage
+                    : average,
+                totalDuration,
+                completedModules: completedCount,
+            };
+        }
 
 
         if (average == 100) {
@@ -1357,7 +1381,8 @@ const updateTimeSpendInOverallTrainingProgress = async (input, session) => {
 const updateTrainingProgress = async (input, userId, subscriberId, session) => {
 
     const overallIds = input.map((item) => item.overallId);
-
+    const isFromDownload =  input[0]?.isFromOfflineSync ?? false;
+    console.log(isFromDownload, 'isFromDownload in updateTrainingProgress')
     if (overallIds.length == 0) return;
 
     const overallDocs = await OverallTrainingProgress.find({
@@ -1658,7 +1683,8 @@ const updateTrainingProgress = async (input, userId, subscriberId, session) => {
     }
 
     if (overallIds) {
-        await updateOverallProgressPercentage(overallDocs, session);
+        console.log(isFromDownload,'isFromDownload in updateTrainingProgress - before calling updateOverallProgressPercentage')
+        await updateOverallProgressPercentage(overallDocs,isFromDownload, session);
         await updateTimeSpendInOverallTrainingProgress(input, session)
     }
 

@@ -267,7 +267,8 @@ module.exports = {
     generateCertificateBulk: async (overallDocs, userId, subscriber, session) => {
 
         try {
-
+            console.log("\n\ngenerating Certificates in bulk");
+            console.log(`generating for user: ${userId}, overallDocs length: ${overallDocs.length}\n\n`);
             let errors = [];
 
             if (!overallDocs || !userId) {
