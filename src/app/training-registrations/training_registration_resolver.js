@@ -288,10 +288,11 @@ module.exports.queries = {
             }
         );
     },
-    myCourses: async ({ filterInput = {} }, context) => {
+    myCourses: async ({ filterInput = {} , pageInput ={} }, context) => {
         const { userId, subscriberId } = AuthUser(context);
 
         try {
+            const pageLimit =[];
             let filterConditions = {
                 user: filterInput?.employeeId ? ObjectId(filterInput.employeeId) : ObjectId(userId),
                 $or: [
@@ -301,7 +302,7 @@ module.exports.queries = {
                 isDeleted: { $ne: true },
             }
 
-            if (filterInput?.search) {
+            if (filterInput?.search) { 
                 filterConditions = {
                     ...filterConditions,
                     $or: [
@@ -322,6 +323,13 @@ module.exports.queries = {
                 };
             }
 
+            if(pageInput?.limit){
+                pageLimit.push({ $limit: pageInput?.limit });
+            }
+            if(pageInput?.skip){
+                pageLimit.push({ $skip: pageInput?.skip });
+            }
+
             const courses = await OverallTrainingProgress.aggregate([
                 {
                     $lookup: {
@@ -339,8 +347,8 @@ module.exports.queries = {
                 },
                 {
                     $addFields: {
-                        moduleCount: "$totalTrainingModules"
-                    }
+                        moduleCount: "$totalTrainingModules",
+                    },
                 },
                 // Lookup to get count from training modules for NOT_STARTED status
                 {
@@ -353,14 +361,14 @@ module.exports.queries = {
                                     $expr: {
                                         $and: [
                                             { $eq: ["$training", "$$trainingId"] },
-                                            { $ne: ["$isDeleted", true] }
-                                        ]
-                                    }
-                                }
+                                            { $ne: ["$isDeleted", true] },
+                                        ],
+                                    },
+                                },
                             },
                             {
-                                $count: "moduleCount"
-                            }
+                                $count: "moduleCount",
+                            },
                         ],
                         as: "moduleCountResult",
                     },
@@ -375,45 +383,68 @@ module.exports.queries = {
                                 then: {
                                     $ifNull: [
                                         { $arrayElemAt: ["$moduleCountResult.moduleCount", 0] },
-                                        0
-                                    ]
+                                        0,
+                                    ],
                                 },
                                 // For IN_PROGRESS or COMPLETED, use contentData count
                                 else: {
                                     $cond: {
                                         if: { $isArray: "$contentData" },
                                         then: { $size: "$contentData" },
-                                        else: 0
-                                    }
-                                }
-                            }
-                        }
-                    }
+                                        else: 0,
+                                    },
+                                },
+                            },
+                        },
+                    },
                 },
                 {
                     $addFields: {
-                        totalDuration: { $ifNull: ["$totalDuration", 0] }
-                    }
+                        totalDuration: { $ifNull: ["$totalDuration", 0] },
+                    },
                 },
                 {
                     $addFields: {
-                        timeSpend: { $ifNull: ["$timeSpend", 0] }
-                    }
+                        timeSpend: { $ifNull: ["$timeSpend", 0] },
+                    },
                 },
                 // Remove the temporary moduleCountResult field
                 {
                     $project: {
-                        moduleCountResult: 0
-                    }
+                        moduleCountResult: 0,
+                    },
                 },
-                { $sort: { createdAt: -1 } }
+                { $sort: { createdAt: -1 } },
+                ...pageLimit,
             ]);
+            const countPipeline = [
+                {
+                    $lookup: {
+                        from: "trainings",
+                        localField: "training",
+                        foreignField: "_id",
+                        as: "training",
+                    },
+                },
+                { $unwind: { path: "$training", preserveNullAndEmptyArrays: false } },
+                {
+                    $match: {
+                        ...filterConditions,
+                    },
+                },
+                {
+                    $count: "totalCount",
+                },
+            ];
 
+            const countResult = await OverallTrainingProgress.aggregate(countPipeline);
+            const totalCount = countResult[0]?.totalCount || 0;
             return {
                 status: true,
                 message: "My Courses fetched successfully",
                 courses: courses,
-            }
+                totalCount
+            };
 
         } catch (error) {
             throw CustomError(ErrorName.FAILED, error.message);

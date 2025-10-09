@@ -213,6 +213,7 @@ module.exports = {
             status: Boolean
             message: String
             courses: [OverallTrainingProgress]
+            totalCount: Int
         }
         type singleTrainingRes {
             status: Boolean
@@ -250,7 +251,7 @@ module.exports = {
         getTrainingRegistrations(input: getTrainingRegsInput!): getTrainingLearningPlan!
         getTrainingRegistration(id: ID): TrainingRegistration!
         getAssignedTrainings(pageInput: PageInput, filterInput: AssignedTrainingRegistrationFilterInput): TrainingRegistrationList!
-        myCourses(filterInput: myCourseFilterInput): myCoursesRes!
+        myCourses(filterInput: myCourseFilterInput,pageInput : PageInput): myCoursesRes!
         getSingleCourseDetails(input: ID!): singleTrainingRes!
         getSingleCourseDetailsforWeb(input: ID!): singleTrainingWebRes!
     `,
