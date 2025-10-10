@@ -213,7 +213,10 @@ module.exports = {
             status: Boolean
             message: String
             courses: [OverallTrainingProgress]
-            totalCount: Int
+            totalCount: Int,
+            completedCount: Int,
+            notStartedCount: Int,
+            inProgressCount: Int
         }
         type singleTrainingRes {
             status: Boolean
