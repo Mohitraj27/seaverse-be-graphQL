@@ -268,7 +268,9 @@ module.exports = {
 
         try {
             console.log("\n\ngenerating Certificates in bulk");
-            console.log(`generating for user: ${userId}, overallDocs length: ${overallDocs.length}\n\n`);
+            const overallDocIds = overallDocs?.map(doc => doc._id);
+            const overallDocIsCertificateGeneratedList = overallDocs?.map(doc => doc.isCertificateGenerated);
+            console.log(`generating for user: ${userId}, overallDocs length: ${overallDocs.length} : ${overallDocIds} , generated Certificate booleans ${overallDocIsCertificateGeneratedList} \n\n`);
             let errors = [];
 
             if (!overallDocs || !userId) {
