@@ -17,7 +17,7 @@ module.exports = {
             subscriberId: user.subscriber?._id ?? user.subscriber,
         };
 
-        const accessToken = JwtHelper.sign(tokenPayload, process.env.APP_SECRET, { expiresIn: "1d" });
+        const accessToken = JwtHelper.sign(tokenPayload, process.env.APP_SECRET, { expiresIn: "1m" });
         const refreshToken = JwtHelper.sign({ userId: user._id }, process.env.REFRESH_SECRET, { expiresIn: "7d" });
         // console.log('🧪 TEST MODE: Created tokens with short expiration');
         // console.log(`📅 Access Token expires in: 15 minutes`);
@@ -49,10 +49,10 @@ module.exports = {
                 subscriberId: user.subscriber?._id ?? user.subscriber,
                 employeeId: user.employee?._id ?? user.employee,
             };
-            const newAccessToken = JwtHelper.sign(tokenPayload, process.env.APP_SECRET, { expiresIn: "1d" });
+            const newAccessToken = JwtHelper.sign(tokenPayload, process.env.APP_SECRET, { expiresIn: "1m" });
             const newRefreshToken = JwtHelper.sign({ userId: user._id }, process.env.REFRESH_SECRET, { expiresIn: "7d" });
             console.log('🟢 TEST: Token refresh successful');
-            console.log(`📅 New Access Token expires in: 15 minutes`);
+            console.log(`📅 New Access Token expires in: 1 minute`);
             console.log(`📅 New Refresh Token expires in: 7 days`);
             return {
                 accessToken: newAccessToken,

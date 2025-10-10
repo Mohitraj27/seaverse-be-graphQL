@@ -788,7 +788,8 @@ module.exports.mutations = {
                                                 courseId: completedCourse.overallId,
                                                 matchedVersion: matchedVersion,
                                                 version: downloadVersion.version,
-                                                totalTrainingModules: matchedVersion.length
+                                                totalTrainingModules: matchedVersion.length,
+                                                downloadedCertificateLayoutId: downloadVersion.downloadedCertificateLayoutId 
                                             });
                                             modifiedCourseIds.add(completedCourse.overallId.toString());
                                             break;
@@ -808,6 +809,8 @@ module.exports.mutations = {
                                                     version: matchedCourse.version,
                                                     totalTrainingModules: matchedCourse.totalTrainingModules,
                                                     lastConsumedContent: null,
+                                                    assignedCertificateLayoutId: matchedCourse.downloadedCertificateLayoutId ?? null,
+                                                    isCertificatePresent: !!matchedCourse.downloadedCertificateLayoutId,
                                                 }
                                             }
                                         }
@@ -838,7 +841,9 @@ module.exports.mutations = {
                                                             };
                                                         })
                                                     })),
-                                                    processedByOfflineSync: true
+                                                    processedByOfflineSync: true,
+                                                    assignedCertificateLayoutId: matchedCourse.downloadedCertificateLayoutId,
+                                                    isCertificatePresent: !!matchedCourse.downloadedCertificateLayoutId,
                                                 };
                                                 return updatedCourse;
                                             }
