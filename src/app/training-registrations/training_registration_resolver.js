@@ -426,24 +426,50 @@ module.exports.queries = {
                         as: "training",
                     },
                 },
-                { $unwind: { path: "$training", preserveNullAndEmptyArrays: false } },
+                {
+                    $unwind: {
+                        path: "$training",
+                        preserveNullAndEmptyArrays: false,
+                    },
+                },
                 {
                     $match: {
                         ...filterConditions,
                     },
                 },
                 {
-                    $count: "totalCount",
+                    $group: {
+                        _id: null,
+                        totalCount: { $sum: 1 },
+                        completedCount: {
+                            $sum: { $cond: [{ $eq: ["$status", "COMPLETED"] }, 1, 0] },
+                        },
+                        notStartedCount: {
+                            $sum: { $cond: [{ $eq: ["$status", "NOT_STARTED"] }, 1, 0] },
+                        },
+                        inProgressCount: {
+                            $sum: { $cond: [{ $eq: ["$status", "IN_PROGRESS"] }, 1, 0] },
+                        },
+                    },
                 },
             ];
 
             const countResult = await OverallTrainingProgress.aggregate(countPipeline);
-            const totalCount = countResult[0]?.totalCount || 0;
+            const {
+                totalCount = 0,
+                completedCount = 0,
+                notStartedCount = 0,
+                inProgressCount = 0,
+            } = countResult[0] || {};
+
             return {
                 status: true,
                 message: "My Courses fetched successfully",
                 courses: courses,
-                totalCount
+                totalCount,
+                completedCount,
+                notStartedCount,
+                inProgressCount
             };
 
         } catch (error) {
