@@ -268,7 +268,9 @@ module.exports = {
 
         try {
             console.log("\n\ngenerating Certificates in bulk");
-            console.log(`generating for user: ${userId}, overallDocs length: ${overallDocs.length}\n\n`);
+            const overallDocIds = overallDocs?.map(doc => doc?._id);
+            const overallDocIsCertificateGeneratedList = overallDocs?.map(doc => doc?.isCertificateGenerated);
+            console.log(`[CERT-GEN] Starting for user: ${userId}, overallDocs length: ${overallDocs.length}, IDs: ${overallDocIds}, flags: ${overallDocIsCertificateGeneratedList}`);
             let errors = [];
 
             if (!overallDocs || !userId) {
@@ -279,24 +281,57 @@ module.exports = {
             const trainingRegistrations = overallDocs.map(doc => doc.trainingRegistration);
             const trainigIds = overallDocs.map(doc => doc.training);
 
-            const existingCertificates = await TrainingCertificate.find({
-                trainingRegistration: { $in: trainingRegistrations },
-                training: { $in: trainigIds },
-                user: userId
-            }).session(session).lean();
+            // Use atomic findAndModify to prevent race conditions
+            const atomicUpdates = [];
+            for (const doc of overallDocs) {
+                try {
+                    const updatedDoc = await OverallTrainingProgress.findOneAndUpdate(
+                        {
+                            _id: doc._id,
+                            isCertificateGenerated: { $ne: true } // Only update if not already generated
+                        },
+                        {
+                            $set: { isCertificateGenerated: true }
+                        },
+                        {
+                            new: true,
+                            session: session
+                        }
+                    );
 
-            const existingCertRegIds = existingCertificates.map(cert => cert.trainingRegistration.toString());
+                    if (updatedDoc) {
+                        atomicUpdates.push(doc);
+                    }
+                } catch (error) {
+                    console.log(`Failed to atomically update doc ${doc._id}:`, error);
+                }
+            }
 
-            const nonExistingRegistrations = trainingRegistrations.filter(regId => !existingCertRegIds.includes(regId.toString()));
+            console.log(`[CERT-GEN] Atomic updates successful for ${atomicUpdates.length} out of ${overallDocs.length} documents`);
 
-            if (nonExistingRegistrations.length === 0) {
-                errors.push("No registrations to generate certificates for");
+            if (atomicUpdates.length === 0) {
+                console.log(`[CERT-GEN] No documents to process - certificates already generated`);
+                errors.push("Certificates already generated for all provided registrations");
                 return errors;
             }
 
-            const nonExistingOverallDocs = overallDocs.filter(doc =>
-                nonExistingRegistrations.includes(doc.trainingRegistration)
+            // Double-check for existing certificates (safety measure)
+            const existingCertificates = await TrainingCertificate.find({
+                trainingRegistration: { $in: atomicUpdates.map(doc => doc.trainingRegistration) },
+                training: { $in: atomicUpdates.map(doc => doc.training) },
+                user: userId
+            }).session(session).lean();
+
+            const existingCombinations = new Set(
+                existingCertificates.map(cert =>
+                    `${cert.trainingRegistration.toString()}-${cert.training.toString()}`
+                )
             );
+
+            const nonExistingOverallDocs = atomicUpdates.filter(doc => {
+                const combinationKey = `${doc.trainingRegistration.toString()}-${doc.training.toString()}`;
+                return !existingCombinations.has(combinationKey);
+            });
 
             const assignedLayoutKeys = nonExistingOverallDocs.map(doc => doc.assignedCertificateLayout);
             const certificateLayouts = await certificateLayout.find({
@@ -351,9 +386,7 @@ module.exports = {
 
                 if (!training) continue;
 
-                if(overallDoc.isCertificateGenerated) {
-                    continue;
-                }
+                // Note: isCertificateGenerated check is now handled atomically above
                 const certificateLayout = overallDoc?.assignedCertificateLayoutId;
                 const startDate = overallDoc?.startDate ?? CurrentDateTime().utcDateTime;
                 const completedAt = overallDoc?.completionDate ?? CurrentDateTime().utcDateTime;
@@ -377,9 +410,37 @@ module.exports = {
                     additionalData: [],
                 });
             }
-
+            console.log(certificatesToCreate, "ctocreate")
             if (certificatesToCreate.length > 0) {
-                await TrainingCertificate.insertMany(certificatesToCreate, { session });
+                console.log(`[CERT-GEN] Creating ${certificatesToCreate.length} certificates`);
+                try {
+                    await TrainingCertificate.insertMany(certificatesToCreate, {
+                        session,
+                        ordered: false // Continue inserting even if some fail due to duplicates
+                    });
+                    console.log(`[CERT-GEN] Successfully created ${certificatesToCreate.length} certificates`);
+                } catch (error) {
+                    // Handle duplicate key errors gracefully
+                    if (error.code === 11000 || error.name === 'BulkWriteError' ||
+                        (error.writeErrors && error.writeErrors.some(e => e.code === 11000))) {
+                        console.log(`[CERT-GEN] Some certificates already exist (duplicate key error), continuing...`);
+                        // Count successful inserts from bulk write error
+                        const successfulInserts = error.result ? error.result.insertedCount :
+                            (error.insertedCount !== undefined ? error.insertedCount : 0);
+                        console.log(`[CERT-GEN] Successfully created ${successfulInserts} new certificates out of ${certificatesToCreate.length} attempted`);
+
+                        // Log which ones were duplicates for debugging
+                        if (error.writeErrors) {
+                            const duplicateErrors = error.writeErrors.filter(e => e.code === 11000);
+                            console.log(`[CERT-GEN] ${duplicateErrors.length} certificates were duplicates`);
+                        }
+                    } else {
+                        console.error(`[CERT-GEN] Unexpected error during certificate creation:`, error);
+                        throw error;
+                    }
+                }
+            } else {
+                console.log(`[CERT-GEN] No certificates to create`);
             }
 
             return errors;

@@ -99,6 +99,15 @@ module.exports = {
                 const s3url = await AwsHelper.fetchFile(parent.url);
                 return s3url;
             }
+         
+            return null;
+        },
+        originals3Path: async (parent) => {
+            
+            if(parent.originalUrl) {
+                const originals3url = await AwsHelper.fetchFile(parent.originalUrl);
+                return originals3url;
+            }
             return null;
         },
     },
