@@ -466,7 +466,7 @@ const addDataToOverallTrainingProgress = async (input, errors, session, fromDown
                                         contentFromDownload: {
                                             courseDetails: contentData,
                                             version: doc?.version || 1,
-                                            downloadedCertificateLayoutId : doc?.assignedCertificateLayoutId || null
+                                            downloadedCertificateLayoutId: doc?.assignedCertificateLayoutId || null
                                         }
                                     }
                                 },
@@ -1026,17 +1026,15 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
                 await NotificationHelper.createNotification(sendCertificateNotification);
             }
 
-            await OverallTrainingProgress.updateMany(
-                { _id: { $in: overallDocs.map(doc => doc._id) } },
-                { $set: { isCertificateGenerated: true } }
-            ).session(session);
+            // Note: isCertificateGenerated flag is now set atomically within generateCertificateBulk
+            // to prevent race conditions and duplicate certificate generation
         }
 
     }
 
 }
 
-const updateOverallProgressPercentage = async (overallDocs,isFromDownload = false, session) => {
+const updateOverallProgressPercentage = async (overallDocs, isFromDownload = false, session) => {
 
     const overallIds = overallDocs.map((item) => item._id);
     const userIds = [...new Set(overallDocs.map(item => item.user))];
@@ -1337,17 +1335,17 @@ const updateTimeSpendInOverallTrainingProgress = async (input, session) => {
     const durationMap = new Map(
         result.map(item => [item._id.toString(), item.totalLastAccessedDuration])
     );
-    
+
 
     // Map input to overallDurationMap using aggregation result
-    
+
     input.forEach(({ overallId, finishedCourseFirstTime }) => {
         overallDurationMap.set(overallId.toString(), {
             totalDuration: durationMap.get(overallId.toString()) || 0,
             finishedCourseFirstTime,
         });
-    }); 
-   
+    });
+
 
     // Prepare bulk updates
     const bulkUpdates = Array.from(overallDurationMap.entries()).map(
@@ -1381,7 +1379,7 @@ const updateTimeSpendInOverallTrainingProgress = async (input, session) => {
 const updateTrainingProgress = async (input, userId, subscriberId, session) => {
 
     const overallIds = input.map((item) => item.overallId);
-    const isFromDownload =  input[0]?.isFromOfflineSync ?? false;
+    const isFromDownload = input[0]?.isFromOfflineSync ?? false;
     console.log(isFromDownload, 'isFromDownload in updateTrainingProgress')
     if (overallIds.length == 0) return;
 
@@ -1683,8 +1681,8 @@ const updateTrainingProgress = async (input, userId, subscriberId, session) => {
     }
 
     if (overallIds) {
-        console.log(isFromDownload,'isFromDownload in updateTrainingProgress - before calling updateOverallProgressPercentage')
-        await updateOverallProgressPercentage(overallDocs,isFromDownload, session);
+        console.log(isFromDownload, 'isFromDownload in updateTrainingProgress - before calling updateOverallProgressPercentage')
+        await updateOverallProgressPercentage(overallDocs, isFromDownload, session);
         await updateTimeSpendInOverallTrainingProgress(input, session)
     }
 
@@ -2036,15 +2034,15 @@ const dataMigrationBackground = async (migrationcourseId, trainingId) => {
 
     // User creation start
     const savedRegistrations = await DbTransactionHelper.performDbTransaction(async session => {
-        
-       const emails = completedMigrationUsers.map(user => {
-           try {
-               return encrypt(user.EMAIL.trim().toLowerCase());
-           } catch (err) {
-               console.error("Encryption failed for email:", user.EMAIL);
-               throw err; 
-           }
-       });
+
+        const emails = completedMigrationUsers.map(user => {
+            try {
+                return encrypt(user.EMAIL.trim().toLowerCase());
+            } catch (err) {
+                console.error("Encryption failed for email:", user.EMAIL);
+                throw err;
+            }
+        });
 
 
         // const ids = completedMigrationUsers.map((user) => encrypt(user.EMPLOYEE_ID));
@@ -2103,7 +2101,7 @@ const dataMigrationBackground = async (migrationcourseId, trainingId) => {
             );
 
             const updatedRegistrations = await TrainingRegistration.find({
-                training: ObjectId(trainingId), 
+                training: ObjectId(trainingId),
             }).session(session);
             trainingRegistrationId = existingTrainingRegId;
 

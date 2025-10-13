@@ -47,27 +47,27 @@ const generateUniqueCertificateId = async () => {
     let isUnique = false;
 
     while (!isUnique) {
-     
-     const lastCertificate = await TrainingCertificate.findOne().sort({ createdAt: -1 });
 
-      if (lastCertificate) {
-        const lastCertificateIdNum = parseInt(lastCertificate.certificateNumber.slice(12), 10);
-        const newCertNum = lastCertificateIdNum + 1;
-        const paddedNewCertNum = newCertNum.toString().padStart(5, "0");
-        newCertId = `${prefix}${formattedDate}${paddedNewCertNum}`;
-      } else {
-        newCertId = `${prefix}${formattedDate}00001`;
-      }
+        const lastCertificate = await TrainingCertificate.findOne().sort({ createdAt: -1 });
 
-      // Check if this ID is unique
-      const existingCert = await TrainingCertificate.findOne({ certificateNumber: newCertId });
+        if (lastCertificate) {
+            const lastCertificateIdNum = parseInt(lastCertificate.certificateNumber.slice(12), 10);
+            const newCertNum = lastCertificateIdNum + 1;
+            const paddedNewCertNum = newCertNum.toString().padStart(5, "0");
+            newCertId = `${prefix}${formattedDate}${paddedNewCertNum}`;
+        } else {
+            newCertId = `${prefix}${formattedDate}00001`;
+        }
 
-      if (!existingCert) {
-        isUnique = true;
-      }
+        // Check if this ID is unique
+        const existingCert = await TrainingCertificate.findOne({ certificateNumber: newCertId });
+
+        if (!existingCert) {
+            isUnique = true;
+        }
     }
     return newCertId;
-  }
+}
 
 const sendCertificateGenerationNotification = async notificationsData => {
     if (notificationsData?.length) {
@@ -112,7 +112,7 @@ const sendCertificateGenerationNotification = async notificationsData => {
                         infoData: {
                             _id: notificationData.createdBy._id,
                             firstName: decrypt(notificationData.createdBy.firstName),
-                            lastName: notificationData.createdBy.lastName ? decrypt(notificationData.createdBy.lastName):'',
+                            lastName: notificationData.createdBy.lastName ? decrypt(notificationData.createdBy.lastName) : '',
                         },
                     },
                     {
@@ -124,7 +124,7 @@ const sendCertificateGenerationNotification = async notificationsData => {
                                 firstName:
                                     decrypt(notificationData.trainingRegistration.employee?.user?.firstName),
                                 lastName:
-                                   notificationData.trainingRegistration.employee?.user?.lastName ? decrypt(notificationData.trainingRegistration.employee?.user?.lastName):'',
+                                    notificationData.trainingRegistration.employee?.user?.lastName ? decrypt(notificationData.trainingRegistration.employee?.user?.lastName) : '',
                             },
                         },
                     },
@@ -146,7 +146,7 @@ const sendCertificateGenerationNotification = async notificationsData => {
     }
 };
 
-const calculateExpiryDate = async (completionDateStr,validityPeriod) => {
+const calculateExpiryDate = async (completionDateStr, validityPeriod) => {
     if (validityPeriod === null) {
         return null;
     }
@@ -281,6 +281,22 @@ module.exports = {
             const trainingRegistrations = overallDocs.map(doc => doc.trainingRegistration);
             const trainigIds = overallDocs.map(doc => doc.training);
 
+            // First, atomically update isCertificateGenerated flag to prevent race conditions
+            const updateResult = await OverallTrainingProgress.updateMany(
+                {
+                    _id: { $in: overallDocIds },
+                    isCertificateGenerated: { $ne: true } // Only update if not already generated
+                },
+                { $set: { isCertificateGenerated: true } }
+            ).session(session);
+
+            // If no documents were updated, it means certificates were already generated
+            if (updateResult.modifiedCount === 0) {
+                errors.push("Certificates already generated for all provided registrations");
+                return errors;
+            }
+
+            // Now check for existing certificates (double-check for safety)
             const existingCertificates = await TrainingCertificate.find({
                 trainingRegistration: { $in: trainingRegistrations },
                 training: { $in: trainigIds },
@@ -294,10 +310,10 @@ module.exports = {
                 )
             );
 
-            // Filter by checking the combination and isCertificateGenerated flag
+            // Filter out documents that already have certificates
             const nonExistingOverallDocs = overallDocs.filter(doc => {
                 const combinationKey = `${doc.trainingRegistration.toString()}-${doc.training.toString()}`;
-                return !existingCombinations.has(combinationKey) && !doc.isCertificateGenerated;
+                return !existingCombinations.has(combinationKey);
             });
 
             if (nonExistingOverallDocs.length === 0) {
