@@ -989,19 +989,40 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
         const overallDocs = await OverallTrainingProgress.find({
             _id: { $in: completedOverallIds },
             trainingRegistration: { $ne: null },
-            isCertificatePresent: true
+            isCertificatePresent: true,
+            certificateNotificationSent: { $ne: true } // Only get docs that haven't had notifications sent
         }).session(session);
 
+        console.log(`[CERT-FLOW] Found ${overallDocs.length} completed courses needing certificate notifications. IDs: ${overallDocs.map(d => d._id)}`);
+
         if (overallDocs.length > 0) {
-            //certificate generation
-            await TrainingCertificateHelper.generateCertificateBulk(overallDocs, userId, session);
-            const sendCertificateNotification = [];
-            for (const doc of overallDocs) {
-                const training = await Training.findById(doc.training);
-                const courseTitle = training.title?.find((item) => item.lang === 'en')?.value;
-                const isCertificate = training?.isCertificate;
-                if (courseTitle && !doc.isCertificateGenerated) {
-                    if (isCertificate) {
+            console.log(`[CERT-FLOW] Processing ${overallDocs.length} docs for certificate generation`);
+
+            //certificate generation - this function now handles atomic flag updates
+            try {
+                const certErrors = await TrainingCertificateHelper.generateCertificateBulk(overallDocs, userId, session);
+                console.log(`[CERT-FLOW] Certificate generation completed:`, certErrors || 'Success');
+            } catch (error) {
+                console.error(`[CERT-FLOW] Certificate generation failed:`, error);
+            }
+
+            // Send notifications for completed courses with certificates
+            // Since we already filtered for docs without notifications, we can process all of them
+            if (overallDocs.length > 0) {
+                // Atomically set notification flags first
+                const notificationIds = overallDocs.map(doc => doc._id);
+                await OverallTrainingProgress.updateMany(
+                    { _id: { $in: notificationIds } },
+                    { $set: { certificateNotificationSent: true } }
+                ).session(session);
+
+                const sendCertificateNotification = [];
+                for (const doc of overallDocs) {
+                    const training = await Training.findById(doc.training);
+                    const courseTitle = training.title?.find((item) => item.lang === 'en')?.value;
+                    const isCertificate = training?.isCertificate;
+
+                    if (courseTitle && isCertificate) {
                         sendCertificateNotification.push({
                             subscriber: subscriberId,
                             title: [{ lang: "en", value: `Your course certificate issued` }],
@@ -1020,14 +1041,16 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
                         });
                     }
                 }
-            }
 
-            if (sendCertificateNotification.length > 0) {
-                await NotificationHelper.createNotification(sendCertificateNotification);
+                if (sendCertificateNotification.length > 0) {
+                    console.log(`[CERT-FLOW] Sending ${sendCertificateNotification.length} certificate notifications`);
+                    await NotificationHelper.createNotification(sendCertificateNotification);
+                } else {
+                    console.log(`[CERT-FLOW] No certificate notifications to send (no valid courses)`);
+                }
+            } else {
+                console.log(`[CERT-FLOW] No courses need certificate notifications`);
             }
-
-            // Note: isCertificateGenerated flag is now set atomically within generateCertificateBulk
-            // to prevent race conditions and duplicate certificate generation
         }
 
     }
