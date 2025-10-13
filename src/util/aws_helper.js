@@ -132,10 +132,12 @@ module.exports = {
                     },
                 };
 
-                const response = await ses.sendEmail(params).promise();
-                
+                 const response = await ses.sendEmail(params).promise();
+                // const response = " email sent";
                 if (response) {
-                    return response;
+                     return response;
+                    // console.log('Email sent', response);
+                    // return true;
                 }
             } catch (e) {
                 throw Error(e.message);

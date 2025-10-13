@@ -288,10 +288,11 @@ module.exports.queries = {
             }
         );
     },
-    myCourses: async ({ filterInput = {} }, context) => {
+    myCourses: async ({ filterInput = {} , pageInput ={} }, context) => {
         const { userId, subscriberId } = AuthUser(context);
 
         try {
+            const pageLimit =[];
             let filterConditions = {
                 user: filterInput?.employeeId ? ObjectId(filterInput.employeeId) : ObjectId(userId),
                 $or: [
@@ -301,7 +302,7 @@ module.exports.queries = {
                 isDeleted: { $ne: true },
             }
 
-            if (filterInput?.search) {
+            if (filterInput?.search) { 
                 filterConditions = {
                     ...filterConditions,
                     $or: [
@@ -322,6 +323,13 @@ module.exports.queries = {
                 };
             }
 
+            if(pageInput?.limit){
+                pageLimit.push({ $limit: pageInput?.limit });
+            }
+            if(pageInput?.skip){
+                pageLimit.push({ $skip: pageInput?.skip });
+            }
+
             const courses = await OverallTrainingProgress.aggregate([
                 {
                     $lookup: {
@@ -339,10 +347,10 @@ module.exports.queries = {
                 },
                 {
                     $addFields: {
-                        moduleCount: "$totalTrainingModules"
-                    }
+                        moduleCount: "$totalTrainingModules",
+                    },
                 },
-                // Modified lookup to get count instead of full documents
+                // Lookup to get count from training modules for NOT_STARTED status
                 {
                     $lookup: {
                         from: "trainingmodules",
@@ -353,53 +361,116 @@ module.exports.queries = {
                                     $expr: {
                                         $and: [
                                             { $eq: ["$training", "$$trainingId"] },
-                                            { $ne: ["$isDeleted", true] }  // Exclude deleted modules
-                                        ]
-                                    }
-                                }
+                                            { $ne: ["$isDeleted", true] },
+                                        ],
+                                    },
+                                },
                             },
                             {
-                                $count: "moduleCount"
-                            }
+                                $count: "moduleCount",
+                            },
                         ],
                         as: "moduleCountResult",
                     },
                 },
-                // Extract the count from the result
+                // Conditional module count based on status
                 {
                     $addFields: {
                         actualModuleCount: {
-                            $ifNull: [
-                                { $arrayElemAt: ["$moduleCountResult.moduleCount", 0] },
-                                0
-                            ]
-                        }
-                    }
+                            $cond: {
+                                if: { $eq: ["$status", "NOT_STARTED"] },
+                                // For NOT_STARTED, use count from training modules
+                                then: {
+                                    $ifNull: [
+                                        { $arrayElemAt: ["$moduleCountResult.moduleCount", 0] },
+                                        0,
+                                    ],
+                                },
+                                // For IN_PROGRESS or COMPLETED, use contentData count
+                                else: {
+                                    $cond: {
+                                        if: { $isArray: "$contentData" },
+                                        then: { $size: "$contentData" },
+                                        else: 0,
+                                    },
+                                },
+                            },
+                        },
+                    },
                 },
                 {
                     $addFields: {
-                        totalDuration: { $ifNull: ["$totalDuration", 0] }
-                    }
+                        totalDuration: { $ifNull: ["$totalDuration", 0] },
+                    },
                 },
                 {
                     $addFields: {
-                        timeSpend: { $ifNull: ["$timeSpend", 0] }
-                    }
+                        timeSpend: { $ifNull: ["$timeSpend", 0] },
+                    },
                 },
                 // Remove the temporary moduleCountResult field
                 {
                     $project: {
-                        moduleCountResult: 0
-                    }
+                        moduleCountResult: 0,
+                    },
                 },
-                { $sort: { createdAt: -1 } }
+                { $sort: { createdAt: -1 } },
+                ...pageLimit,
             ]);
+            const countPipeline = [
+                {
+                    $lookup: {
+                        from: "trainings",
+                        localField: "training",
+                        foreignField: "_id",
+                        as: "training",
+                    },
+                },
+                {
+                    $unwind: {
+                        path: "$training",
+                        preserveNullAndEmptyArrays: false,
+                    },
+                },
+                {
+                    $match: {
+                        ...filterConditions,
+                    },
+                },
+                {
+                    $group: {
+                        _id: null,
+                        totalCount: { $sum: 1 },
+                        completedCount: {
+                            $sum: { $cond: [{ $eq: ["$status", "COMPLETED"] }, 1, 0] },
+                        },
+                        notStartedCount: {
+                            $sum: { $cond: [{ $eq: ["$status", "NOT_STARTED"] }, 1, 0] },
+                        },
+                        inProgressCount: {
+                            $sum: { $cond: [{ $eq: ["$status", "IN_PROGRESS"] }, 1, 0] },
+                        },
+                    },
+                },
+            ];
+
+            const countResult = await OverallTrainingProgress.aggregate(countPipeline);
+            const {
+                totalCount = 0,
+                completedCount = 0,
+                notStartedCount = 0,
+                inProgressCount = 0,
+            } = countResult[0] || {};
 
             return {
                 status: true,
                 message: "My Courses fetched successfully",
                 courses: courses,
-            }
+                totalCount,
+                completedCount,
+                notStartedCount,
+                inProgressCount
+            };
 
         } catch (error) {
             throw CustomError(ErrorName.FAILED, error.message);
@@ -1402,10 +1473,53 @@ module.exports.queries = {
                 };
             });
 
+            function normalizeVideoUrl(url) {
+                if (!url) return '';
+
+                // Remove leading "files/" if present
+                let cleaned = url.startsWith('files/') ? url.substring(6) : url;
+
+                // Find the position of the first ".mp4"
+                const firstMp4Index = cleaned.indexOf('.mp4');
+
+                if (firstMp4Index === -1) return cleaned; // if .mp4 not found, return as is
+
+                // Keep everything up to and including the first ".mp4"
+                return cleaned.substring(0, firstMp4Index + 4);
+            }
+            const transformedTrainingDetails = processedTrainingDetails.map(trainingDetail => {
+                return {
+                    ...trainingDetail,
+                    trainingModules: trainingDetail.trainingModules.map(module => {
+                        return {
+                            ...module,
+                            trainingModuleContents: module.trainingModuleContents.map(content => {
+                                return {
+                                    ...content,
+                                    trainingModuleContentDetails: content.trainingModuleContentDetails.map(detail => {
+                                        return {
+                                            ...detail,
+                                            videos: (detail.videos || []).map(video => ({
+                                                ...video,
+                                                originalUrl: normalizeVideoUrl(video.url),
+                                                originals3Path:"",
+                                               
+                                            }))
+                                        };
+                                    }),
+                                };
+                            }),
+                        };
+                    }),
+                };
+            });
+            // console.log(JSON.stringify(transformedTrainingDetails[0]),"PTRAINIG DETAILS");
+
+
             return {
                 status: true,
                 message: "Course details fetched successfully",
-                course: processedTrainingDetails[0],
+                course: transformedTrainingDetails[0],
                 totalCountofTraining,
             };
         } catch (error) {

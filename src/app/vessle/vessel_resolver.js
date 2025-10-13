@@ -4,6 +4,7 @@ const {
     AuthUser,
     SendEmail,
     DbTransactionHelper,
+    escapeRegex,
 } = require("../../util");
 
 const { ObjectId } = require("../../tools");
@@ -135,7 +136,7 @@ module.exports.queries = {
 
             if (filterInput?.vesselName?.length > 0) {
                 filterConditions.name = {
-                    $in: filterInput.vesselName.map(name => new RegExp(".*" + name + ".*", "i")),
+                    $in: filterInput.vesselName,
                 };
             }
 
@@ -182,8 +183,10 @@ module.exports.queries = {
                 ownerNameIdsToMatch = matchedOwnerIds;
                 filterConditions.ownerId = { $in: ownerNameIdsToMatch };
             }
-
+            
             if (filterInput?.search) {
+                const escapedSearch = escapeRegex(filterInput.search);
+
                 const ownersWithNames = await Owner.find(
                     { subscriber: subscriberId, isDeleted: { $ne: true } },
                     { _id: 1, firstName: 1, lastName: 1 }
@@ -191,19 +194,25 @@ module.exports.queries = {
 
                 const matchedOwnerIds = ownersWithNames
                     .map(owner => {
-                        const firstName = owner.firstName ? safeDecrypt(owner.firstName, 'owner firstName') : '';
-                        const lastName = owner.lastName ? safeDecrypt(owner.lastName, 'owner lastName') : '';
+                        const firstName = owner.firstName
+                            ? safeDecrypt(owner.firstName, "owner firstName")
+                            : "";
+                        const lastName = owner.lastName
+                            ? safeDecrypt(owner.lastName, "owner lastName")
+                            : "";
                         const fullName = `${firstName} ${lastName}`.trim();
                         return { id: owner._id, ownerName: fullName };
                     })
-                    .filter(owner => new RegExp(".*" + filterInput.search + ".*", "i").test(owner.ownerName))
+                    .filter(owner =>
+                        new RegExp(".*" + escapedSearch + ".*", "i").test(owner.ownerName)
+                    )
                     .map(owner => owner.id);
 
                 filterConditions.$or = [
-                    { name: { $regex: ".*" + filterInput.search + ".*", $options: "i" } },
-                    { imoNumber: { $regex: ".*" + filterInput.search + ".*", $options: "i" } },
-                    { companyName: { $regex: ".*" + filterInput.search + ".*", $options: "i" } },
-                    { ownerId: { $in: matchedOwnerIds } }
+                    { name: { $regex: ".*" + escapedSearch + ".*", $options: "i" } },
+                    { imoNumber: { $regex: ".*" + escapedSearch + ".*", $options: "i" } },
+                    { companyName: { $regex: ".*" + escapedSearch + ".*", $options: "i" } },
+                    { ownerId: { $in: matchedOwnerIds } },
                 ];
             }
 
@@ -525,7 +534,7 @@ module.exports.mutations = {
             if (!vessel) {
                 throw new CustomError(ErrorName.NOT_FOUND, 'Vessel not found.');
             }
-          
+
 
             if (!input) throw CustomError(ErrorName.FIELD_REQUIRED, 'Input is required.');
             if (!input.name) throw CustomError(ErrorName.FIELD_REQUIRED, 'Name is required.');
@@ -565,7 +574,7 @@ module.exports.mutations = {
             vessel.ownerId = ownerId ?? vessel.ownerId;
             vessel.subscriber = subscriberId;
             vessel.address = address ? encrypt(address) : ""
-            console.log(ownerId,"owid")
+            console.log(ownerId, "owid")
 
             const update = {};
             if (address) {
@@ -575,7 +584,7 @@ module.exports.mutations = {
             await Owner.findByIdAndUpdate(ownerId, update, { new: true });
 
             // Handle address encryption safely
-            console.log(vessel.address,"address");
+            console.log(vessel.address, "address");
             // if (address !== undefined) {
             //     if (address && address.length > 0) {
             //         if (address.length > 200) {
@@ -593,7 +602,7 @@ module.exports.mutations = {
             // }
 
             const updatedVessel = await vessel.save();
-            console.log(updatedVessel,"uv")
+            console.log(updatedVessel, "uv")
 
             if (updatedVessel) {
                 if (isActive === false) {
@@ -707,11 +716,12 @@ module.exports.mutations = {
                             }
                         },
                         {
-                            vesselId: vesselData?._id ?? null,
-                            vesselName: vesselData?.name ?? null,
+                            vesselId: vesselData?.isActive ? vesselData?._id : null,
+                            vesselStatus: vesselData?.isActive ? vesselData?.vesselStatus : null,
+                            vesselName: vesselData?.isActive ? vesselData?.name : null,
                             vesselIsActive: vesselData?.isActive ?? null,
-                            typeOfVesselName: vesselData?.typeOfVessel?.name ?? null,
-                            tyepOfVesselId: vesselData?.typeOfVessel?._id ?? null
+                            typeOfVesselName: vesselData?.isActive ? vesselData?.typeOfVessel?.name : null,
+                            typeOfVesselId: vesselData?.isActive ? vesselData?.typeOfVessel?._id : null
                         }
                     ))
                 );

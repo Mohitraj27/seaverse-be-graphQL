@@ -1,5 +1,5 @@
 const XLSX = require("xlsx");
-const { CustomError, ErrorName, AuthUser, Role, UploadHelper, courseStatus } = require("../../util");
+const { CustomError, ErrorName, AuthUser, Role, UploadHelper, courseStatus, escapeRegex } = require("../../util");
 const { connectDb, closeDb } = require("../../util/child_process_db_helper");
 const ReportsHelper = require("./reports_helper");
 const { singleLearnerEnrollmentReportQuery, singleLearnerModuleReportQuery } = require("./reports_query_builder");
@@ -28,13 +28,16 @@ const performLearnerReportGeneration = async (payload) => {
         if (input && Object.keys(input).length > 0) {
             if (!input?.selectVesselOrLearner) input.selectVesselOrLearner = 'LEARNER';
             const filterInput = input.filter || {};
+
             if (filterInput?.title) {
+                const escapedTitle = escapeRegex(filterInput.title);
+
                 matchStage.push({
                     $match: {
                         "trainingInfo.title.value": {
-                            $regex: filterInput.title,
-                            $options: 'i'
-                        }
+                            $regex: escapedTitle,
+                            $options: "i",
+                        },
                     },
                 });
             }
@@ -395,7 +398,6 @@ const performLearnerReportGeneration = async (payload) => {
                 });
                 if (excelFilePath) {
                     s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
-                    console.log("S3 Presigned URL of Enrollment Report\t:", s3PresignedUrl);
 
                     //SEND NOTIFICATION TO MAIN THREAD
 
@@ -562,7 +564,6 @@ const performLearnerReportGeneration = async (payload) => {
 
                 if (excelFilePath) {
                     s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
-                    console.log("S3 Presigned URL of Module Level Report\t:", s3PresignedUrl);
 
                     //SEND NOTIFICATION TO MAIN THREAD
                     const notificationData = {
@@ -644,7 +645,6 @@ const performLearnerReportGeneration = async (payload) => {
     process.on('message', async (message) => {
         console.log('Child process received a message from parent.');
         const  payload  = message;
-        console.log('Payload:', message);
         try {
             if (global.gc) {
                 global.gc();

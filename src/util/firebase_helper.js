@@ -22,11 +22,11 @@ const generateFirebaseMessageInput = ({ title, body, content, webLink }) => {
         apns: {
             payload: {
                 aps: {
-                    alert: {
+                    /* alert: {
                         title: title || "Test notification title",
                         body: body || "Test notification body",
                     },
-                    sound: "default",
+                    sound: "default", */
                     "content-available": 1, 
                 },
             },

@@ -39,7 +39,9 @@ const { generateRandomString } = require("../user/user-profile/user_profile_help
 const { BatchHelper } = require("../batches/batch_helper");
 const { createTrainingProgressForMigrationUsersHelper } = require("../training-registrations/training_registration_helper");
 const { decrypt, encrypt } = require('../../util/encryption_helper');
+const { runQuery, runQueryStream } = require("../../util/mysql_helper");
 const { updateCoursesCountAndProgressInElasticSearch } = require("../training-registrations/overall-course-progress/overall_progress_helper");
+const { isNullableType } = require("graphql");
 
 const uploadTrainingImages = async ({ coverImage, folderName }) => {
     coverImage._id = coverImage._id ?? ObjectId();
@@ -463,7 +465,8 @@ const addDataToOverallTrainingProgress = async (input, errors, session, fromDown
                                     $push: {
                                         contentFromDownload: {
                                             courseDetails: contentData,
-                                            version: doc?.version || 1
+                                            version: doc?.version || 1,
+                                            downloadedCertificateLayoutId: doc?.assignedCertificateLayoutId || null
                                         }
                                     }
                                 },
@@ -986,19 +989,40 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
         const overallDocs = await OverallTrainingProgress.find({
             _id: { $in: completedOverallIds },
             trainingRegistration: { $ne: null },
-            isCertificatePresent: true
+            isCertificatePresent: true,
+            certificateNotificationSent: { $ne: true } // Only get docs that haven't had notifications sent
         }).session(session);
 
+        console.log(`[CERT-FLOW] Found ${overallDocs.length} completed courses needing certificate notifications. IDs: ${overallDocs.map(d => d._id)}`);
+
         if (overallDocs.length > 0) {
-            //certificate generation
-            await TrainingCertificateHelper.generateCertificateBulk(overallDocs, userId, session);
-            const sendCertificateNotification = [];
-            for (const doc of overallDocs) {
-                const training = await Training.findById(doc.training);
-                const courseTitle = training.title?.find((item) => item.lang === 'en')?.value;
-                const isCertificate = training?.isCertificate;
-                if (courseTitle && !doc.isCertificateGenerated) {
-                    if (isCertificate) {
+            console.log(`[CERT-FLOW] Processing ${overallDocs.length} docs for certificate generation`);
+
+            //certificate generation - this function now handles atomic flag updates
+            try {
+                const certErrors = await TrainingCertificateHelper.generateCertificateBulk(overallDocs, userId, session);
+                console.log(`[CERT-FLOW] Certificate generation completed:`, certErrors || 'Success');
+            } catch (error) {
+                console.error(`[CERT-FLOW] Certificate generation failed:`, error);
+            }
+
+            // Send notifications for completed courses with certificates
+            // Since we already filtered for docs without notifications, we can process all of them
+            if (overallDocs.length > 0) {
+                // Atomically set notification flags first
+                const notificationIds = overallDocs.map(doc => doc._id);
+                await OverallTrainingProgress.updateMany(
+                    { _id: { $in: notificationIds } },
+                    { $set: { certificateNotificationSent: true } }
+                ).session(session);
+
+                const sendCertificateNotification = [];
+                for (const doc of overallDocs) {
+                    const training = await Training.findById(doc.training);
+                    const courseTitle = training.title?.find((item) => item.lang === 'en')?.value;
+                    const isCertificate = training?.isCertificate;
+
+                    if (courseTitle && isCertificate) {
                         sendCertificateNotification.push({
                             subscriber: subscriberId,
                             title: [{ lang: "en", value: `Your course certificate issued` }],
@@ -1017,23 +1041,23 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
                         });
                     }
                 }
-            }
 
-            if (sendCertificateNotification.length > 0) {
-                await NotificationHelper.createNotification(sendCertificateNotification);
+                if (sendCertificateNotification.length > 0) {
+                    console.log(`[CERT-FLOW] Sending ${sendCertificateNotification.length} certificate notifications`);
+                    await NotificationHelper.createNotification(sendCertificateNotification);
+                } else {
+                    console.log(`[CERT-FLOW] No certificate notifications to send (no valid courses)`);
+                }
+            } else {
+                console.log(`[CERT-FLOW] No courses need certificate notifications`);
             }
-
-            await OverallTrainingProgress.updateMany(
-                { _id: { $in: overallDocs.map(doc => doc._id) } },
-                { $set: { isCertificateGenerated: true } }
-            ).session(session);
         }
 
     }
 
 }
 
-const updateOverallProgressPercentage = async (overallDocs, session) => {
+const updateOverallProgressPercentage = async (overallDocs, isFromDownload = false, session) => {
 
     const overallIds = overallDocs.map((item) => item._id);
     const userIds = [...new Set(overallDocs.map(item => item.user))];
@@ -1098,7 +1122,7 @@ const updateOverallProgressPercentage = async (overallDocs, session) => {
     });
 
     let bulkOperations = [];
-
+    console.log(isFromDownload, 'isFromDownload in the updateOverallProgressPercentage function');
     overallIdModuleProgressMap.forEach(({ progressPercentages, durations }, overallId) => {
 
         // Find doc with overallId
@@ -1109,12 +1133,35 @@ const updateOverallProgressPercentage = async (overallDocs, session) => {
         const average = progressPercentages.length > 0 ? Math.round(total / progressPercentages.length) : 0;
         const timeSpend = (totalDuration * (average / 100)).toFixed(2);
         const completedCount = progressPercentages?.filter(percentage => percentage === 100).length;
+        let updateFields = {};
+        if (isFromDownload) {
+            console.log('in download block')
+            const latestContent = overallDoc?.contentFromDownload?.reduce((prev, current) => {
+                return current.version > prev.version ? current : prev;
+            });
 
-        const updateFields = {
-            progressPercentage: overallDoc?.adminMarkedAsCompleted ? overallDoc?.progressPercentage : average,
-            totalDuration,
-            completedModules: completedCount
-        };
+            // Extract downloadedCertificateLayoutId
+            const downloadedCertificateLayoutId = latestContent?.downloadedCertificateLayoutId;
+            console.log('downloadedCertificateLayoutId:', downloadedCertificateLayoutId);
+            updateFields = {
+                progressPercentage: overallDoc?.adminMarkedAsCompleted
+                    ? overallDoc?.progressPercentage
+                    : average,
+                totalDuration,
+                completedModules: completedCount,
+                assignedCertificateLayoutId: downloadedCertificateLayoutId ?? null,
+                isCertificatePresent: downloadedCertificateLayoutId ? true : false,
+            };
+        } else {
+            console.log('not in download block')
+            updateFields = {
+                progressPercentage: overallDoc?.adminMarkedAsCompleted
+                    ? overallDoc?.progressPercentage
+                    : average,
+                totalDuration,
+                completedModules: completedCount,
+            };
+        }
 
 
         if (average == 100) {
@@ -1255,7 +1302,7 @@ const updateOverallProgressPercentage = async (overallDocs, session) => {
         trainingModules.forEach(module => {
             module.contentDetails.forEach(content => {
                 // if (typeof content.duration === 'number') {
-                    totalDuration += content.duration;
+                totalDuration += content.duration;
                 // }
             });
         });
@@ -1306,19 +1353,22 @@ const updateTimeSpendInOverallTrainingProgress = async (input, session) => {
             },
         },
     ]).session(session);
-    // console.log(result);
+
     // Convert aggregation result into a map for quick lookup
     const durationMap = new Map(
         result.map(item => [item._id.toString(), item.totalLastAccessedDuration])
     );
-   // console.log(durationMap);
+
+
     // Map input to overallDurationMap using aggregation result
+
     input.forEach(({ overallId, finishedCourseFirstTime }) => {
         overallDurationMap.set(overallId.toString(), {
             totalDuration: durationMap.get(overallId.toString()) || 0,
             finishedCourseFirstTime,
         });
     });
+
 
     // Prepare bulk updates
     const bulkUpdates = Array.from(overallDurationMap.entries()).map(
@@ -1342,8 +1392,8 @@ const updateTimeSpendInOverallTrainingProgress = async (input, session) => {
 
     if (bulkUpdates.length > 0) {
         console.log('overallIds: ', uniqueOverallIds);
-        console.log("insertingTimeSpend: ", bulkUpdates);
-        await OverallTrainingProgress.bulkWrite(bulkUpdates, { session });
+        console.log("insertingTimeSpend: ", bulkUpdates[0].updateOne.update.$max.timeSpend);
+        const result = await OverallTrainingProgress.bulkWrite(bulkUpdates, { session });
     }
 };
 
@@ -1352,7 +1402,8 @@ const updateTimeSpendInOverallTrainingProgress = async (input, session) => {
 const updateTrainingProgress = async (input, userId, subscriberId, session) => {
 
     const overallIds = input.map((item) => item.overallId);
-
+    const isFromDownload = input[0]?.isFromOfflineSync ?? false;
+    console.log(isFromDownload, 'isFromDownload in updateTrainingProgress')
     if (overallIds.length == 0) return;
 
     const overallDocs = await OverallTrainingProgress.find({
@@ -1653,7 +1704,8 @@ const updateTrainingProgress = async (input, userId, subscriberId, session) => {
     }
 
     if (overallIds) {
-        await updateOverallProgressPercentage(overallDocs, session);
+        console.log(isFromDownload, 'isFromDownload in updateTrainingProgress - before calling updateOverallProgressPercentage')
+        await updateOverallProgressPercentage(overallDocs, isFromDownload, session);
         await updateTimeSpendInOverallTrainingProgress(input, session)
     }
 
@@ -1951,14 +2003,54 @@ const quizEvaluationBulk = async (evaluationData, userId, overallDocs, session) 
 
 const dataMigrationBackground = async (migrationcourseId, trainingId) => {
 
+    console.log('reached inside dataMigrationBackground');
+
     // Convert migrationcourseId to ObjectId if it's a string
     if (typeof migrationcourseId === 'string') {
         migrationcourseId = ObjectId(migrationcourseId);
     }
 
-    const completedMigrationUsers = await UserCourseMap.find({ course: migrationcourseId })
-        .populate("user")
-        .populate("course");
+    const migrationCourse = await MigrationCourse.findById(migrationcourseId).select('UID');
+
+    if (!migrationCourse) return;
+
+    const migrationCourseUID = migrationCourse?.UID;
+
+    console.log('migrationCourseUID');
+    console.log(migrationCourseUID);
+
+    const completedMigrationUsers = [];
+
+    try {
+
+        const sql = `SELECT EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME
+        FROM (
+            SELECT EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME
+            FROM crew_certificates_synergy_new
+            WHERE EMAIL IS NOT NULL 
+            AND COURSE_ID = ?
+
+            UNION
+
+            SELECT EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME
+            FROM crew_certificates_denmark_new
+            WHERE EMAIL IS NOT NULL 
+            AND COURSE_ID = ?
+        ) AS combined
+        GROUP BY EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME
+        ORDER BY FIRST_NAME, LAST_NAME;`;
+
+        // const sql = `SELECT EMPLOYEE_ID, EMAIL FROM crew_certificates_synergy_new LIMIT 5`;
+
+        // const users = await runQueryStream(sql);
+
+        for await (const row of runQueryStream(sql, [migrationCourseUID, migrationCourseUID])) {
+            completedMigrationUsers.push(row);
+        }
+
+    } catch (error) {
+        console.error("❌ SQL query error:", error);
+    }
 
 
     if (completedMigrationUsers.length === 0) return;
@@ -1966,21 +2058,24 @@ const dataMigrationBackground = async (migrationcourseId, trainingId) => {
     // User creation start
     const savedRegistrations = await DbTransactionHelper.performDbTransaction(async session => {
 
-        const userBulkOps = [];
-        const employeeBulkOps = [];
+        const emails = completedMigrationUsers.map(user => {
+            try {
+                return encrypt(user.EMAIL.trim().toLowerCase());
+            } catch (err) {
+                console.error("Encryption failed for email:", user.EMAIL);
+                throw err;
+            }
+        });
 
-        const emails = completedMigrationUsers.map(({ user }) => user.email);
-        const ids = completedMigrationUsers.map(({ user }) => user.civilIdOrPassport);
+
+        // const ids = completedMigrationUsers.map((user) => encrypt(user.EMPLOYEE_ID));
 
         const existingUsers = await User.find({
             $or: [
                 { email: { $in: emails } },
-                { civilIdOrPassport: { $in: ids } }
+                // { civilIdOrPassport: { $in: ids } }
             ]
         }).session(session).lean();
-
-        const existingEmails = new Set(existingUsers.map(u => u.email));
-        const existingIds = new Set(existingUsers.map(u => u.civilIdOrPassport));
 
         const subscriber = await Subscriber.findOne().session(session).lean();
         let subscriberId;
@@ -1993,64 +2088,6 @@ const dataMigrationBackground = async (migrationcourseId, trainingId) => {
             userIds.push(user._id);
         });
 
-        for (const { user } of completedMigrationUsers) {
-
-            const { firstName, lastName, email, civilIdOrPassport } = user;
-
-            let userPasswordInfo = {};
-            let generatePassword = generateRandomString(10);
-            const dummyPasswordHash = await CryptoHelper.hash(generatePassword, 10);
-
-            userPasswordInfo.dummyPassword = `${dummyPasswordHash}~~~${generatePassword}`;
-            userPasswordInfo.password = dummyPasswordHash;
-
-            if (existingEmails.has(email) || existingIds.has(civilIdOrPassport)) {
-                continue;
-            }
-
-            const userId = ObjectId();
-
-            userIds.push(userId);
-            userBulkOps.push({
-                insertOne: {
-                    document: {
-                        _id: userId,
-                        subscriber: subscriberId,
-                        firstName,
-                        lastName,
-                        email,
-                        civilIdOrPassport: civilIdOrPassport?.toUpperCase(),
-                        isRegistered: false,
-                        ...userPasswordInfo,
-                        role: Role.LEARNER,
-                        UID: await employeeHelper.generateUserUID({ subscriberId }),
-                    },
-                },
-            });
-
-            employeeBulkOps.push({
-                insertOne: {
-                    document: {
-                        user: userId,
-                        subscriber: subscriberId,
-                        regType: 1,
-                        designation: 'null',
-                        UID: await employeeHelper.generateEmployeeUID({ subscriberId }),
-                    },
-                },
-            });
-
-        };
-
-        if (userBulkOps.length > 0) {
-            await User.bulkWrite(userBulkOps, { session });
-        }
-
-        if (employeeBulkOps.length > 0) {
-            await Employee.bulkWrite(employeeBulkOps, { session });
-        }
-        // User creation end
-
         // Course enrollment start
         let existingTrainingRegistration;
         let existingTrainingRegId;
@@ -2062,7 +2099,6 @@ const dataMigrationBackground = async (migrationcourseId, trainingId) => {
             }
         }
 
-        const batchUID = await BatchHelper.generateBatchUID({ subscriberId });
 
         const updateFields = { subscriber: subscriberId, $addToSet: {} };
         if (userIds?.length) {
@@ -2075,11 +2111,11 @@ const dataMigrationBackground = async (migrationcourseId, trainingId) => {
 
         if (existingTrainingRegistration) {
 
-            let existingOverallProgresses = await OverallTrainingProgress.find({ training: trainingId, user: { $in: userIds } }).session(session).lean();
+            let existingOverallProgresses = await OverallTrainingProgress.find({ training: ObjectId(trainingId), user: { $in: userIds } }).session(session).lean();
 
-            userIds = userIds.filter(userId =>
+            /* userIds = userIds.filter(userId =>
                 !existingOverallProgresses.some(progress => progress.user.toString() === userId.toString())
-            );
+            ); */
 
             savedTrainingRegistration = await TrainingRegistration.updateOne(
                 { _id: existingTrainingRegId },
@@ -2088,7 +2124,7 @@ const dataMigrationBackground = async (migrationcourseId, trainingId) => {
             );
 
             const updatedRegistrations = await TrainingRegistration.find({
-                training: { trainingId }
+                training: ObjectId(trainingId),
             }).session(session);
             trainingRegistrationId = existingTrainingRegId;
 
@@ -2107,7 +2143,7 @@ const dataMigrationBackground = async (migrationcourseId, trainingId) => {
             trainingProgressIds = await createTrainingProgressForMigrationUsersHelper(userIds, trainingId, subscriberId, trainingRegistrationId, session);
 
         }
-
+        console.log('✅ Courese Migration completed for users count: ', userIds?.length);
         return {
             message: "Course enrollment successful!",
         };
@@ -2293,7 +2329,7 @@ module.exports = {
                         infoData: {
                             _id: notificationData.createdBy._id,
                             firstName: decrypt(notificationData.createdBy.firstName),
-                            lastName: notificationData.createdBy.lastName ? decrypt(notificationData.createdBy.lastName):'',
+                            lastName: notificationData.createdBy.lastName ? decrypt(notificationData.createdBy.lastName) : '',
                         },
                     },
                     {
