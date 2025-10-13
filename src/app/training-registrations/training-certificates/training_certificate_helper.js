@@ -287,18 +287,23 @@ module.exports = {
                 user: userId
             }).session(session).lean();
 
-            const existingCertRegIds = existingCertificates.map(cert => cert.trainingRegistration.toString());
+            // Create a Set of existing combinations (trainingRegistration + training)
+            const existingCombinations = new Set(
+                existingCertificates.map(cert =>
+                    `${cert.trainingRegistration.toString()}-${cert.training.toString()}`
+                )
+            );
 
-            const nonExistingRegistrations = trainingRegistrations.filter(regId => !existingCertRegIds.includes(regId.toString()));
+            // Filter by checking the combination and isCertificateGenerated flag
+            const nonExistingOverallDocs = overallDocs.filter(doc => {
+                const combinationKey = `${doc.trainingRegistration.toString()}-${doc.training.toString()}`;
+                return !existingCombinations.has(combinationKey) && !doc.isCertificateGenerated;
+            });
 
-            if (nonExistingRegistrations.length === 0) {
+            if (nonExistingOverallDocs.length === 0) {
                 errors.push("No registrations to generate certificates for");
                 return errors;
             }
-
-            const nonExistingOverallDocs = overallDocs.filter(doc =>
-                nonExistingRegistrations.includes(doc.trainingRegistration)
-            );
 
             const assignedLayoutKeys = nonExistingOverallDocs.map(doc => doc.assignedCertificateLayout);
             const certificateLayouts = await certificateLayout.find({
@@ -334,12 +339,12 @@ module.exports = {
             const trainingProgresses = await TrainingProgress.find({
                 overallTrainingProgress: { $in: validOverallDocs.map(doc => doc._id) }
             }).session(session); 
-
+    
             if (trainingProgresses.length === 0) {
                 errors.push("No training progress found");
                 return errors;
             }
-
+    
             const overallCreatedAtMap = new Map(
                 trainingProgresses.map(doc => [doc.overallTrainingProgress.toString(), doc.createdAt])
             ); 
@@ -353,14 +358,13 @@ module.exports = {
 
                 if (!training) continue;
 
-                if(overallDoc.isCertificateGenerated) {
-                    continue;
-                }
+                // Removed the isCertificateGenerated check here since we already filtered it above
+
                 const certificateLayout = overallDoc?.assignedCertificateLayoutId;
                 const startDate = overallDoc?.startDate ?? CurrentDateTime().utcDateTime;
                 const completedAt = overallDoc?.completionDate ?? CurrentDateTime().utcDateTime;
                 const expiresAt = overallDoc.certificateExpiry
-                    ? await calculateExpiryDate(completedAt,overallDoc.certificateExpiry)
+                    ? await calculateExpiryDate(completedAt, overallDoc.certificateExpiry)
                     : null;
 
                 certificatesToCreate.push({
