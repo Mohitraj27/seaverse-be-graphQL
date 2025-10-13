@@ -2,11 +2,14 @@ const AWS = require("aws-sdk");
 var path = require("path");
 var fs = require('fs');
 
-
 module.exports = {
     
    fetchFile: async (filePath) => {
-        if (filePath) {
+        if (filePath) { 
+            function encodeFilePath(filePath) {
+                if (!filePath || typeof filePath !== "string") return filePath;
+                return filePath.replace(/ /g, "%20");
+            }
 
             // Read PEM file - 2 directories up from current file
             const privateKeyPath = path.join(__dirname, '..', '..', 'cloudfront-private-key.pem');
@@ -16,9 +19,10 @@ module.exports = {
                 'K3SQ2SES575KAS',
                 privateKey
             );
-
+            const withoutSpaces=encodeFilePath(filePath);
+            
             const cloudfrontDomain = 'd1hlcsotuwlxxk.cloudfront.net';
-            const url = `https://${cloudfrontDomain}/${filePath?.trim()}`;
+            const url = `https://${cloudfrontDomain}/${withoutSpaces?.trim()}`;
 
             const signedUrl = cloudfront.getSignedUrl({
                 url: url,
@@ -28,6 +32,12 @@ module.exports = {
             return signedUrl;
         }
     },
+
+
+    // const signedUrl = signer.getSignedUrl({
+    //     url: resourceUrl,
+    //     expires: Math.floor(Date.now() / 1000) + 3600 // 1 hour from now
+    // });
     uploadFile: async ({ fileData, filePath, originalFileName, mimeType }) => {
         if (fileData && filePath) {
             const s3 = new AWS.S3({
