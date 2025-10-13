@@ -5,35 +5,24 @@ var fs = require('fs');
 
 module.exports = {
     
-    fetchFile: async (filePath) => {
+   fetchFile: async (filePath) => {
         if (filePath) {
-            // console.log('fetchFile', {
-            //     AWS_ACCESS_KEY: process.env.AWS_ACCESS_KEY,
-            //     AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY,
-            //     AWS_REGION: process.env.AWS_REGION,
-            //     S3_BUCKET: process.env.S3_BUCKET,
-            //     filePath
-            // });
-            const s3 = new AWS.S3({
-                accessKeyId: process.env.AWS_ACCESS_KEY?.trim(),
-                secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY?.trim(),
-                region: process.env.AWS_REGION?.trim(),
-            });
 
-            const signedUrl = await new Promise((resolve, reject) => {
-                const params = {
-                    Bucket: process.env.S3_BUCKET?.trim(),
-                    Key: filePath?.trim(),
-                    Expires: 60 * 60 * 5
-                };
+            // Read PEM file - 2 directories up from current file
+            const privateKeyPath = path.join(__dirname, '..', '..', 'cloudfront-private-key.pem');
+            const privateKey = fs.readFileSync(privateKeyPath, 'utf8');
 
-                s3.getSignedUrl('getObject', params, (error, url) => {
-                    if (error) {
-                        reject(error);
-                    } else {
-                        resolve(url);
-                    }
-                });
+            const cloudfront = new AWS.CloudFront.Signer(
+                'K3SQ2SES575KAS',
+                privateKey
+            );
+
+            const cloudfrontDomain = 'd1hlcsotuwlxxk.cloudfront.net';
+            const url = `https://${cloudfrontDomain}/${filePath?.trim()}`;
+
+            const signedUrl = cloudfront.getSignedUrl({
+                url: url,
+                expires: Math.floor(Date.now() / 1000) + (60 * 60 * 5) // 5 hours from now
             });
 
             return signedUrl;
