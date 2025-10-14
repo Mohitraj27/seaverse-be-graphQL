@@ -47,27 +47,27 @@ const generateUniqueCertificateId = async () => {
     let isUnique = false;
 
     while (!isUnique) {
-     
-     const lastCertificate = await TrainingCertificate.findOne().sort({ createdAt: -1 });
 
-      if (lastCertificate) {
-        const lastCertificateIdNum = parseInt(lastCertificate.certificateNumber.slice(12), 10);
-        const newCertNum = lastCertificateIdNum + 1;
-        const paddedNewCertNum = newCertNum.toString().padStart(5, "0");
-        newCertId = `${prefix}${formattedDate}${paddedNewCertNum}`;
-      } else {
-        newCertId = `${prefix}${formattedDate}00001`;
-      }
+        const lastCertificate = await TrainingCertificate.findOne().sort({ createdAt: -1 });
 
-      // Check if this ID is unique
-      const existingCert = await TrainingCertificate.findOne({ certificateNumber: newCertId });
+        if (lastCertificate) {
+            const lastCertificateIdNum = parseInt(lastCertificate.certificateNumber.slice(12), 10);
+            const newCertNum = lastCertificateIdNum + 1;
+            const paddedNewCertNum = newCertNum.toString().padStart(5, "0");
+            newCertId = `${prefix}${formattedDate}${paddedNewCertNum}`;
+        } else {
+            newCertId = `${prefix}${formattedDate}00001`;
+        }
 
-      if (!existingCert) {
-        isUnique = true;
-      }
+        // Check if this ID is unique
+        const existingCert = await TrainingCertificate.findOne({ certificateNumber: newCertId });
+
+        if (!existingCert) {
+            isUnique = true;
+        }
     }
     return newCertId;
-  }
+}
 
 const sendCertificateGenerationNotification = async notificationsData => {
     if (notificationsData?.length) {
@@ -112,7 +112,7 @@ const sendCertificateGenerationNotification = async notificationsData => {
                         infoData: {
                             _id: notificationData.createdBy._id,
                             firstName: decrypt(notificationData.createdBy.firstName),
-                            lastName: notificationData.createdBy.lastName ? decrypt(notificationData.createdBy.lastName):'',
+                            lastName: notificationData.createdBy.lastName ? decrypt(notificationData.createdBy.lastName) : '',
                         },
                     },
                     {
@@ -124,7 +124,7 @@ const sendCertificateGenerationNotification = async notificationsData => {
                                 firstName:
                                     decrypt(notificationData.trainingRegistration.employee?.user?.firstName),
                                 lastName:
-                                   notificationData.trainingRegistration.employee?.user?.lastName ? decrypt(notificationData.trainingRegistration.employee?.user?.lastName):'',
+                                    notificationData.trainingRegistration.employee?.user?.lastName ? decrypt(notificationData.trainingRegistration.employee?.user?.lastName) : '',
                             },
                         },
                     },
@@ -146,7 +146,7 @@ const sendCertificateGenerationNotification = async notificationsData => {
     }
 };
 
-const calculateExpiryDate = async (completionDateStr,validityPeriod) => {
+const calculateExpiryDate = async (completionDateStr, validityPeriod) => {
     if (validityPeriod === null) {
         return null;
     }
@@ -367,18 +367,19 @@ module.exports = {
             const trainingProgresses = await TrainingProgress.find({
                 overallTrainingProgress: { $in: validOverallDocs.map(doc => doc._id) }
             }).session(session); 
-
+    
             if (trainingProgresses.length === 0) {
                 errors.push("No training progress found");
                 return errors;
             }
-
+    
             const overallCreatedAtMap = new Map(
                 trainingProgresses.map(doc => [doc.overallTrainingProgress.toString(), doc.createdAt])
             ); 
             */
 
             const certificatesToCreate = [];
+            const sendCertificateNotification = [];
 
             for (const overallDoc of validOverallDocs) {
                 const trainingId = overallDoc.training.toString();
@@ -391,26 +392,55 @@ module.exports = {
                 const startDate = overallDoc?.startDate ?? CurrentDateTime().utcDateTime;
                 const completedAt = overallDoc?.completionDate ?? CurrentDateTime().utcDateTime;
                 const expiresAt = overallDoc.certificateExpiry
-                    ? await calculateExpiryDate(completedAt,overallDoc.certificateExpiry)
+                    ? await calculateExpiryDate(completedAt, overallDoc.certificateExpiry)
                     : null;
 
-                certificatesToCreate.push({
+                // Prepare certificate
+                const certificate = {
                     subscriber: training.subscriber,
                     trainingRegistration: overallDoc.trainingRegistration,
                     training: training._id,
                     certificateLayout: certificateLayout,
                     user: userId,
                     trainingCertificateValidity: overallDoc.certificateExpiry,
-                    status: 'COMPLETED',
+                    status: "COMPLETED",
                     certificateNumber: await generateUniqueCertificateId(),
                     startDate,
                     completedAt,
                     generatedAt: completedAt,
                     expiresAt,
                     additionalData: [],
+                };
+                certificatesToCreate.push(certificate);
+
+                // Prepare notification (if applicable)
+                const courseTitle = training.title?.find(item => item.lang === "en")?.value;
+
+                sendCertificateNotification.push({
+                    subscriber: subscriber,
+                    title: [{ lang: "en", value: `Your course certificate issued` }],
+                    message: [
+                        {
+                            lang: "en",
+                            value: `Congratulations! Certificate for the ${courseTitle} has been issued.`,
+                        },
+                    ],
+                    notificationType: NotificationType.COURSE_COMPLETION,
+                    notifyAllAdmin: false,
+                    isNotificatonForAdmin: false,
+                    notifiers: [userId],
+                    employeeNotifiers: [userId],
+                    additionalInfo: [],
+                    affected: [],
+                    createdBy: null,
+                    status: "SENT",
+                    icon: notificationiconEnum.SUCCESS,
+                    isRead: false,
                 });
+                
             }
-            console.log(certificatesToCreate, "ctocreate")
+
+            // Insert certificates
             if (certificatesToCreate.length > 0) {
                 console.log(`[CERT-GEN] Creating ${certificatesToCreate.length} certificates`);
                 try {
@@ -438,6 +468,22 @@ module.exports = {
                         console.error(`[CERT-GEN] Unexpected error during certificate creation:`, error);
                         throw error;
                     }
+                }
+
+                // Send notifications
+                if (sendCertificateNotification.length > 0) {
+                    console.log(
+                        `[CERT-FLOW] Sending ${sendCertificateNotification.length} certificate notifications`
+                    );
+                    await NotificationHelper.createNotification(sendCertificateNotification);
+
+                    const notificationIds = validOverallDocs.map(doc => doc._id);
+                    await OverallTrainingProgress.updateMany(
+                        { _id: { $in: notificationIds } },
+                        { $set: { certificateNotificationSent: true } }
+                    ).session(session);
+                } else {
+                    console.log(`[CERT-FLOW] No certificate notifications to send`);
                 }
             } else {
                 console.log(`[CERT-GEN] No certificates to create`);
