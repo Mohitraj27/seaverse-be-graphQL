@@ -907,10 +907,24 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
         const completedOverallIdNotFirstTime = trainingCompletionStatus.filter((item) => item.isTrainingCompletedNotFirstTime).map((item) => item.overallTrainingProgressId);
 
         if (completedOverallIdNotFirstTime.length > 0) {
+            const claimTimestamp = new Date();
+
+
+            await OverallTrainingProgress.updateMany(
+                {
+                    _id: { $in: completedOverallIdNotFirstTime },
+                    completionNotificationSent: { $ne: true }, 
+                },
+                { $set: { completionNotificationSent: true, claimedAt: claimTimestamp } }
+            );
 
             const trainingData = await OverallTrainingProgress.find({
-                _id: { $in: completedOverallIds }
-            }).populate('training').populate('user').session(session);
+                _id: { $in: completedOverallIdNotFirstTime },
+                claimedAt: claimTimestamp,
+            })
+                .populate("training")
+                .populate("user")
+                .session(session);
 
             const notifications = [];
             const emails = [];
@@ -918,7 +932,6 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
 
             for (const item of trainingData) {
                 console.log(`[CERT-FLOW] Processing OverallTrainingProgress ID: ${item._id}, notificationSent: ${item.completionNotificationSent}`);
-                if (item.completionNotificationSent) continue;
 
                 const trainingName = item?.training?.title[0]?.value;
                 const userId = item?.user?._id;
