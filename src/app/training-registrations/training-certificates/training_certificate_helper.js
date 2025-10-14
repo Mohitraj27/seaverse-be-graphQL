@@ -476,12 +476,6 @@ module.exports = {
                         `[CERT-FLOW] Sending ${sendCertificateNotification.length} certificate notifications`
                     );
                     await NotificationHelper.createNotification(sendCertificateNotification);
-
-                    const notificationIds = validOverallDocs.map(doc => doc._id);
-                    await OverallTrainingProgress.updateMany(
-                        { _id: { $in: notificationIds } },
-                        { $set: { certificateNotificationSent: true } }
-                    ).session(session);
                 } else {
                     console.log(`[CERT-FLOW] No certificate notifications to send`);
                 }
