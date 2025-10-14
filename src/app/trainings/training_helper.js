@@ -1007,7 +1007,7 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
             }
 
             // Send notifications for completed courses with certificates
-            // Since we already filtered for docs without notifications, we can process all of them
+            /* // Since we already filtered for docs without notifications, we can process all of them
             if (overallDocs.length > 0) {
                 // Atomically set notification flags first
                 const notificationIds = overallDocs.map(doc => doc._id);
@@ -1050,7 +1050,7 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
                 }
             } else {
                 console.log(`[CERT-FLOW] No courses need certificate notifications`);
-            }
+            } */
         }
 
     }
