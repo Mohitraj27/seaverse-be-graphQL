@@ -917,7 +917,7 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
             const idsToUpdate = [];
 
             for (const item of trainingData) {
-
+                console.log(`[CERT-FLOW] Processing OverallTrainingProgress ID: ${item._id}, notificationSent: ${item.completionNotificationSent}`);
                 if (item.completionNotificationSent) continue;
 
                 const trainingName = item?.training?.title[0]?.value;
@@ -964,8 +964,9 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
                 idsToUpdate.push(item._id);
 
             }
-
-            await NotificationHelper.createNotification(notifications);
+            if(notifications.length > 0){
+                await NotificationHelper.createNotification(notifications);
+            }
 
             if (emails.length > 0) {
                 for (const item of emails) {
@@ -978,10 +979,12 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
             }
 
             if (idsToUpdate.length > 0) {
+                console.log(`[CERT-FLOW] Marking ${idsToUpdate.length} overall training progress docs as having sent completion notifications. IDs: ${idsToUpdate}\n\n`);
+                //Not using atomic update here(This is not part of a transaction to avoid an issue caused by racing conditions)
                 await OverallTrainingProgress.updateMany(
                     { _id: { $in: idsToUpdate } },
                     { $set: { completionNotificationSent: true } }
-                ).session(session);
+                );
             }
 
         }
@@ -990,7 +993,7 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
             _id: { $in: completedOverallIds },
             trainingRegistration: { $ne: null },
             isCertificatePresent: true,
-            certificateNotificationSent: { $ne: true } // Only get docs that haven't had notifications sent
+            isCertificateGenerated: { $ne: true } // Only get docs that haven't had notifications sent
         }).session(session);
 
         console.log(`[CERT-FLOW] Found ${overallDocs.length} completed courses needing certificate notifications. IDs: ${overallDocs.map(d => d._id)}`);
@@ -1006,51 +1009,6 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
                 console.error(`[CERT-FLOW] Certificate generation failed:`, error);
             }
 
-            // Send notifications for completed courses with certificates
-            /* // Since we already filtered for docs without notifications, we can process all of them
-            if (overallDocs.length > 0) {
-                // Atomically set notification flags first
-                const notificationIds = overallDocs.map(doc => doc._id);
-                await OverallTrainingProgress.updateMany(
-                    { _id: { $in: notificationIds } },
-                    { $set: { certificateNotificationSent: true } }
-                ).session(session);
-
-                const sendCertificateNotification = [];
-                for (const doc of overallDocs) {
-                    const training = await Training.findById(doc.training);
-                    const courseTitle = training.title?.find((item) => item.lang === 'en')?.value;
-                    const isCertificate = training?.isCertificate;
-
-                    if (courseTitle && isCertificate) {
-                        sendCertificateNotification.push({
-                            subscriber: subscriberId,
-                            title: [{ lang: "en", value: `Your course certificate issued` }],
-                            message: [{ lang: "en", value: `Congratulations! Certificate for the ${courseTitle ?? ''} has been issued.` }],
-                            notificationType: NotificationType.COURSE_COMPLETION,
-                            notifyAllAdmin: false,
-                            isNotificatonForAdmin: false,
-                            notifiers: [userId],
-                            employeeNotifiers: [userId],
-                            additionalInfo: [],
-                            affected: [],
-                            createdBy: null,
-                            status: 'SENT',
-                            icon: notificationiconEnum.SUCCESS,
-                            isRead: false,
-                        });
-                    }
-                }
-
-                if (sendCertificateNotification.length > 0) {
-                    console.log(`[CERT-FLOW] Sending ${sendCertificateNotification.length} certificate notifications`);
-                    await NotificationHelper.createNotification(sendCertificateNotification);
-                } else {
-                    console.log(`[CERT-FLOW] No certificate notifications to send (no valid courses)`);
-                }
-            } else {
-                console.log(`[CERT-FLOW] No courses need certificate notifications`);
-            } */
         }
 
     }
