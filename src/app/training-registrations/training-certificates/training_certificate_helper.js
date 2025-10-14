@@ -379,6 +379,7 @@ module.exports = {
             */
 
             const certificatesToCreate = [];
+            const sendCertificateNotification = [];
 
             for (const overallDoc of validOverallDocs) {
                 const trainingId = overallDoc.training.toString();
@@ -394,23 +395,52 @@ module.exports = {
                     ? await calculateExpiryDate(completedAt, overallDoc.certificateExpiry)
                     : null;
 
-                certificatesToCreate.push({
+                // Prepare certificate
+                const certificate = {
                     subscriber: training.subscriber,
                     trainingRegistration: overallDoc.trainingRegistration,
                     training: training._id,
                     certificateLayout: certificateLayout,
                     user: userId,
                     trainingCertificateValidity: overallDoc.certificateExpiry,
-                    status: 'COMPLETED',
+                    status: "COMPLETED",
                     certificateNumber: await generateUniqueCertificateId(),
                     startDate,
                     completedAt,
                     generatedAt: completedAt,
                     expiresAt,
                     additionalData: [],
+                };
+                certificatesToCreate.push(certificate);
+
+                // Prepare notification (if applicable)
+                const courseTitle = training.title?.find(item => item.lang === "en")?.value;
+
+                sendCertificateNotification.push({
+                    subscriber: subscriber,
+                    title: [{ lang: "en", value: `Your course certificate issued` }],
+                    message: [
+                        {
+                            lang: "en",
+                            value: `Congratulations! Certificate for the ${courseTitle} has been issued.`,
+                        },
+                    ],
+                    notificationType: NotificationType.COURSE_COMPLETION,
+                    notifyAllAdmin: false,
+                    isNotificatonForAdmin: false,
+                    notifiers: [userId],
+                    employeeNotifiers: [userId],
+                    additionalInfo: [],
+                    affected: [],
+                    createdBy: null,
+                    status: "SENT",
+                    icon: notificationiconEnum.SUCCESS,
+                    isRead: false,
                 });
+                
             }
-            console.log(certificatesToCreate, "ctocreate")
+
+            // Insert certificates
             if (certificatesToCreate.length > 0) {
                 console.log(`[CERT-GEN] Creating ${certificatesToCreate.length} certificates`);
                 try {
@@ -438,6 +468,16 @@ module.exports = {
                         console.error(`[CERT-GEN] Unexpected error during certificate creation:`, error);
                         throw error;
                     }
+                }
+
+                // Send notifications
+                if (sendCertificateNotification.length > 0) {
+                    console.log(
+                        `[CERT-FLOW] Sending ${sendCertificateNotification.length} certificate notifications`
+                    );
+                    await NotificationHelper.createNotification(sendCertificateNotification);
+                } else {
+                    console.log(`[CERT-FLOW] No certificate notifications to send`);
                 }
             } else {
                 console.log(`[CERT-GEN] No certificates to create`);

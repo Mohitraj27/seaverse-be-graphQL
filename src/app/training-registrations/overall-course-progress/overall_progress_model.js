@@ -132,7 +132,8 @@ const overallProgressSchema = new Schema(
                 },
                 downloadedCertificateLayoutId: ObjectId,
             }
-        ]
+        ],
+        claimedAt: Date,
     },
     { timestamps: true }
 )
