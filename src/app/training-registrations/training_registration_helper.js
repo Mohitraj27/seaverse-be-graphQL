@@ -18,7 +18,7 @@ const { Group } = require("../user/group-user/group_model");
 const { TrainingProgress } = require("./training-progress/training_progress_model");
 
 const TrainingRegistrationHelper = require("../training-registrations/training_registration_helper");
-const EmployeeHelper = require("./../user/employee/employee_helper");
+
 const LogHelper = require("../logs/log_helper");
 const SubRoleHelper = require("../user/sub-roles/sub_role_helper");
 const { BatchHelper } = require("../batches/batch_helper");
@@ -404,11 +404,19 @@ const enrolUserVerificationHelper = async (inputUsers, existingTrainings, fromUn
     }
 };
 
-const extractTrainingContentData = async (trainings) => {
+const extractTrainingContentData = async (trainings, isFromMigration) => {
 
-    const trainingContentBridges = await TrainingContentBridge.find({
-        training: { $in: trainings.map(training => training._id) }, isDeleted: false
-    });
+    let trainingContentBridges;
+
+    if (!isFromMigration) {
+        trainingContentBridges = await TrainingContentBridge.find({
+            training: { $in: trainings.map(training => training._id) }, isDeleted: false
+        });
+    } else {
+        trainingContentBridges = await TrainingContentBridge.find({
+            training: trainings, isDeleted: false
+        })
+    }
 
 
     const trainingModulesMap = trainingContentBridges.reduce((result, bridge) => {
@@ -431,6 +439,10 @@ const extractTrainingContentData = async (trainings) => {
 
         return result;
     }, []);
+
+    console.log('trainingModulesMap');
+    console.log(trainingModulesMap);
+    
     const trainingTotalModules = trainingModulesMap.length
     return { trainingModulesMap, trainingTotalModules };
 };

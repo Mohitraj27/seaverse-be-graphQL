@@ -80,6 +80,7 @@ const { MongoClient, ObjectId: mongodbObject } = require('mongodb');
 const { VesselType } = require('../../vessle/vessel-type/vessel_type_model');
 const { ImportJob } = require("./import_job_model");
 const { TrainingContentBridge } = require("../../trainings/training_content_bridge/training_content_model");
+const trainingRegistrationHelper = require("../../training-registrations/training_registration_helper");
 
 const sendCredentialMail = async ({ userData }) => {
     let subscriberLogo = null;
@@ -297,7 +298,7 @@ const evaluateConditionalCustomFields = async (conditionType, conditionalCustomF
         : results.some(Boolean);
 };
 
-const createEnrollmentObject = (userId, trainingId, enrollData, trainingRegistrationIds, trainingModuleCounts, isCertificatePresent, currentCertificateLayout, status, progressPercentage, isFromMigration, overallTrainingProgressId) => ({
+const createEnrollmentObject = (userId, trainingId, enrollData, trainingRegistrationIds, trainingModuleCounts, isCertificatePresent, currentCertificateLayout, status, progressPercentage, isFromMigration, overallTrainingProgressId, contentData) => ({
     _id: overallTrainingProgressId,
     isComplete: false,
     isCertificateGenerated: false,
@@ -312,7 +313,8 @@ const createEnrollmentObject = (userId, trainingId, enrollData, trainingRegistra
     totalTrainingModules: trainingModuleCounts || 0,
     isCertificatePresent: isCertificatePresent ?? false,
     currentCertificateLayout: currentCertificateLayout ?? null,
-    isFromMigration: isFromMigration || false
+    isFromMigration: isFromMigration || false,
+    contentData
 });
 
 async function enrollUsers(enrollDataArray, context) {
@@ -329,17 +331,17 @@ async function enrollUsers(enrollDataArray, context) {
             allUserIds.push(...userIds);
             allTrainingIds.push(...trainingIds);
         }
-
-        // Get the migration mapped training IDs
-        // Find the trainings with trainingIds that have migrationcoursesId
-        const trainingsWithMigration = await Training.find({
-            _id: { $in: allTrainingIds },
-            migrationcoursesId: { $exists: true, $ne: null }
-        }, { _id: 1, migrationcoursesId: 1 }).lean();
-
-
+        
+        
+        
         const userObjectIds = [...new Set(allUserIds)].map(id => new mongoose.Types.ObjectId(id));
         const trainingObjectIds = [...new Set(allTrainingIds)].map(id => new mongoose.Types.ObjectId(id));
+        
+        const trainingsWithMigration = await Training.find({
+            _id: { $in: trainingObjectIds },
+            migrationcoursesId: { $exists: true, $ne: null }
+        }, { _id: 1, migrationcoursesId: 1 }).lean();
+        
 
         let trainingRegistrations;
 
@@ -371,7 +373,26 @@ async function enrollUsers(enrollDataArray, context) {
 
 
         const trainingRegistrationIds = trainingRegistrations.map(tr => tr._id);
-        const trainingModuleCounts = await TrainingModule.find({ training: { $in: trainingObjectIds } }).countDocuments();
+        // const trainingModuleCounts = await TrainingModule.find({ training: { $in: trainingObjectIds } }).countDocuments();
+
+        const trainingModuleCounts = await TrainingModule.aggregate([
+            {
+                $match: {
+                    training: { $in: trainingObjectIds }
+                }
+            },
+            {
+                $group: {
+                    _id: "$training",
+                    count: { $sum: 1 }
+                }
+            }
+        ]);
+
+        const moduleCountMap = trainingModuleCounts.reduce((acc, item) => {
+            acc[item._id.toString()] = item.count;
+            return acc;
+        }, {});
 
         const existingEnrollments = await OverallTrainingProgress.find({
             user: { $in: userObjectIds },
@@ -443,6 +464,11 @@ async function enrollUsers(enrollDataArray, context) {
             const userIds = Array.isArray(enrollData.users) ? enrollData.users : [enrollData.users];
             const trainingIds = Array.isArray(enrollData.trainings) ? enrollData.trainings : [enrollData.trainings];
 
+            console.log('userIds');
+            console.log(userIds);
+            console.log('trainingIds');
+            console.log(trainingIds);
+
             for (const userId of userIds) {
                 for (const trainingId of trainingIds) {
                     const key = `${userId}-${trainingId}`;
@@ -487,16 +513,31 @@ async function enrollUsers(enrollDataArray, context) {
                         }
 
                     } else {
+                        console.log('reached inside this!!!');
                         // Check if migration training for new enrollment
                         const isMigrationTraining = trainingsWithMigration.some(t => t._id.toString() === trainingId.toString());
+                        const trainingRegistrationId = trainingRegistrations.find(tr => tr.training.toString() === trainingId.toString())?._id;
+
+                        console.log('isMigrationTraining');
+                        console.log(isMigrationTraining);
 
                         let status = "NOT_STARTED";
                         let progressPercentage = 0;
                         let isFromMigration = false;
+                        const trainingModuleCount = moduleCountMap[trainingId.toString()] || 0;
+                        let contentData = [];
                         if (isMigrationTraining) {
                             status = "COMPLETED";
                             progressPercentage = 100;
                             isFromMigration = true;
+
+                            // Add contentData array with moduleId and contentId
+                            const trainingContentDataForOverallTraining = await trainingRegistrationHelper.extractTrainingContentData(trainingId, isFromMigration);
+                            contentData = trainingContentDataForOverallTraining?.trainingModulesMap ?? [];
+
+                            console.log('contentData');
+                            console.log(contentData);
+
                         }
 
                         // Create mongodb objectId
@@ -506,15 +547,20 @@ async function enrollUsers(enrollDataArray, context) {
                             userId,
                             trainingId,
                             enrollData,
-                            trainingRegistrationIds,
-                            trainingModuleCounts,
+                            trainingRegistrationId,
+                            trainingModuleCount,
                             trainingDataById[trainingId?.toString()]?.isCertificate ?? false,
                             trainingDataById[trainingId?.toString()]?.currentCertificateLayout,
                             status,
                             progressPercentage,
                             isFromMigration,
-                            overallTrainingProgressId
+                            overallTrainingProgressId,
+                            contentData
                         );
+
+                        console.log('newEnrollment');
+                        console.log(newEnrollment);
+
                         insertedEnrollments.push(newEnrollment);
 
                         // If isMigrationTraining, create docs in trainingProgresses collection with COMPLETED status for each content
@@ -523,7 +569,8 @@ async function enrollUsers(enrollDataArray, context) {
                             const groupedModules = trainingContentGroupedByTraining[trainingId.toString()];
                             if (!groupedModules) continue;
 
-                            const trainingRegistrationId = trainingRegistrations.find(tr => tr.training.toString() === trainingId.toString())?._id;
+                            const now = new Date();
+
 
                             for (const [trainingModule, contents] of Object.entries(groupedModules)) {
                                 for (const trainingContent of contents) {
@@ -536,7 +583,10 @@ async function enrollUsers(enrollDataArray, context) {
                                         progressPercentage: 100,
                                         enroledStatus: true,
                                         trainingRegistration: trainingRegistrationId,
-                                        overallTrainingProgress: overallTrainingProgressId
+                                        overallTrainingProgress: overallTrainingProgressId,
+                                        startedAt: now,
+                                        completedAt: now,
+                                        isDeleted: false
                                     });
 
                                 }
@@ -544,6 +594,8 @@ async function enrollUsers(enrollDataArray, context) {
 
                         }
 
+                        console.log('insertProgresses');
+                        console.log(insertProgresses);
 
                     }
                 }
@@ -601,6 +653,8 @@ async function enrollUsers(enrollDataArray, context) {
 
                 for (let i = 0; i < insertProgresses.length; i += BATCH_SIZE) {
 
+                    console.log('inside batch insertion!');
+
                     const batch = insertProgresses.slice(i, i + BATCH_SIZE);
 
                     insertProgressPromises.push(TrainingProgress.insertMany(batch, { ordered: false }));
@@ -609,11 +663,11 @@ async function enrollUsers(enrollDataArray, context) {
 
                 const progressResults = await Promise.all(insertProgressPromises);
 
-                for(const result of progressResults) {
+                for (const result of progressResults) {
                     allProgresses.push(...result);
                 }
 
-                // console.log('results', results);
+                console.log('allProgresses', allProgresses);
 
                 console.timeEnd('Batch Insert');
                 return allEnrollments;
@@ -627,8 +681,7 @@ async function enrollUsers(enrollDataArray, context) {
         };
 
         run().then(() => {
-            console.log('✅ Total Inserted Documents:', allEnrollments?.length);
-            console.log('✅ Total Inserted Progress Documents:', allProgresses?.length);
+            console.log('✅ Total Inserted Documents:', allEnrollments?.length);;
         });
 
 
