@@ -7,6 +7,7 @@ function createNewEmployeeEmailTemplate(user) {
     const sanitizedPassword = user.templategeneratePassword ?
         user.templategeneratePassword.replace(/[<>&"']/g, '') : '';
 
+    const stepByStepGuideLink = `https://shorturl.at/DB6qb`;
     return `
     <!DOCTYPE html>
     <html lang="en">
@@ -59,10 +60,9 @@ function createNewEmployeeEmailTemplate(user) {
                                     </td>
                                 </tr>
                                 <tr>
-                                    <td style="padding: 0 0 24px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; color: #384860;">
-                                        <p>Thanks</p>
-                                        <p></p>
-                                        <p>Seaverse Team</p>
+                                    <td style="padding: 0 0 24px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; line-height: 24px; color: #384860;">
+                                        In case of any difficulty, here is your 
+                                        <a href="${stepByStepGuideLink}" target="_blank" style="font-weight:700; color:#FFFFFF; text-decoration:none; background-color:#1E3A76; border-radius:4px;padding:4px 8px;  display:inline-block;line-height:1;white-space:nowrap;">Step-by-Step Guide</a>.
                                     </td>
                                 </tr>
                                 <tr>
@@ -76,6 +76,12 @@ function createNewEmployeeEmailTemplate(user) {
                                                 </tr>
                                             </table>
                                         </a>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding-top: 24px; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; color: #384860;">
+                                        Thanks,<br>
+                                        SeaVerse
                                     </td>
                                 </tr>
                             </table>
