@@ -65,11 +65,9 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `New Learning Plan Created`,
-                messageValue: `Learning plan "${
-                    result?.learningPlan?.title ?? ""
-                }" has been created by  ${decrypt(userInfo?.firstName)} ${
-                    userInfo?.lastName ? decrypt(userInfo?.lastName) : ""
-                }.`,
+                messageValue: `Learning plan "${result?.learningPlan?.title ?? ""
+                    }" has been created by  ${decrypt(userInfo?.firstName)} ${userInfo?.lastName ? decrypt(userInfo?.lastName) : ""
+                    }.`,
                 notificationType: NotificationType.LEARNING_PLAN_CREATED,
                 notifyAllAdmin: true,
                 affected: [
@@ -158,11 +156,10 @@ module.exports.mutations = {
                     NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
                         titleValue: `Learning Plan Status Updated`,
-                        messageValue: `Learning plan "${
-                            plan.title
-                        }" status changed to ${actionInNotification} by ${decrypt(
-                            userInfo?.firstName
-                        )} ${userInfo?.lastName ? decrypt(userInfo?.lastName) : ""}.`,
+                        messageValue: `Learning plan "${plan.title
+                            }" status changed to ${actionInNotification} by ${decrypt(
+                                userInfo?.firstName
+                            )} ${userInfo?.lastName ? decrypt(userInfo?.lastName) : ""}.`,
                         notificationType: NotificationType.LEARNING_PLAN_STATUS_UPDATED,
                         notifyAllAdmin: true,
                         affected: [
@@ -235,11 +232,9 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Learning Plan Deleted`,
-                messageValue: `Learning plan "${
-                    learningPlan.title ?? ""
-                }" has been deleted by ${decrypt(userInfo?.firstName)} ${
-                    userInfo?.lastName ? decrypt(userInfo?.lastName) : ""
-                }.`,
+                messageValue: `Learning plan "${learningPlan.title ?? ""
+                    }" has been deleted by ${decrypt(userInfo?.firstName)} ${userInfo?.lastName ? decrypt(userInfo?.lastName) : ""
+                    }.`,
                 notificationType: NotificationType.LEARNING_PLAN_DELETED,
                 notifyAllAdmin: true,
                 affected: [
@@ -307,11 +302,9 @@ module.exports.mutations = {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `Learning Plan Updated`,
-                messageValue: `Learning plan "${
-                    learningPlanName ?? ""
-                }" has been updated by ${decrypt(userInfo?.firstName)} ${
-                    userInfo?.lastName ? decrypt(userInfo?.lastName) : ""
-                }.`,
+                messageValue: `Learning plan "${learningPlanName ?? ""
+                    }" has been updated by ${decrypt(userInfo?.firstName)} ${userInfo?.lastName ? decrypt(userInfo?.lastName) : ""
+                    }.`,
                 notificationType: NotificationType.LEARNING_PLAN_UPDATED,
                 notifyAllAdmin: true,
                 affected: [
@@ -700,22 +693,22 @@ module.exports.queries = {
                     $match: {
                         ...(filterInput?.title?.trim()
                             ? {
-                                  $or: [
-                                      { title: { $regex: filterInput.title, $options: "i" } },
-                                      {
-                                          "createdByDetails.firstName": {
-                                              $regex: filterInput.title,
-                                              $options: "i",
-                                          },
-                                      },
-                                      {
-                                          "createdByDetails.lastName": {
-                                              $regex: filterInput.title,
-                                              $options: "i",
-                                          },
-                                      },
-                                  ],
-                              }
+                                $or: [
+                                    { title: { $regex: filterInput.title, $options: "i" } },
+                                    {
+                                        "createdByDetails.firstName": {
+                                            $regex: filterInput.title,
+                                            $options: "i",
+                                        },
+                                    },
+                                    {
+                                        "createdByDetails.lastName": {
+                                            $regex: filterInput.title,
+                                            $options: "i",
+                                        },
+                                    },
+                                ],
+                            }
                             : {}),
                     },
                 },
@@ -768,20 +761,47 @@ module.exports.queries = {
                         from: "overalltrainingprogresses",
                         let: { learningPlanId: "$_id" },
                         pipeline: [
+                            // {
+                            //     $match: {
+                            //         $expr: {
+                            //             $and: [
+                            //                 {
+                            //                     $in: [
+                            //                         { $toObjectId: "$$learningPlanId" },
+                            //                         "$learningPlan",
+                            //                     ],
+                            //                 },
+                            //                 { $ne: ["$isEnrolled", false] },
+                            //             ],
+                            //         },
+                            //     },
+                            // },
                             {
                                 $match: {
                                     $expr: {
                                         $and: [
                                             {
-                                                $in: [
-                                                    { $toObjectId: "$$learningPlanId" },
-                                                    "$learningPlan",
-                                                ],
+                                                $or: [
+                                                    // eq check: only compare if field exists
+                                                    {
+                                                        $and: [
+                                                            { $ne: ["$learningPlan", null] },
+                                                            { $eq: ["$learningPlan", { $toObjectId: "$$learningPlanId" }] }
+                                                        ]
+                                                    },
+                                                    // in check: default to empty array if missing
+                                                    {
+                                                        $in: [
+                                                            { $toObjectId: "$$learningPlanId" },
+                                                            { $ifNull: ["$learningPlan", []] }
+                                                        ]
+                                                    }
+                                                ]
                                             },
-                                            { $ne: ["$isEnrolled", false] },
-                                        ],
-                                    },
-                                },
+                                            { $ne: ["$isEnrolled", false] }
+                                        ]
+                                    }
+                                }
                             },
                             // Group to get only summary data (no user details lookup)
                             {
@@ -1336,5 +1356,5 @@ module.exports.queries = {
             );
         }
     },
-      
+
 };
