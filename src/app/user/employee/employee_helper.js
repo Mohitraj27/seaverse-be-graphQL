@@ -3710,6 +3710,7 @@ module.exports = {
                                         civilIdOrPassport: user.civilIdOrPassport,
                                         vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                                         currentVessel: user?.imoNumber && user?.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
+                                        isRegistered: false, // to enter users in unregistered state
                                     },
                                 },
                             },
@@ -3744,6 +3745,7 @@ module.exports = {
                                     email: user.email,
                                     vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                                     currentVessel: user?.imoNumber && user?.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
+                                    isRegistered: false, // to enter users in unregistered state
                                 },
                             },
                         },
@@ -3788,6 +3790,7 @@ module.exports = {
                                         email: user.email,
                                         vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                                         currentVessel: user?.imoNumber && user?.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
+                                        isRegistered: false, // to enter users in unregistered state
                                     },
                                 },
                             },
@@ -3822,6 +3825,7 @@ module.exports = {
                                     civilIdOrPassport: user.civilIdOrPassport,
                                     vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                                     currentVessel: user?.imoNumber && user?.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
+                                    isRegistered: false, // to enter users in unregistered state
                                 },
                             },
                         },
@@ -3867,7 +3871,8 @@ module.exports = {
                         currentVessel: user.imoNumber && user.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
                         password: await CryptoHelper.hash(password, 10),
                         subscriber: subscriber_Id ?? null,
-                        isSignupAdminAprroved: true
+                        isSignupAdminAprroved: true,
+                        isRegistered: false, // to enter users in unregistered state
                     });
 
                     if (user.imoNumber && user.vesselStatus.toUpperCase() !== VesselStatus.ONSHORE) {
@@ -4248,9 +4253,9 @@ module.exports = {
                     throw CustomError(ErrorName.INDEX_DOC_ELASTIC_SEARCH, `Elastic Insert Error (users): ${error}`)
                 }
 
-                console.time('filterPlans')
-                const filteredPlans = await filterLearningPlans(learningPlans, conditionsList, context, session);
-                console.timeEnd('filterPlans')
+                // console.time('filterPlans')
+                // const filteredPlans = await filterLearningPlans(learningPlans, conditionsList, context, session);
+                // console.timeEnd('filterPlans')
 
                 // if (filteredPlans.length > 0) {
                 //     console.log("filteredPlans: ", filteredPlans);
