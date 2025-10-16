@@ -44,6 +44,17 @@ db.serialize(() => {
             createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     `);
+    
+    db.run(`
+        CREATE TABLE IF NOT EXISTS welcomeEmails (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT NOT NULL,
+            firstName TEXT NOT NULL,
+            temp_password TEXT NOT NULL,
+            createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
 });
 
 //welcome emails crud to sqlite
@@ -76,22 +87,52 @@ const deleteEmailBatch = (ids) => {
 };
 
 
+// Send welcome email CRUD
+const insertSendWelcomeEmails = (emailBatch) => {
+    const stmt = db.prepare("INSERT INTO welcomeEmails (firstName, email, temp_password) VALUES (?, ?, ?)");
+    const subject = 'Registration Invitation';
+    emailBatch.forEach(({ firstName, email, temp_password }) => {
+        stmt.run(firstName, email, temp_password);
+    });
+    stmt.finalize();
+}
+
+const fetchInsertSendWelcomeEmailsBatch = () => {
+    return new Promise((resolve, reject) => {
+        db.all(`SELECT * FROM welcomeEmails LIMIT 50`, (err, rows) => {
+            if (err) reject(err);
+            else resolve(rows);
+        });
+    });
+};
+
+const deleteInsertSendWelcomeEmailsBatch = (ids) => {
+    return new Promise((resolve, reject) => {
+        const placeholders = ids.map(() => '?').join(',');
+        db.run(`DELETE FROM welcomeEmails WHERE id IN (${placeholders})`, ids, (err) => {
+            if (err) reject(err);
+            else resolve(true);
+        });
+    });
+};
+
+
 //course enrollment emails crud to sqlite
 const insertCourseEmails = (emailBatch) => {
     const stmt = db.prepare(
-      "INSERT INTO course_emails (email, subject, firstName, courses, isAdmin, action) VALUES (?, ?, ?, ?, ?, ?)"
+        "INSERT INTO course_emails (email, subject, firstName, courses, isAdmin, action) VALUES (?, ?, ?, ?, ?, ?)"
     );
     emailBatch.forEach(email => {
-      const coursesJson = JSON.stringify(email.courses);
-      const isAdmin = email.isAdmin ? 1 : 0;
-      const action = email.action || 'ENROLL';
-      const subject = email.subject || 'Course Enrollment';
-      const firstName = email.firstName || 'User';
-  
-      stmt.run(email.receiverEmail, subject, firstName, coursesJson, isAdmin, action);
+        const coursesJson = JSON.stringify(email.courses);
+        const isAdmin = email.isAdmin ? 1 : 0;
+        const action = email.action || 'ENROLL';
+        const subject = email.subject || 'Course Enrollment';
+        const firstName = email.firstName || 'User';
+
+        stmt.run(email.receiverEmail, subject, firstName, coursesJson, isAdmin, action);
     });
     stmt.finalize();
-  };
+};
 
 const fetchCourseEmailBatch = (action = null) => {
 
@@ -113,7 +154,7 @@ const fetchCourseEmailBatch = (action = null) => {
             });
     }
 };
-  
+
 const deleteCourseEmailBatch = (ids) => {
     try {
         return new Promise((resolve, reject) => {
@@ -128,7 +169,7 @@ const deleteCourseEmailBatch = (ids) => {
 };
 
 
- // Deletion emails CRUD to SQLite
+// Deletion emails CRUD to SQLite
 const insertDeletionRequests = (usersBatch) => {
     const stmt = db.prepare("INSERT INTO deletion_requests (email, firstName) VALUES (?, ?)");
     usersBatch.forEach(({ email, firstName }) => {
@@ -166,4 +207,7 @@ module.exports = {
     insertDeletionRequests,
     fetchDeletionBatch,
     deleteDeletionBatch,
+    insertSendWelcomeEmails,
+    fetchInsertSendWelcomeEmailsBatch,
+    deleteInsertSendWelcomeEmailsBatch
 };

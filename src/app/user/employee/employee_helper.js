@@ -79,6 +79,7 @@ const { client, deleteByQueryFromElasticSearch, updateDocumenttoElasticSearch, u
 const { MongoClient, ObjectId: mongodbObject } = require('mongodb');
 const { VesselType } = require('../../vessle/vessel-type/vessel_type_model');
 const { ImportJob } = require("./import_job_model");
+const { sendEmailToLearner } = require("../../email-template/sendWelcomeEmail");
 
 const sendCredentialMail = async ({ userData }) => {
     let subscriberLogo = null;
@@ -582,7 +583,45 @@ async function enrollUsers(enrollDataArray, context) {
         throw CustomError(ErrorName.FAILED, error.message);
     }
 }
+const sendWelcomeEmailBulk = async () => {
+    try {
+        let results = [];
+        while (true) {
+            const emailBatch = await SqliteEmailHelper.fetchInsertSendWelcomeEmailsBatch();
+            if (!emailBatch.length) break;
 
+            // Generate HTML content dynamically
+            const emailsToSend = emailBatch.map(email => {
+
+                const html = sendEmailToLearner({
+                    firstName: email.firstName,
+                    email: email.email,
+                    temp_password: email.temp_password,
+                    buttonLink: `${process.env.APP_URL}/login?isResetPasswordDialog=false&isTermsAccepted=false`
+                });
+
+                console.log("-----emailsToSend----- ", email.email);
+                return { to: email.email, subject: "Registration Invitation", html };
+            });
+            // Send emails (use sendWithRetry logic from existing code)
+            const batchResults = await sendCourseMailsWithRetry(emailsToSend);
+            results = results.concat(batchResults);
+            await delay(200);
+
+            // Delete processed emails
+            const emailIds = emailBatch.map(email => email.id);
+            await SqliteEmailHelper.deleteInsertSendWelcomeEmailsBatch(emailIds);
+        }
+
+        // Return summary ( in case you have to verify success and errors, console the results)
+        const { successCount, errorCount, errors } = summarizeResults(results);
+
+        return { success: true, message: `Sent ${successCount}, failed ${errorCount}`, errors };
+
+    } catch (error) {
+        return { success: false, message: error.message };
+    }
+};
 const sendCourseEmailBulk = async (action = 'ENROLL') => {
     try {
         let results = [];
@@ -2931,6 +2970,7 @@ module.exports = {
     enrollUsers,
     // moveExpiredDeletedUsers,
     sendNotificationOnBULK,
+    sendWelcomeEmailBulk,
     updateEmployees: async ({ id, input, userId, subscriberId, role, userInfo }, context, session) => {
 
         const employeeFilterConditions = { subscriber: subscriberId };
