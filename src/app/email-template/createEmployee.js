@@ -7,7 +7,7 @@ function createNewEmployeeEmailTemplate(user) {
     const sanitizedPassword = user.templategeneratePassword ?
         user.templategeneratePassword.replace(/[<>&"']/g, '') : '';
 
-    const stepByStepGuideLink = `https://shorturl.at/DB6qb`;
+    const stepByStepGuideLink = `https://seaverse-prod.s3.eu-west-1.amazonaws.com/public/Seaverse+Walkthrough+14-10-25+V2.mp4`;
     return `
     <!DOCTYPE html>
     <html lang="en">
