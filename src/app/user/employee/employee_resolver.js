@@ -2258,9 +2258,9 @@ const changeRegisterEmployees = async ({ input }, context) => {
                 subject: `User Status Update: ${input.type}`,
                 htmlContent: emailContentforAdmin,
             }); */
-            if (learningPlans?.length > 0) {
-                const filteredPlans = await filterLearningPlans(learningPlans, conditions, context);
-            }
+            // if (learningPlans?.length > 0) {
+            //     const filteredPlans = await filterLearningPlans(learningPlans, conditions, context);
+            // }
 /* 
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
