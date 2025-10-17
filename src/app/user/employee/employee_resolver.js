@@ -1794,6 +1794,7 @@ module.exports.queries = {
             const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
             let messages = [];
             const notifications = [];
+            const emailData = [];
             await Promise.all(
                 emails.map(async (email) => {
                     const decryptEmail = email;
@@ -1810,7 +1811,6 @@ module.exports.queries = {
                         }
                     });
 
-                    console.log('Updated user data:', currentUserData);
                     if (!currentUserData) {
                         throw CustomError(ErrorName.FAILED_TO_SENT_WELCOME_MAIL, `One or more User are Unregistered`);
                     }
@@ -1854,69 +1854,20 @@ module.exports.queries = {
                             messages.push(`Failed to create new dummy password for ${email}`);
                             return;
                         }
-                        const htmlContent = sendEmailToLearner({
+
+                        emailData.push({
                             firstName: decrypt(currentUserData.firstName),
                             email: decrypt(currentUserData.email),
-                            temp_password: generatePassword,
-                            buttonLink: `${process.env.APP_URL}/login?isResetPasswordDialog=false&isTermsAccepted=false`,
+                            temp_password: generatePassword
                         });
-                        html = htmlContent;
-                        await SendEmail({
-                            receiverEmail: decrypt(currentUserData?.email),
-                            subject: "Registration Invitation",
-                            htmlContent: html,
-                        });
-                        /*
-                        await SendEmail({
-                            receiverEmail: userInfo.email,
-                            subject: "Registration Invitation",
-                            htmlContent: html,
-                        })
-                        */
+
                     }
-                    /*
-                    try {
-                       const data = await SendEmail({
-                            receiverEmail: currentUserData?.email,
-                            subject: "Registration Invitation",
-                            htmlContent: html,
-                        });
-                        console.log('data',data);
-                        messages.push(`Welcome Email sent to ${email}`);
-                        console.log('message',messages);
-                    }
-                    catch (error) { 
-                        console.log('error',error);
-                        messages.push(`Unable to send Welcome Email to ${email}`);
-                    }
-                    */
-                    /* 
-                                    notifications.push({
-                                        subscriber: subscriberId,
-                                        title: [{ lang: "en", value: `Welcome Email Sent` }],
-                                        message: [
-                                            {
-                                                lang: "en",
-                                                value: `Welcome Email has been successfully sent to "${currentUserData?.firstName} ${currentUserData?.lastName}" (${email}) by ${decrypt(decrypt(userInfo?.firstName))} ${userInfo?.lastName}.`,
-                                            },
-                                        ],
-                                        notificationType: NotificationType.WELCOME_EMAIL_SENT,
-                                        notifyAllAdmin: true,
-                                        notifiers: [],
-                                        employeeNotifiers: [],
-                                        affected: [
-                                            {
-                                                targetRef: "User",
-                                                target: currentUserData._id,
-                                            },
-                                        ],
-                                        icon: notificationiconEnum.SUCCESS,
-                                        createdBy: userInfo,
-                                        status: "SENT"
-                                    });
-                     */
+
                 })
             );
+            SqliteEmailHelper.insertSendWelcomeEmails(emailData);
+
+            await EmployeeHelper.sendWelcomeEmailBulk();
             /*  if (notifications.length > 0) {
                  try {
                      // await NotificationHelper.createNotification(notifications);
