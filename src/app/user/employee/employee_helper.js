@@ -3166,12 +3166,12 @@ module.exports = {
                 isPushNotification: savedEmployee.user?.isPushNotification,
                 lastLoginAt: savedEmployee.user?.lastLoginAt,
                 isSignupAdminAprroved: savedEmployee.user?.isSignupAdminAprroved,
-                vesselName: userVesselsDetails[0]?.name===undefined?null:userVesselsDetails[0]?.name,
-                vesselIsActive: userVesselsDetails[0]?.isActive===undefined?null:userVesselsDetails[0]?.isActive,
-                vesselId: userVesselsDetails[0]?._id===undefined?null:userVesselsDetails[0]?._id.toString(),
-                vesselIsDeleted: userVesselsDetails[0]?.isDeleted===undefined?null:userVesselsDetails[0]?.isDeleted,
-                typeOfVesselName: userVesselsDetails[0]?.typeOfVessel?.name===undefined?null:userVesselsDetails[0]?.typeOfVessel?.name,
-                tyepOfVesselId: userVesselsDetails[0]?.typeOfVessel?._id===undefined?null:userVesselsDetails[0]?.typeOfVessel?._id.toString(),
+                vesselName: userVesselsDetails[0]?.name === undefined ? null : userVesselsDetails[0]?.name,
+                vesselIsActive: userVesselsDetails[0]?.isActive === undefined ? null : userVesselsDetails[0]?.isActive,
+                vesselId: userVesselsDetails[0]?._id === undefined ? null : userVesselsDetails[0]?._id.toString(),
+                vesselIsDeleted: userVesselsDetails[0]?.isDeleted === undefined ? null : userVesselsDetails[0]?.isDeleted,
+                typeOfVesselName: userVesselsDetails[0]?.typeOfVessel?.name === undefined ? null : userVesselsDetails[0]?.typeOfVessel?.name,
+                tyepOfVesselId: userVesselsDetails[0]?.typeOfVessel?._id === undefined ? null : userVesselsDetails[0]?.typeOfVessel?._id.toString(),
                 userCreatedAt: savedEmployee.user?.createdAt,
                 userUpdatedAt: savedEmployee.user?.updatedAt,
             };
@@ -3604,13 +3604,48 @@ module.exports = {
 
         const caseInsensitiveEmpIdArray = empIdsArray.map((id) => new RegExp(`^${id}$`, 'i'));
 
+        // Filter out users with missing required fields before processing
+        users = users.filter(user => user.civilIdOrPassport && user.email);
+
+        // Check for duplicates within the CSV data itself
+        const csvEmails = new Map(); // Use Map to track row numbers
+        const csvEmpIds = new Map();
+        const duplicateErrors = [];
+
+        console.log(`Processing ${users.length} users after filtering missing fields`);
+
+        users = users.filter((user, index) => {
+            const email = user.email?.trim().toLowerCase();
+            const empId = user.civilIdOrPassport?.trim().toUpperCase();
+
+            if (csvEmails.has(email)) {
+                const firstOccurrence = csvEmails.get(email);
+                duplicateErrors.push(`Row ${index + 1}: Duplicate email found in CSV - ${email} (first seen at row ${firstOccurrence})`);
+                console.log(`Duplicate email detected: ${email} at row ${index + 1} (first seen at row ${firstOccurrence})`);
+                return false;
+            }
+
+            if (csvEmpIds.has(empId)) {
+                const firstOccurrence = csvEmpIds.get(empId);
+                duplicateErrors.push(`Row ${index + 1}: Duplicate User ID found in CSV - ${empId} (first seen at row ${firstOccurrence})`);
+                console.log(`Duplicate User ID detected: ${empId} at row ${index + 1} (first seen at row ${firstOccurrence})`);
+                return false;
+            }
+
+            csvEmails.set(email, index + 1);
+            csvEmpIds.set(empId, index + 1);
+            return true;
+        });
+
+        console.log(`After duplicate removal: ${users.length} users remaining, ${duplicateErrors.length} duplicates found`);
+
         users = users.map(user => {
             return {
                 ...user,
-                firstName: encrypt(user.firstName.trim().toLowerCase()),
-                lastName: user.lastName.trim().toLowerCase() ? encrypt(user.lastName.trim().toLowerCase()) : '',
-                civilIdOrPassport: encrypt(user.civilIdOrPassport.trim().toUpperCase()),
-                email: encrypt(user.email.trim().toLowerCase()),
+                firstName: encrypt(user.firstName?.trim().toLowerCase()),
+                lastName: user.lastName?.trim().toLowerCase() ? encrypt(user.lastName.trim().toLowerCase()) : '',
+                civilIdOrPassport: user.civilIdOrPassport ? encrypt(user.civilIdOrPassport.trim().toUpperCase()) : '',
+                email: encrypt(user.email?.trim().toLowerCase()),
             }
         })
 
@@ -3638,12 +3673,12 @@ module.exports = {
         })
 
         const existingEmpIdEmailMap = existingUsers.map(user => ({
-            [user.civilIdOrPassport.toLowerCase()]: user.email?.toLowerCase()
+            [user.civilIdOrPassport?.toLowerCase()]: user.email?.toLowerCase()
         }));
 
 
         const existingEmailEmpIdMap = existingUsers.map(user => ({
-            [user.email?.toLowerCase()]: user.civilIdOrPassport.toLowerCase()
+            [user.email?.toLowerCase()]: user.civilIdOrPassport?.toLowerCase()
         }))
 
 
@@ -3651,9 +3686,18 @@ module.exports = {
         const getAllDBUsers = await User.find().select('email civilIdOrPassport');
         const getAllDBEmails = getAllDBUsers.map(user => user.email?.toLowerCase());
         const getAllDBEmpIds = getAllDBUsers.map(user => user.civilIdOrPassport?.toUpperCase());
-        let errors = [];
+        let errors = [...duplicateErrors];
         const updates = [];
         const inserts = [];
+
+        // If there are duplicate errors, return early
+        if (duplicateErrors.length > 0) {
+            return {
+                success: false,
+                errors: errors,
+                message: `CSV contains duplicate entries. Please fix duplicates and try again.`
+            };
+        }
 
         let userIndex = 0;
 
@@ -3680,6 +3724,12 @@ module.exports = {
 
         console.time('userValidationLoop');
         for (const user of users) {
+            // Skip users with missing required fields
+            if (!user.civilIdOrPassport || !user.email) {
+                errors.push(`Row ${userIndex + 1}: Missing required fields (User ID or Email)`);
+                userIndex++;
+                continue;
+            }
 
             const existingEmpIdsMap = existingEmpIdEmailMap.find(empObj => empObj[user.civilIdOrPassport?.toLowerCase()]);
             const existingEmailIdsMap = existingEmailEmpIdMap.find(emailObj => emailObj[user.email?.toLowerCase()]);
@@ -3687,11 +3737,11 @@ module.exports = {
 
             if (existingEmpIdsMap) {
 
-                const email = existingEmpIdsMap[user.civilIdOrPassport.toLowerCase()];
+                const email = existingEmpIdsMap[user.civilIdOrPassport?.toLowerCase()];
 
                 if (existingEmailIdsMap) {
 
-                    const empId = existingEmailIdsMap[user.email?.toLowerCase()].toUpperCase();
+                    const empId = existingEmailIdsMap[user.email?.toLowerCase()]?.toUpperCase();
 
                     if (empId !== user.civilIdOrPassport?.toUpperCase() && existingEmailsInDB.has(user.civilIdOrPassport?.toUpperCase())) {
 
@@ -3772,7 +3822,7 @@ module.exports = {
 
                     const email = existingEmpIdsMap[user.civilIdOrPassport?.toUpperCase()];
 
-                    if (email !== user.email.toLowerCase() && existingEmpIdsInDB.has(user.email.toLowerCase())) {
+                    if (email !== user.email?.toLowerCase() && existingEmpIdsInDB.has(user.email?.toLowerCase())) {
 
                         errors.push(errors.push(`Conflict in Row ${userIndex + 1}: The provided User ID or Email ID is already associated with another user`));
                         break;
@@ -3852,13 +3902,24 @@ module.exports = {
                     break;
 
 
-                } else if (getAllDBEmpIds.includes(user.civilIdOrPassport.toLowerCase())) {
+                } else if (getAllDBEmpIds.includes(user.civilIdOrPassport?.toLowerCase())) {
 
                     errors.push(errors.push(`Conflict in Row ${userIndex + 1}: The provided User ID or Email ID is already associated with another user`));
                     break;
 
                 } else {
 
+                    // Double-check for duplicates in inserts array before adding
+                    const isDuplicateInInserts = inserts.some(existingUser =>
+                        existingUser.email === user.email ||
+                        existingUser.civilIdOrPassport === user.civilIdOrPassport
+                    );
+
+                    if (isDuplicateInInserts) {
+                        errors.push(`Row ${userIndex + 1}: Duplicate entry detected in processing queue`);
+                        userIndex++;
+                        continue;
+                    }
 
                     let password = dummyPassword.dummy_pwd;
 
@@ -3941,10 +4002,44 @@ module.exports = {
 
         let endUsers = [];
 
+        console.log(`About to insert ${inserts.length} users`);
+        console.log('Sample insert emails:', inserts.slice(0, 3).map(u => u.email));
+
         const saveEmployees = await DbTransactionHelper.performDbTransaction(async session => {
 
             console.time("bulkInsertUsers")
-            bulkInsertUsers = await User.insertMany(inserts, { session: session });
+            try {
+                bulkInsertUsers = await User.insertMany(inserts, { session: session, ordered: false });
+            } catch (error) {
+                if (error.name === 'BulkWriteError') {
+                    // Handle partial success - some users were inserted successfully
+                    console.log(`Bulk insert partially successful. ${error.result.insertedCount} users inserted, ${error.writeErrors.length} errors`);
+                    bulkInsertUsers = error.result.insertedIds ? Object.values(error.result.insertedIds) : [];
+
+                    // Log the specific duplicate errors with more detail
+                    error.writeErrors.forEach((writeError, index) => {
+                        if (writeError.code === 11000) { // Duplicate key error
+                            console.log(`Duplicate key error at index ${writeError.index}:`, writeError.errmsg);
+
+                            // Try to find the original user data that caused this error
+                            const failedUser = inserts[writeError.index];
+                            if (failedUser) {
+                                console.log(`Failed user data:`, {
+                                    email: failedUser.email,
+                                    civilIdOrPassport: failedUser.civilIdOrPassport
+                                });
+                            }
+
+                            errors.push(`Duplicate entry detected at row ${writeError.index + 1}: Email or User ID already exists in database`);
+                        } else {
+                            console.log(`Other error at index ${writeError.index}:`, writeError.errmsg);
+                            errors.push(`Error at row ${writeError.index + 1}: ${writeError.errmsg}`);
+                        }
+                    });
+                } else {
+                    throw error; // Re-throw if it's not a BulkWriteError
+                }
+            }
             console.timeEnd("bulkInsertUsers")
 
 
@@ -4062,7 +4157,7 @@ module.exports = {
                 console.timeEnd('vesselBulkWrite')
 
                 const employeesToInsert = allUpdatedUsers.map(user => {
-                    const originalUserData = users.find(u => u.civilIdOrPassport.toLowerCase() === user.civilIdOrPassport.toLowerCase());
+                    const originalUserData = users.find(u => u.civilIdOrPassport?.toLowerCase() === user.civilIdOrPassport?.toLowerCase());
 
 
                     return {
