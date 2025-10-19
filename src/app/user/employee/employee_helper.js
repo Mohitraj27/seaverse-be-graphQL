@@ -3166,7 +3166,8 @@ module.exports = {
             .catch((error) => {
                 console.error(error);
             });
-        const result = await filterLearningPlans(learningPlans, userConditions, context, session);
+        // Commented auto enrollment
+        // const result = await filterLearningPlans(learningPlans, userConditions, context, session);
 
         try {
             const userVesselsDetails = await Vessel.find({ _id: savedEmployee.user?.currentVessel, isDeleted: false, isActive: true }).populate('typeOfVessel', '_id name');
@@ -3206,12 +3207,12 @@ module.exports = {
                 isPushNotification: savedEmployee.user?.isPushNotification,
                 lastLoginAt: savedEmployee.user?.lastLoginAt,
                 isSignupAdminAprroved: savedEmployee.user?.isSignupAdminAprroved,
-                vesselName: userVesselsDetails[0]?.name===undefined?null:userVesselsDetails[0]?.name,
-                vesselIsActive: userVesselsDetails[0]?.isActive===undefined?null:userVesselsDetails[0]?.isActive,
-                vesselId: userVesselsDetails[0]?._id===undefined?null:userVesselsDetails[0]?._id.toString(),
-                vesselIsDeleted: userVesselsDetails[0]?.isDeleted===undefined?null:userVesselsDetails[0]?.isDeleted,
-                typeOfVesselName: userVesselsDetails[0]?.typeOfVessel?.name===undefined?null:userVesselsDetails[0]?.typeOfVessel?.name,
-                tyepOfVesselId: userVesselsDetails[0]?.typeOfVessel?._id===undefined?null:userVesselsDetails[0]?.typeOfVessel?._id.toString(),
+                vesselName: userVesselsDetails[0]?.name === undefined ? null : userVesselsDetails[0]?.name,
+                vesselIsActive: userVesselsDetails[0]?.isActive === undefined ? null : userVesselsDetails[0]?.isActive,
+                vesselId: userVesselsDetails[0]?._id === undefined ? null : userVesselsDetails[0]?._id.toString(),
+                vesselIsDeleted: userVesselsDetails[0]?.isDeleted === undefined ? null : userVesselsDetails[0]?.isDeleted,
+                typeOfVesselName: userVesselsDetails[0]?.typeOfVessel?.name === undefined ? null : userVesselsDetails[0]?.typeOfVessel?.name,
+                tyepOfVesselId: userVesselsDetails[0]?.typeOfVessel?._id === undefined ? null : userVesselsDetails[0]?.typeOfVessel?._id.toString(),
                 userCreatedAt: savedEmployee.user?.createdAt,
                 userUpdatedAt: savedEmployee.user?.updatedAt,
             };
