@@ -3239,7 +3239,8 @@ module.exports.mutations = {
                     role: 'LEARNER',
                 }];
 
-                const filteredPlans = await filterLearningPlans(learningPlans, conditions, context, session);
+                // Commented auto enrollment
+                // const filteredPlans = await filterLearningPlans(learningPlans, conditions, context, session);
 
             }
             // Below  matchedLearningPlans is for testing purpose to check which matches the LP

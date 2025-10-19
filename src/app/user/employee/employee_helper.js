@@ -3166,7 +3166,8 @@ module.exports = {
             .catch((error) => {
                 console.error(error);
             });
-        const result = await filterLearningPlans(learningPlans, userConditions, context, session);
+        // Commented auto enrollment
+        // const result = await filterLearningPlans(learningPlans, userConditions, context, session);
 
         try {
             const userVesselsDetails = await Vessel.find({ _id: savedEmployee.user?.currentVessel, isDeleted: false, isActive: true }).populate('typeOfVessel', '_id name');
