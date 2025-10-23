@@ -58,9 +58,11 @@ module.exports.queries = {
                     existingUser.avatarUrl = existingUser.avatar;
                     existingUser.avatar = await AwsHelper.fetchFile(existingUser.avatar);
                 }
+                //added default content language if not present
                 if (!existingUser.contentlanguages || existingUser.contentlanguages.length === 0) {
                     existingUser.contentlanguages = ['english'];
                 }
+                
                 let employeeData = {};
                 employeeData = await Employee.findOne({ user: userId }).lean().populate({
                     path: "empDesignation",
