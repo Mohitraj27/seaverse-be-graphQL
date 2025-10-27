@@ -1625,7 +1625,157 @@ const getS3FilePath = async ({ filePath }, context) => {
     }
 };
 
+const getSystemStatsPerVessel = async () => {
+    try {
+        // 0️⃣ Fetch all vessels with company info
+        const vessels = await Vessel.aggregate([
+            {
+                $match: { isDeleted: false, isActive: true },
+            },
+            {
+                $lookup: {
+                    from: "companies",
+                    localField: "companyName",
+                    foreignField: "name",
+                    as: "company",
+                },
+            },
+            {
+                $unwind: { path: "$company", preserveNullAndEmptyArrays: true },
+            },
+            {
+                $project: {
+                    _id: 1,
+                    vesselName: "$name",
+                    companyName: "$companyName",
+                },
+            },
+        ]);
+
+        // 1️⃣ Fetch all users with vessel and minimal info
+        const users = await User.aggregate([
+            {
+                $match: { isDeleted: false, isActive: true },
+            },
+            {
+                $lookup: {
+                    from: "vessels",
+                    localField: "currentVessel",
+                    foreignField: "_id",
+                    as: "vessel",
+                },
+            },
+            { $unwind: { path: "$vessel", preserveNullAndEmptyArrays: true } },
+            {
+                $project: {
+                    _id: 1,
+                    email: 1,
+                    isResetPasswordDialog: 1,
+                    vesselId: "$vessel._id",
+                    vesselName: "$vessel.name",
+                    companyName: "$vessel.companyName",
+                },
+            },
+        ]);
+        const totalUsersInSystem = users.length;
+        console.log("Total active users in system:", totalUsersInSystem);
+        // 2️⃣ Fetch all overall training progress docs once (lightweight projection)
+        const progresses = await OverallTrainingProgress.aggregate([
+            {
+                $match: { isDeleted: { $ne: true } },
+            },
+            {
+                $project: {
+                    user: 1,
+                    status: 1,
+                },
+            },
+        ]);
+
+        // Build a fast lookup map for userId → progress status
+        const userProgressMap = new Map();
+
+        for (const p of progresses) {
+            if (!userProgressMap.has(String(p.user))) {
+                userProgressMap.set(String(p.user), []);
+            }
+            userProgressMap.get(String(p.user)).push(p.status);
+        }
+
+        // 3️⃣ Compute per company → vessel grouping
+        const stats = {};
+
+        for (const v of vessels) {
+            const key = `${v.companyName || "No Company"}||${v.vesselName || "No Vessel"}`;
+            stats[key] = {
+                companyName: v.companyName || "No Company",
+                vesselName: v.vesselName || "No Vessel",
+                totalUsers: 0,
+                isPasswordResetTrue: 0,
+                isPasswordResetFalse: 0,
+                totalEnrolledUsers: 0,
+                usersStartedCourses: 0,
+                usersWithNoEnrollment: 0,
+            };
+        }
+
+        for (const user of users) {
+            const company = user.companyName || "No Company";
+            const vessel = user.vesselName || "No Vessel";
+            const key = `${company}||${vessel}`;
+
+            if (!stats[key]) {
+                stats[key] = {
+                    companyName: company,
+                    vesselName: vessel,
+                    totalUsers: 0,
+                    isPasswordResetTrue: 0,
+                    isPasswordResetFalse: 0,
+                    totalEnrolledUsers: 0,
+                    usersStartedCourses: 0,
+                    usersWithNoEnrollment: 0,
+                };
+            }
+
+            const s = stats[key];
+            s.totalUsers++;
+
+            if (user.isResetPasswordDialog) s.isPasswordResetTrue++;
+            else s.isPasswordResetFalse++;
+
+            const progress = userProgressMap.get(String(user._id));
+
+            if (progress && progress.length > 0) {
+                s.totalEnrolledUsers++;
+                if (progress.some(st => ["IN_PROGRESS", "COMPLETED"].includes(st))) {
+                    s.usersStartedCourses++;
+                }
+            }
+        }
+
+        // Include vessels that might not have appeared in user loop
+        for (const key in stats) {
+            const s = stats[key];
+            s.usersWithNoEnrollment = s.totalUsers - s.totalEnrolledUsers;
+        }
+
+        // 4️⃣ Sort by company name and vessel name
+        const orderedStats = Object.values(stats).sort((a, b) => {
+            if (a.companyName === b.companyName) {
+                return a.vesselName.localeCompare(b.vesselName);
+            }
+            return a.companyName.localeCompare(b.companyName);
+        });
+
+        return orderedStats;
+    } catch (err) {
+        console.error("Error fetching system stats per vessel:", err);
+        throw err;
+    }
+};
+
 module.exports.queries = {
+    getSystemStatsPerVessel,
     getMainLearnersReport,
     getSingleLearnerReport,
     getMainCoursesReport,
