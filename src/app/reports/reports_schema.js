@@ -311,6 +311,17 @@ module.exports = {
         type s3PathOutput {
             url : String
         }
+            
+        type SystemStatsPerVesselOutput {
+            companyName: String!
+            vesselName: String!
+            totalUsers: Int!
+            isPasswordResetTrue: Int!
+            isPasswordResetFalse: Int!
+            totalEnrolledUsers: Int!
+            usersStartedCourses: Int!
+            usersWithNoEnrollment: Int!
+        }
     `,
     queries: `
         getRevenueReports(pageInput: PageInput, filterInput: RevenueReportFilterInput): RevenueReportsList!
@@ -326,5 +337,6 @@ module.exports = {
         generateCustomReport(input: customReportInput!): customReportGenerated
         getCustomReportLogs(pageInput : PageInput,searchQuery:String):[customReportLogOutput]
         getS3FilePath(filePath:String!): s3PathOutput
+        getSystemStatsPerVessel: [SystemStatsPerVesselOutput]
     `,
 };
