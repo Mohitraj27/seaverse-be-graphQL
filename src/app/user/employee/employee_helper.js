@@ -3801,7 +3801,7 @@ module.exports = {
                                         civilIdOrPassport: user.civilIdOrPassport,
                                         vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                                         currentVessel: user?.imoNumber && user?.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
-                                        isRegistered: false, // to enter users in unregistered state
+                                        // isRegistered: false, // to enter users in unregistered state
                                     },
                                 },
                             },
@@ -3836,7 +3836,7 @@ module.exports = {
                                     email: user.email,
                                     vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                                     currentVessel: user?.imoNumber && user?.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
-                                    isRegistered: false, // to enter users in unregistered state
+                                    // isRegistered: false, // to enter users in unregistered state
                                 },
                             },
                         },
@@ -3916,7 +3916,7 @@ module.exports = {
                                     civilIdOrPassport: user.civilIdOrPassport,
                                     vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                                     currentVessel: user?.imoNumber && user?.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
-                                    isRegistered: false, // to enter users in unregistered state
+                                    // isRegistered: false, // to enter users in unregistered state
                                 },
                             },
                         },
@@ -3974,7 +3974,7 @@ module.exports = {
                         password: await CryptoHelper.hash(password, 10),
                         subscriber: subscriber_Id ?? null,
                         isSignupAdminAprroved: true,
-                        isRegistered: false, // to enter users in unregistered state
+                        // isRegistered: false, // to enter users in unregistered state
                     });
 
                     if (user.imoNumber && user.vesselStatus.toUpperCase() !== VesselStatus.ONSHORE) {
@@ -4410,7 +4410,7 @@ module.exports = {
 
             if (decryptedPasswordEmailList.length > 0) {
 
-                // await sendBulkEmails(decryptedPasswordEmailList);
+                await sendBulkEmails(decryptedPasswordEmailList);
 
             }
 
