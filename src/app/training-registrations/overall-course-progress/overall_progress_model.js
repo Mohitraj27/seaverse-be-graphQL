@@ -111,6 +111,10 @@ const overallProgressSchema = new Schema(
             type: Boolean,
             default: false
         },
+        certificateNotificationSent: {
+            type: Boolean,
+            default: false
+        },
         contentFromDownload: [
             {
                 courseDetails: [
@@ -128,7 +132,8 @@ const overallProgressSchema = new Schema(
                 },
                 downloadedCertificateLayoutId: ObjectId,
             }
-        ]
+        ],
+        claimedAt: Date,
     },
     { timestamps: true }
 )

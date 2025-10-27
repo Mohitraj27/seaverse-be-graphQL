@@ -81,6 +81,7 @@ const { VesselType } = require('../../vessle/vessel-type/vessel_type_model');
 const { ImportJob } = require("./import_job_model");
 const { TrainingContentBridge } = require("../../trainings/training_content_bridge/training_content_model");
 const trainingRegistrationHelper = require("../../training-registrations/training_registration_helper");
+const { sendEmailToLearner } = require("../../email-template/sendWelcomeEmail");
 
 const sendCredentialMail = async ({ userData }) => {
     let subscriberLogo = null;
@@ -783,7 +784,45 @@ async function enrollUsers(enrollDataArray, context) {
         throw CustomError(ErrorName.FAILED, error.message);
     }
 }
+const sendWelcomeEmailBulk = async () => {
+    try {
+        let results = [];
+        while (true) {
+            const emailBatch = await SqliteEmailHelper.fetchInsertSendWelcomeEmailsBatch();
+            if (!emailBatch.length) break;
 
+            // Generate HTML content dynamically
+            const emailsToSend = emailBatch.map(email => {
+
+                const html = sendEmailToLearner({
+                    firstName: email.firstName,
+                    email: email.email,
+                    temp_password: email.temp_password,
+                    buttonLink: `${process.env.APP_URL}/login?isResetPasswordDialog=false&isTermsAccepted=false`
+                });
+
+                console.log("-----emailsToSend----- ", email.email);
+                return { to: email.email, subject: "Registration Invitation", html };
+            });
+            // Send emails (use sendWithRetry logic from existing code)
+            const batchResults = await sendCourseMailsWithRetry(emailsToSend);
+            results = results.concat(batchResults);
+            await delay(200);
+
+            // Delete processed emails
+            const emailIds = emailBatch.map(email => email.id);
+            await SqliteEmailHelper.deleteInsertSendWelcomeEmailsBatch(emailIds);
+        }
+
+        // Return summary ( in case you have to verify success and errors, console the results)
+        const { successCount, errorCount, errors } = summarizeResults(results);
+
+        return { success: true, message: `Sent ${successCount}, failed ${errorCount}`, errors };
+
+    } catch (error) {
+        return { success: false, message: error.message };
+    }
+};
 const sendCourseEmailBulk = async (action = 'ENROLL') => {
     try {
         let results = [];
@@ -3130,6 +3169,7 @@ module.exports = {
     enrollUsers,
     // moveExpiredDeletedUsers,
     sendNotificationOnBULK,
+    sendWelcomeEmailBulk,
     updateEmployees: async ({ id, input, userId, subscriberId, role, userInfo }, context, session) => {
 
         const employeeFilterConditions = { subscriber: subscriberId };
@@ -3803,13 +3843,48 @@ module.exports = {
 
         const caseInsensitiveEmpIdArray = empIdsArray.map((id) => new RegExp(`^${id}$`, 'i'));
 
+        // Filter out users with missing required fields before processing
+        users = users.filter(user => user.civilIdOrPassport && user.email);
+
+        // Check for duplicates within the CSV data itself
+        const csvEmails = new Map(); // Use Map to track row numbers
+        const csvEmpIds = new Map();
+        const duplicateErrors = [];
+
+        console.log(`Processing ${users.length} users after filtering missing fields`);
+
+        users = users.filter((user, index) => {
+            const email = user.email?.trim().toLowerCase();
+            const empId = user.civilIdOrPassport?.trim().toUpperCase();
+
+            if (csvEmails.has(email)) {
+                const firstOccurrence = csvEmails.get(email);
+                duplicateErrors.push(`Row ${index + 1}: Duplicate email found in CSV - ${email} (first seen at row ${firstOccurrence})`);
+                console.log(`Duplicate email detected: ${email} at row ${index + 1} (first seen at row ${firstOccurrence})`);
+                return false;
+            }
+
+            if (csvEmpIds.has(empId)) {
+                const firstOccurrence = csvEmpIds.get(empId);
+                duplicateErrors.push(`Row ${index + 1}: Duplicate User ID found in CSV - ${empId} (first seen at row ${firstOccurrence})`);
+                console.log(`Duplicate User ID detected: ${empId} at row ${index + 1} (first seen at row ${firstOccurrence})`);
+                return false;
+            }
+
+            csvEmails.set(email, index + 1);
+            csvEmpIds.set(empId, index + 1);
+            return true;
+        });
+
+        console.log(`After duplicate removal: ${users.length} users remaining, ${duplicateErrors.length} duplicates found`);
+
         users = users.map(user => {
             return {
                 ...user,
-                firstName: encrypt(user.firstName.trim().toLowerCase()),
-                lastName: user.lastName.trim().toLowerCase() ? encrypt(user.lastName.trim().toLowerCase()) : '',
-                civilIdOrPassport: encrypt(user.civilIdOrPassport.trim().toUpperCase()),
-                email: encrypt(user.email.trim().toLowerCase()),
+                firstName: encrypt(user.firstName?.trim().toLowerCase()),
+                lastName: user.lastName?.trim().toLowerCase() ? encrypt(user.lastName.trim().toLowerCase()) : '',
+                civilIdOrPassport: user.civilIdOrPassport ? encrypt(user.civilIdOrPassport.trim().toUpperCase()) : '',
+                email: encrypt(user.email?.trim().toLowerCase()),
             }
         })
 
@@ -3837,12 +3912,12 @@ module.exports = {
         })
 
         const existingEmpIdEmailMap = existingUsers.map(user => ({
-            [user.civilIdOrPassport.toLowerCase()]: user.email?.toLowerCase()
+            [user.civilIdOrPassport?.toLowerCase()]: user.email?.toLowerCase()
         }));
 
 
         const existingEmailEmpIdMap = existingUsers.map(user => ({
-            [user.email?.toLowerCase()]: user.civilIdOrPassport.toLowerCase()
+            [user.email?.toLowerCase()]: user.civilIdOrPassport?.toLowerCase()
         }))
 
 
@@ -3850,9 +3925,18 @@ module.exports = {
         const getAllDBUsers = await User.find().select('email civilIdOrPassport');
         const getAllDBEmails = getAllDBUsers.map(user => user.email?.toLowerCase());
         const getAllDBEmpIds = getAllDBUsers.map(user => user.civilIdOrPassport?.toUpperCase());
-        let errors = [];
+        let errors = [...duplicateErrors];
         const updates = [];
         const inserts = [];
+
+        // If there are duplicate errors, return early
+        if (duplicateErrors.length > 0) {
+            return {
+                success: false,
+                errors: errors,
+                message: `CSV contains duplicate entries. Please fix duplicates and try again.`
+            };
+        }
 
         let userIndex = 0;
 
@@ -3879,6 +3963,12 @@ module.exports = {
 
         console.time('userValidationLoop');
         for (const user of users) {
+            // Skip users with missing required fields
+            if (!user.civilIdOrPassport || !user.email) {
+                errors.push(`Row ${userIndex + 1}: Missing required fields (User ID or Email)`);
+                userIndex++;
+                continue;
+            }
 
             const existingEmpIdsMap = existingEmpIdEmailMap.find(empObj => empObj[user.civilIdOrPassport?.toLowerCase()]);
             const existingEmailIdsMap = existingEmailEmpIdMap.find(emailObj => emailObj[user.email?.toLowerCase()]);
@@ -3886,11 +3976,11 @@ module.exports = {
 
             if (existingEmpIdsMap) {
 
-                const email = existingEmpIdsMap[user.civilIdOrPassport.toLowerCase()];
+                const email = existingEmpIdsMap[user.civilIdOrPassport?.toLowerCase()];
 
                 if (existingEmailIdsMap) {
 
-                    const empId = existingEmailIdsMap[user.email?.toLowerCase()].toUpperCase();
+                    const empId = existingEmailIdsMap[user.email?.toLowerCase()]?.toUpperCase();
 
                     if (empId !== user.civilIdOrPassport?.toUpperCase() && existingEmailsInDB.has(user.civilIdOrPassport?.toUpperCase())) {
 
@@ -3909,6 +3999,7 @@ module.exports = {
                                         civilIdOrPassport: user.civilIdOrPassport,
                                         vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                                         currentVessel: user?.imoNumber && user?.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
+                                        isRegistered: false, // to enter users in unregistered state
                                     },
                                 },
                             },
@@ -3943,6 +4034,7 @@ module.exports = {
                                     email: user.email,
                                     vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                                     currentVessel: user?.imoNumber && user?.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
+                                    isRegistered: false, // to enter users in unregistered state
                                 },
                             },
                         },
@@ -3969,7 +4061,7 @@ module.exports = {
 
                     const email = existingEmpIdsMap[user.civilIdOrPassport?.toUpperCase()];
 
-                    if (email !== user.email.toLowerCase() && existingEmpIdsInDB.has(user.email.toLowerCase())) {
+                    if (email !== user.email?.toLowerCase() && existingEmpIdsInDB.has(user.email?.toLowerCase())) {
 
                         errors.push(errors.push(`Conflict in Row ${userIndex + 1}: The provided User ID or Email ID is already associated with another user`));
                         break;
@@ -3987,6 +4079,7 @@ module.exports = {
                                         email: user.email,
                                         vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                                         currentVessel: user?.imoNumber && user?.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
+                                        isRegistered: false, // to enter users in unregistered state
                                     },
                                 },
                             },
@@ -4021,6 +4114,7 @@ module.exports = {
                                     civilIdOrPassport: user.civilIdOrPassport,
                                     vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                                     currentVessel: user?.imoNumber && user?.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
+                                    isRegistered: false, // to enter users in unregistered state
                                 },
                             },
                         },
@@ -4047,13 +4141,24 @@ module.exports = {
                     break;
 
 
-                } else if (getAllDBEmpIds.includes(user.civilIdOrPassport.toLowerCase())) {
+                } else if (getAllDBEmpIds.includes(user.civilIdOrPassport?.toLowerCase())) {
 
                     errors.push(errors.push(`Conflict in Row ${userIndex + 1}: The provided User ID or Email ID is already associated with another user`));
                     break;
 
                 } else {
 
+                    // Double-check for duplicates in inserts array before adding
+                    const isDuplicateInInserts = inserts.some(existingUser =>
+                        existingUser.email === user.email ||
+                        existingUser.civilIdOrPassport === user.civilIdOrPassport
+                    );
+
+                    if (isDuplicateInInserts) {
+                        errors.push(`Row ${userIndex + 1}: Duplicate entry detected in processing queue`);
+                        userIndex++;
+                        continue;
+                    }
 
                     let password = dummyPassword.dummy_pwd;
 
@@ -4066,7 +4171,8 @@ module.exports = {
                         currentVessel: user.imoNumber && user.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
                         password: await CryptoHelper.hash(password, 10),
                         subscriber: subscriber_Id ?? null,
-                        isSignupAdminAprroved: true
+                        isSignupAdminAprroved: true,
+                        isRegistered: false, // to enter users in unregistered state
                     });
 
                     if (user.imoNumber && user.vesselStatus.toUpperCase() !== VesselStatus.ONSHORE) {
@@ -4135,10 +4241,44 @@ module.exports = {
 
         let endUsers = [];
 
+        console.log(`About to insert ${inserts.length} users`);
+        console.log('Sample insert emails:', inserts.slice(0, 3).map(u => u.email));
+
         const saveEmployees = await DbTransactionHelper.performDbTransaction(async session => {
 
             console.time("bulkInsertUsers")
-            bulkInsertUsers = await User.insertMany(inserts, { session: session });
+            try {
+                bulkInsertUsers = await User.insertMany(inserts, { session: session, ordered: false });
+            } catch (error) {
+                if (error.name === 'BulkWriteError') {
+                    // Handle partial success - some users were inserted successfully
+                    console.log(`Bulk insert partially successful. ${error.result.insertedCount} users inserted, ${error.writeErrors.length} errors`);
+                    bulkInsertUsers = error.result.insertedIds ? Object.values(error.result.insertedIds) : [];
+
+                    // Log the specific duplicate errors with more detail
+                    error.writeErrors.forEach((writeError, index) => {
+                        if (writeError.code === 11000) { // Duplicate key error
+                            console.log(`Duplicate key error at index ${writeError.index}:`, writeError.errmsg);
+
+                            // Try to find the original user data that caused this error
+                            const failedUser = inserts[writeError.index];
+                            if (failedUser) {
+                                console.log(`Failed user data:`, {
+                                    email: failedUser.email,
+                                    civilIdOrPassport: failedUser.civilIdOrPassport
+                                });
+                            }
+
+                            errors.push(`Duplicate entry detected at row ${writeError.index + 1}: Email or User ID already exists in database`);
+                        } else {
+                            console.log(`Other error at index ${writeError.index}:`, writeError.errmsg);
+                            errors.push(`Error at row ${writeError.index + 1}: ${writeError.errmsg}`);
+                        }
+                    });
+                } else {
+                    throw error; // Re-throw if it's not a BulkWriteError
+                }
+            }
             console.timeEnd("bulkInsertUsers")
 
 
@@ -4256,7 +4396,7 @@ module.exports = {
                 console.timeEnd('vesselBulkWrite')
 
                 const employeesToInsert = allUpdatedUsers.map(user => {
-                    const originalUserData = users.find(u => u.civilIdOrPassport.toLowerCase() === user.civilIdOrPassport.toLowerCase());
+                    const originalUserData = users.find(u => u.civilIdOrPassport?.toLowerCase() === user.civilIdOrPassport?.toLowerCase());
 
 
                     return {
@@ -4447,9 +4587,9 @@ module.exports = {
                     throw CustomError(ErrorName.INDEX_DOC_ELASTIC_SEARCH, `Elastic Insert Error (users): ${error}`)
                 }
 
-                console.time('filterPlans')
-                const filteredPlans = await filterLearningPlans(learningPlans, conditionsList, context, session);
-                console.timeEnd('filterPlans')
+                // console.time('filterPlans')
+                // const filteredPlans = await filterLearningPlans(learningPlans, conditionsList, context, session);
+                // console.timeEnd('filterPlans')
 
                 // if (filteredPlans.length > 0) {
                 //     console.log("filteredPlans: ", filteredPlans);

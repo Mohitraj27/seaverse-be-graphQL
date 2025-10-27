@@ -1,4 +1,5 @@
 function sendWelcomeEmailsToLearner(user) {
+    const stepByStepGuideLink = 'https://seaverse-prod.s3.eu-west-1.amazonaws.com/public/Seaverse+Walkthrough+14-10-25+V2.mp4';
     return `
     <html lang="en">
 
@@ -68,11 +69,9 @@ function sendWelcomeEmailsToLearner(user) {
                                         </td>
                                 </tr>
                                 <tr>
-                                    <td
-                                        style="padding: 0 0 24px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; color: #384860;">
-                                        <p>Thanks</p>
-                                        <p></p>
-                                        <p>Seaverse Team</p>
+                                    <td style="padding: 0 0 24px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; line-height: 24px; color: #384860;">
+                                        In case of any difficulty, here is your 
+                                        <a href="${stepByStepGuideLink}" target="_blank" style="font-weight:700; color:#FFFFFF; text-decoration:none; background-color:#1E3A76; border-radius:0px;padding:2px 1px;  display:inline-block;line-height:1;white-space:nowrap;">Step-by-Step Guide</a>
                                     </td>
                                 </tr>
                                 <tr>
@@ -89,6 +88,13 @@ function sendWelcomeEmailsToLearner(user) {
                                         </a>
                                     </td>
                                 </tr>
+
+                                <tr>
+                                    <td style="padding-top: 24px; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; color: #384860;">
+                                        Thanks,<br>Seaverse Team
+                                    </td>
+                                </tr>
+
                             </table>
                         </td>
                     </tr>
@@ -109,6 +115,7 @@ function sendWelcomeEmailsToLearner(user) {
 }
 
 function sendEmailToLearner(user) {
+    const stepByStepGuideLink = 'https://seaverse-prod.s3.eu-west-1.amazonaws.com/public/Seaverse+Walkthrough+14-10-25+V2.mp4';
     return `
     <html lang="en">
 <head>
@@ -169,14 +176,13 @@ function sendEmailToLearner(user) {
                                 </tr>
                                 <tr>
                                     <td style="padding: 0 0 24px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; line-height: 24px; color: #384860;">
-                                        Click the button below to log in and start your learning journey:
+                                        In case of any difficulty, here is your 
+                                       <a href="${stepByStepGuideLink}" target="_blank" style="font-weight:700; color:#FFFFFF; text-decoration:none; background-color:#1E3A76; border-radius:0px;padding:2px 1px;  display:inline-block;line-height:1;white-space:nowrap;">Step-by-Step Guide</a>.
                                     </td>
                                 </tr>
                                 <tr>
-                                    <td style="padding: 0 0 24px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; color: #384860;">
-                                        <p>Thanks,</p>
-                                        <p></p>
-                                        <p>Seaverse Team</p>
+                                    <td style="padding: 0 0 24px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; line-height: 24px; color: #384860;">
+                                        Click the button below to log in and start your learning journey:
                                     </td>
                                 </tr>
                                 <tr>
@@ -190,6 +196,11 @@ function sendEmailToLearner(user) {
                                                 </tr>
                                             </table>
                                         </a>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding-top: 24px; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; color: #384860;">
+                                        Thanks,<br>Seaverse Team
                                     </td>
                                 </tr>
                             </table>

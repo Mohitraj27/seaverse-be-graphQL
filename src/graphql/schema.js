@@ -147,7 +147,9 @@ module.exports = GqlHelper(`
         _id: ID
         lang: String
         url: String
+        originalUrl: String
         s3Path: String
+        originals3Path: String
         isDefault: Boolean
         duration: String
         isShowSubtitle: Boolean

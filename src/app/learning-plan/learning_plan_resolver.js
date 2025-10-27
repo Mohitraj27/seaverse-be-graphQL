@@ -761,6 +761,21 @@ module.exports.queries = {
                         from: "overalltrainingprogresses",
                         let: { learningPlanId: "$_id" },
                         pipeline: [
+                            // {
+                            //     $match: {
+                            //         $expr: {
+                            //             $and: [
+                            //                 {
+                            //                     $in: [
+                            //                         { $toObjectId: "$$learningPlanId" },
+                            //                         "$learningPlan",
+                            //                     ],
+                            //                 },
+                            //                 { $ne: ["$isEnrolled", false] },
+                            //             ],
+                            //         },
+                            //     },
+                            // },
                             {
                                 $match: {
                                     $expr: {
