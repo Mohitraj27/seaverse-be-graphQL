@@ -1116,7 +1116,7 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
 
     }
 
-    await sendNotificationAndMailForAutoEnrollment(uniqueUserIds, uniqueTrainingIds, nonNotificationRecievers,userToLearningPlansObject, context);
+    await sendNotificationAndMailForAutoEnrollment(uniqueUserIds, uniqueTrainingIds, nonNotificationRecievers, userToLearningPlansObject, context);
 
     return filteredPlans.filter(Boolean);
 }
