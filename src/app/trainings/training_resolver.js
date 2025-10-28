@@ -107,21 +107,21 @@ module.exports.queries = {
                     pipeline: [{ $project: { firstName: 1, lastName: 1, email: 1, _id: 1 } }],
                 },
             },
-            {
-                $lookup: {
-                    from: "overalltrainingprogresses",
-                    localField: "_id",
-                    foreignField: "training",
-                    as: "trainingUsers",
-                    pipeline: [
-                        { $project: { _id: 1 } }
-                    ]
-                },
-            },
+            // {
+            //     $lookup: {
+            //         from: "overalltrainingprogresses",
+            //         localField: "_id",
+            //         foreignField: "training",
+            //         as: "trainingUsers",
+            //         pipeline: [
+            //             { $project: { _id: 1 } }
+            //         ]
+            //     },
+            // },
             {
                 $addFields: {
                     createdBy: { $arrayElemAt: ["$createdByDetails", 0] },
-                    countOfUsers: { $size: "$trainingUsers" },
+                    // countOfUsers: { $size: "$trainingUsers" },
                 },
             },
             {
