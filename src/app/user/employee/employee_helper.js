@@ -82,6 +82,8 @@ const { ImportJob } = require("./import_job_model");
 const { TrainingContentBridge } = require("../../trainings/training_content_bridge/training_content_model");
 const trainingRegistrationHelper = require("../../training-registrations/training_registration_helper");
 const { sendEmailToLearner } = require("../../email-template/sendWelcomeEmail");
+const { MigrationCourse } = require('../../trainings/migrationcourses/migration_courses_model');
+const { runQuery, runQueryStream } = require("../../../util/mysql_helper");
 
 const sendCredentialMail = async ({ userData }) => {
     let subscriberLogo = null;
@@ -332,17 +334,17 @@ async function enrollUsers(enrollDataArray, context) {
             allUserIds.push(...userIds);
             allTrainingIds.push(...trainingIds);
         }
-        
-        
-        
+
+
+
         const userObjectIds = [...new Set(allUserIds)].map(id => new mongoose.Types.ObjectId(id));
         const trainingObjectIds = [...new Set(allTrainingIds)].map(id => new mongoose.Types.ObjectId(id));
-        
+
         const trainingsWithMigration = await Training.find({
             _id: { $in: trainingObjectIds },
             migrationcoursesId: { $exists: true, $ne: null }
         }, { _id: 1, migrationcoursesId: 1 }).lean();
-        
+
 
         let trainingRegistrations;
 
@@ -413,7 +415,7 @@ async function enrollUsers(enrollDataArray, context) {
 
         const trainings = [...new Set(enrollDataArray.flatMap(el => el.trainings))];
 
-        const trainingData = await Training.find({ _id: { $in: trainings.map(training => training._id) } }).lean();
+        const trainingData = await Training.find({ _id: { $in: trainings } }).lean();
 
         const trainingDataById = trainingData.reduce((acc, training) => {
             acc[training._id.toString()] = training;
@@ -424,9 +426,84 @@ async function enrollUsers(enrollDataArray, context) {
         // let trainingModuleContentData = [];
 
         const trainingContentGroupedByTraining = {};
+        let userEmailMap = {};
+        let finishedEmailsSet = new Set();
 
         if (trainingsWithMigration.length > 0) {
 
+            // Get the email Ids of all migration users who completed this training
+            const completedMigrationUsers = [];
+
+            // Collect all migration course IDs
+            const migrationCourseIds = trainingsWithMigration
+                .filter(t => t.migrationcoursesId)
+                .map(t => t.migrationcoursesId);
+
+            // Get all migration course IDs and their UIDs
+            const migrationCourses = await MigrationCourse.find({
+                _id: { $in: migrationCourseIds }
+            }).lean();
+
+            // Prepare UID map
+            const migrationCourseUIDMap = migrationCourses.reduce((acc, course) => {
+                const uid =
+                    typeof course.UID === 'string' && !isNaN(course.UID)
+                        ? Number(course.UID)
+                        : course.UID;
+                acc[course._id.toString()] = uid;
+                return acc;
+            }, {});
+
+            // Extract UIDs for SQL query
+            const migrationCourseUIDs = Object.values(migrationCourseUIDMap);
+
+            // ✅ Single SQL query for all migration UIDs
+            const sql = `
+                SELECT EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME, COURSE_ID
+                FROM (
+                    SELECT EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME, COURSE_ID
+                    FROM crew_certificates_synergy_new
+                    WHERE EMAIL IS NOT NULL
+                    AND COURSE_ID IN (?)
+
+                    UNION
+
+                    SELECT EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME, COURSE_ID
+                    FROM crew_certificates_denmark_new
+                    WHERE EMAIL IS NOT NULL
+                    AND COURSE_ID IN (?)
+                ) AS combined
+                GROUP BY EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME, COURSE_ID
+                ORDER BY FIRST_NAME, LAST_NAME;
+            `;
+
+            // Fetch all completed migration users in one go
+            for await (const row of runQueryStream(sql, [migrationCourseUIDs, migrationCourseUIDs])) {
+                completedMigrationUsers.push(row);
+            }
+
+
+            const emails = completedMigrationUsers.map(user => user.EMAIL.trim().toLowerCase());
+
+            finishedEmailsSet = new Set(emails);
+            const usersData = await User.find({ _id: { $in: userObjectIds } }, { _id: 1, email: 1 }).lean();
+
+            userEmailMap = usersData.reduce((acc, user) => {
+                if (user.email) {
+                    try {
+                        const decryptedEmail = decrypt(user.email);
+                        console.log("Decrypted email for user:", decryptedEmail);
+                        acc[user._id.toString()] = decryptedEmail;
+                    } catch (err) {
+                        console.error("Decryption failed for app user:", user.email);
+                    }
+                }
+                return acc;
+            }, {});
+
+
+
+            // Fetch content details to mark as completed for migration users
             const trainingsWithMigrationIds = trainingsWithMigration.map(t => t._id);
 
             const trainingModuleContentData = await TrainingContentBridge.find(
@@ -441,6 +518,7 @@ async function enrollUsers(enrollDataArray, context) {
 
                 for (const item of trainingModuleContentData) {
                     const { training, trainingModule, trainingContent } = item;
+
                     const trainingId = training.toString();
 
 
@@ -465,11 +543,6 @@ async function enrollUsers(enrollDataArray, context) {
             const userIds = Array.isArray(enrollData.users) ? enrollData.users : [enrollData.users];
             const trainingIds = Array.isArray(enrollData.trainings) ? enrollData.trainings : [enrollData.trainings];
 
-            console.log('userIds');
-            console.log(userIds);
-            console.log('trainingIds');
-            console.log(trainingIds);
-
             for (const userId of userIds) {
                 for (const trainingId of trainingIds) {
                     const key = `${userId}-${trainingId}`;
@@ -486,13 +559,26 @@ async function enrollUsers(enrollDataArray, context) {
                         // })
 
                         // Check if trainingId is in trainingsWithMigration
-                        const isMigrationTraining = trainingsWithMigration.some(t => t._id.toString() === trainingId.toString());
+                        // const isMigrationTraining = trainingsWithMigration.some(t => t._id.toString() === trainingId.toString());
+                        const migrationTraining = trainingsWithMigration.find(t => t._id.toString() === trainingId.toString());
+                        const isMigrationTraining = Boolean(migrationTraining);
+
+                        let isMigrationCompletedUser = false;
+
+                        if (isMigrationTraining) {
+                            console.log('User Email Map:', userEmailMap);
+                            console.log('Finished Emails Set:', finishedEmailsSet);
+                            const userEmailEncrypted = userEmailMap[userId.toString()];
+                            if (userEmailEncrypted && finishedEmailsSet.has(userEmailEncrypted)) {
+                                isMigrationCompletedUser = true;
+                            }
+                        }
 
                         const update = {
                             $addToSet: { learningPlan: enrollData.learningPlan }
                         };
-                        if (isMigrationTraining) {
-                            update.$set = { status: "COMPLETED", isFromMigration: true };
+                        if (isMigrationCompletedUser) {
+                            update.$set = { status: "COMPLETED", isFromMigration: true, progressPercentage: 100 };
                         }
                         bulkOps.push({
                             updateOne: {
@@ -501,8 +587,8 @@ async function enrollUsers(enrollDataArray, context) {
                             }
                         });
 
-                        // If migration, create dataset to update all related TrainingProgress documents to COMPLETED
-                        if (isMigrationTraining) {
+
+                        if (isMigrationCompletedUser) {
                             updateProgressOps.push({
                                 updateMany: {
                                     filter: {
@@ -514,20 +600,32 @@ async function enrollUsers(enrollDataArray, context) {
                         }
 
                     } else {
-                        console.log('reached inside this!!!');
                         // Check if migration training for new enrollment
-                        const isMigrationTraining = trainingsWithMigration.some(t => t._id.toString() === trainingId.toString());
-                        const trainingRegistrationId = trainingRegistrations.find(tr => tr.training.toString() === trainingId.toString())?._id;
+                        // const isMigrationTraining = trainingsWithMigration.some(t => t._id.toString() === trainingId.toString());
 
-                        console.log('isMigrationTraining');
-                        console.log(isMigrationTraining);
+                        const migrationTraining = trainingsWithMigration.find(t => t._id.toString() === trainingId.toString());
+                        const isMigrationTraining = Boolean(migrationTraining);
+
+                        let isMigrationCompletedUser = false;
+
+                        if (isMigrationTraining) {
+                            const userEmailEncrypted = userEmailMap[userId.toString()];
+                            if (userEmailEncrypted && finishedEmailsSet.has(userEmailEncrypted)) {
+                                isMigrationCompletedUser = true;
+                            }
+                        }
+
+                        console.log('User Email Map:', userEmailMap);
+                        console.log('Finished Emails Set:', finishedEmailsSet);
+
+                        const trainingRegistrationId = trainingRegistrations.find(tr => tr.training.toString() === trainingId.toString())?._id;
 
                         let status = "NOT_STARTED";
                         let progressPercentage = 0;
                         let isFromMigration = false;
                         const trainingModuleCount = moduleCountMap[trainingId.toString()] || 0;
                         let contentData = [];
-                        if (isMigrationTraining) {
+                        if (isMigrationCompletedUser) {
                             status = "COMPLETED";
                             progressPercentage = 100;
                             isFromMigration = true;
@@ -535,9 +633,6 @@ async function enrollUsers(enrollDataArray, context) {
                             // Add contentData array with moduleId and contentId
                             const trainingContentDataForOverallTraining = await trainingRegistrationHelper.extractTrainingContentData(trainingId, isFromMigration);
                             contentData = trainingContentDataForOverallTraining?.trainingModulesMap ?? [];
-
-                            console.log('contentData');
-                            console.log(contentData);
 
                         }
 
@@ -559,13 +654,11 @@ async function enrollUsers(enrollDataArray, context) {
                             contentData
                         );
 
-                        console.log('newEnrollment');
-                        console.log(newEnrollment);
 
                         insertedEnrollments.push(newEnrollment);
 
-                        // If isMigrationTraining, create docs in trainingProgresses collection with COMPLETED status for each content
-                        if (isMigrationTraining) {
+                        // If isMigrationCompletedUser, create docs in trainingProgresses collection with COMPLETED status for each content
+                        if (isMigrationCompletedUser) {
 
                             const groupedModules = trainingContentGroupedByTraining[trainingId.toString()];
                             if (!groupedModules) continue;
@@ -578,7 +671,7 @@ async function enrollUsers(enrollDataArray, context) {
 
                                     insertProgresses.push({
                                         training: trainingId,
-                                        trainingModule,
+                                        trainingModule: ObjectId(trainingModule),
                                         trainingModuleContent: trainingContent,
                                         status: "COMPLETED",
                                         progressPercentage: 100,
@@ -594,9 +687,6 @@ async function enrollUsers(enrollDataArray, context) {
                             }
 
                         }
-
-                        console.log('insertProgresses');
-                        console.log(insertProgresses);
 
                     }
                 }
@@ -668,7 +758,6 @@ async function enrollUsers(enrollDataArray, context) {
                     allProgresses.push(...result);
                 }
 
-                console.log('allProgresses', allProgresses);
 
                 console.timeEnd('Batch Insert');
                 return allEnrollments;

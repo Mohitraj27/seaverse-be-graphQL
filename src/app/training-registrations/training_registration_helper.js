@@ -414,7 +414,7 @@ const extractTrainingContentData = async (trainings, isFromMigration) => {
         });
     } else {
         trainingContentBridges = await TrainingContentBridge.find({
-            training: trainings, isDeleted: false
+            training: ObjectId(trainings), isDeleted: { $ne: true }
         })
     }
 
@@ -440,9 +440,6 @@ const extractTrainingContentData = async (trainings, isFromMigration) => {
         return result;
     }, []);
 
-    console.log('trainingModulesMap');
-    console.log(trainingModulesMap);
-    
     const trainingTotalModules = trainingModulesMap.length
     return { trainingModulesMap, trainingTotalModules };
 };
