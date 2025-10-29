@@ -338,5 +338,6 @@ module.exports = {
         getCustomReportLogs(pageInput : PageInput,searchQuery:String):[customReportLogOutput]
         getS3FilePath(filePath:String!): s3PathOutput
         getSystemStatsPerVessel: [SystemStatsPerVesselOutput]
+        exportActiveVesselsToExcel : mainVesselReportOutput
     `,
 };

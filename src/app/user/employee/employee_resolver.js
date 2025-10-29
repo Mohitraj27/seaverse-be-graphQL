@@ -4292,6 +4292,383 @@ module.exports.mutations = {
             throw CustomError(ErrorName.FAILED_TO_EXPORT_USERS_TO_CSV, error.message);
         }
     },
+    exportUserDataForPowerBi: async ({ userObjectIds }, context) => {
+        const { role, userId, subscriberId, userInfo } = AuthUser(context);
+        if (!role || role !== Role.ADMIN) {
+            throw CustomError(ErrorName.FORBIDDEN);
+        }
+        const hardcodedFields = [
+            "First Name",
+            "Last Name",
+            "User ID",
+            "Email",
+            "Designation",
+            "Vessel Name",
+            "IMO Number",
+            "Current Status",
+            "Last Login",
+            "Created At",
+            "User Roles",
+            "Vessel Type",
+            "User Status",
+            "User State",
+        ];
+
+        try {
+            if (userObjectIds?.regType === undefined || userObjectIds?.regType === null) {
+                throw CustomError(ErrorName.REGTYPE_REQUIRED, "regType is required.");
+            }
+            const notifications = [];
+            
+            const regType = userObjectIds?.regType;
+            if (![0, 1, 2].includes(regType)) {
+                throw CustomError(ErrorName.INVALID_REG_TYPE, "Invalid regType provided. Must be 0, 1, or 2.");
+            }
+            let employeeQuery = {};
+            if (regType === 0) {
+                employeeQuery = { regType: { $in: [1, 2] } };
+            } else {
+                employeeQuery = { regType: regType };
+            }
+
+            let userIds = [];
+            if (userObjectIds?.ids && userObjectIds.ids.length > 0) {
+                await checkUserRegType(userObjectIds.ids, regType);
+                userIds = userObjectIds.ids.map(id => mongoose.Types.ObjectId(id));
+            } else {
+                const employees = await Employee.find(employeeQuery).select('user');
+                userIds = employees.map(emp => emp.user);
+            }
+            const initialMatchStage = {
+                $match: {
+                    _id: { $in: userIds },
+                    isDeleted: false
+                }
+            };
+            if (userObjectIds?.filterInput) {
+                await processFilters(userObjectIds.filterInput, initialMatchStage);
+            }
+            const pipeline = [
+                initialMatchStage,
+                {
+                    $lookup: {
+                        from: 'employees',
+                        localField: '_id',
+                        foreignField: 'user',
+                        as: 'employeeDetails',
+                    },
+                },
+                { $unwind: { path: '$employeeDetails', preserveNullAndEmptyArrays: true } },
+                {
+                    $match: {
+                        'employeeDetails.regType': regType === 0 ? { $in: [1, 2] } : regType
+                    }
+                },
+                {
+                    $lookup: {
+                        from: 'vessels',
+                        localField: 'currentVessel',
+                        foreignField: '_id',
+                        as: 'vesselDetails',
+                    },
+                },
+                { $unwind: { path: '$vesselDetails', preserveNullAndEmptyArrays: true } },
+                {
+                    $lookup: {
+                        from: 'designations',
+                        localField: 'employeeDetails.empDesignation',
+                        foreignField: '_id',
+                        as: 'designationDetails',
+                    },
+                },
+                { $unwind: { path: '$designationDetails', preserveNullAndEmptyArrays: true } },
+                {
+                    $lookup: {
+                        from: 'uservessels',
+                        localField: '_id',
+                        foreignField: 'user',
+                        as: 'typeOfVesselDetails',
+                        pipeline: [
+                            {
+                                $lookup: {
+                                    from: 'vessels',
+                                    localField: 'vessel',
+                                    foreignField: '_id',
+                                    as: 'vesselDetails',
+                                },
+                            },
+                            { $unwind: { path: '$vesselDetails', preserveNullAndEmptyArrays: true } },
+                            {
+                                $lookup: {
+                                    from: 'vesseltypes',
+                                    localField: 'vesselDetails.typeOfVessel',
+                                    foreignField: '_id',
+                                    as: 'vesselTypes',
+                                },
+                            },
+                            { $unwind: { path: '$vesselTypes', preserveNullAndEmptyArrays: true } },
+                        ],
+                    },
+                },
+                { $unwind: { path: '$typeOfVesselDetails', preserveNullAndEmptyArrays: true } },
+                {
+                    $lookup: {
+                        from: 'subroles',
+                        localField: 'subRoles',
+                        foreignField: '_id',
+                        as: 'subRoleDetails',
+                    },
+                },
+                {
+                    $group: {
+                        _id: '$_id',
+                        firstName: { $first: '$firstName' },
+                        lastName: { $first: '$lastName' },
+                        civilIdOrPassport: { $first: '$civilIdOrPassport' },
+                        email: { $first: '$email' },
+                        designationName: { $first: '$designationDetails.name' },
+                        vesselName: {
+                            $first: {
+                                $cond: {
+                                    if: { $eq: ['$vesselDetails.isActive', true] },
+                                    then: '$vesselDetails.name',
+                                    else: ' ',
+                                },
+                            },
+                        },
+                        vesselImoNumber: {
+                            $first: {
+                                $cond: {
+                                    if: { $eq: ['$vesselDetails.isActive', true] },
+                                    then: '$vesselDetails.imoNumber',
+                                    else: ' ',
+                                },
+                            },
+                        },
+                        vesselStatus: { $first: '$vesselStatus' },
+                        lastLoginAt: { $first: '$lastLoginAt' },
+                        createdAt: { $first: '$createdAt' },
+                        role: { $first: '$role' },
+                        vesselType: { $first: '$typeOfVesselDetails.vesselTypes.name' },
+                        isResetPasswordDialog: { $first: '$isResetPasswordDialog' },
+                        isRegistered: { $first: '$isRegistered' },
+                        subRoleDetails: { $first: '$subRoleDetails' },
+                        isSignupAdminAprroved: { $first: '$isSignupAdminAprroved'},
+                    },
+                },
+                {
+                    $sort: { 'firstName': 1, 'lastName': 1 }
+                }
+            ];
+
+            const projectStage = {
+                $project: {
+                    "First Name": "$firstName",
+                    "Last Name": "$lastName",
+                    "User ID": "$civilIdOrPassport",
+                    Email: "$email",
+                    Designation: "$designationName",
+                    "Vessel Name": "$vesselName",
+                    "IMO Number": "$vesselImoNumber",
+                    "Current Status": {
+                        $cond: {
+                            if: { $eq: ["$vesselStatus", "ONBOARDED"] },
+                            then: "ONBOARD",
+                            else: "$vesselStatus",
+                        },
+                    },
+                    "Last Login": {
+                        $cond: {
+                            if: { $eq: ["$lastLoginAt", null] },
+                            then: " ",
+                            else: { $toDate: "$lastLoginAt" },
+                        },
+                    },
+                    "Created At": {
+                        $cond: {
+                            if: { $eq: ["$createdAt", null] },
+                            then: " ",
+                            else: { $toDate: "$createdAt" },
+                        },
+                    },
+                    "User Roles": {
+                        $concat: [
+                            "$role",
+                            {
+                                $cond: {
+                                    if: {
+                                        $and: [
+                                            { $isArray: "$subRoleDetails" },
+                                            { $gt: [{ $size: "$subRoleDetails" }, 0] },
+                                        ],
+                                    },
+                                    then: {
+                                        $concat: [
+                                            "  ",
+                                            {
+                                                $reduce: {
+                                                    input: "$subRoleDetails",
+                                                    initialValue: "",
+                                                    in: {
+                                                        $concat: [
+                                                            "$$value",
+                                                            {
+                                                                $cond: [
+                                                                    { $eq: ["$$value", ""] },
+                                                                    "",
+                                                                    ", ",
+                                                                ],
+                                                            },
+                                                            "$$this.name",
+                                                        ],
+                                                    },
+                                                },
+                                            },
+                                        ],
+                                    },
+                                    else: " ",
+                                },
+                            },
+                        ],
+                    },
+                    "Vessel Type": "$vesselType",
+                    "User Status": {
+                        $cond: {
+                            if: { $eq: ["$isSignupAdminAprroved", true] },
+                            then: "Accepted",
+                            else: "Not Accepted",
+                        },
+                    },
+                    "User State": {
+                        $cond: {
+                            if: { $eq: ["$isRegistered", true] },
+                            then: "Registered",
+                            else: "Unregistered",
+                        },
+                    },
+                },
+            };
+
+            pipeline.push(projectStage);
+
+
+            const users = await User.aggregate(pipeline);
+            if (users.length === 0) {
+                throw CustomError(ErrorName.NOT_FOUND, "No users found matching the criteria.");
+            }
+            const data = users.map(user => {
+                const rowData = {};
+                const isResetPassword = user?.isResetPasswordDialog ?? true;
+                hardcodedFields.forEach(field => {
+                    if (field === 'isResetPasswordDialog') {
+                        return;
+                    }
+                    if (field === 'Last Login' && user['Last Login'] !== 'N/A') {
+                        rowData[field] = isResetPassword ? formatDateWithSuffix(new Date(user['Last Login'])) : "";
+                    } else if (field === 'Created At' && user['Created At'] !== 'N/A') {
+                        rowData[field] = formatDateWithSuffix(new Date(user['Created At']));
+                    } else {
+                        rowData[field] = user[field] || ' ';
+                    }
+                });
+                return rowData;
+            });
+
+            /**  
+                        @initial_requirement
+                        //Old data to export user to csv
+            
+                        // const workbook = xlsx.utils.book_new();
+                        const worksheet = xlsx.utils.json_to_sheet(data);
+                        const csvData = xlsx.utils.sheet_to_csv(worksheet);
+                        // xlsx.utils.book_append_sheet(workbook, worksheet, "Users");
+                        // const excelBuffer = xlsx.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+                        const csvBuffer = Buffer.from(csvData, 'utf-8');
+                        const excelFilePath = await UploadHelper.uploadExcel({
+                            data: csvBuffer,
+                            folderName: "exports",
+                            fileName: `exported_users_${Date.now()}.csv`,
+                            uploadType: UploadHelper.uploadType.exportExcel,
+                        });
+              */
+
+            /**
+             * @description
+             *  New change exporting to xlsx file since csv had issue opening user ids with leading zeros
+             */
+            const decryptedData = data.map(user => ({
+                ...user,
+                "First Name": toUpperCaseFirstLetter(decrypt(user["First Name"])),
+                "Last Name": toUpperCaseFirstLetter(decrypt(user["Last Name"])),
+                Email: decrypt(user["Email"]),
+                "User ID": decrypt(user["User ID"]),
+            }));
+
+            const workbook = xlsx.utils.book_new();
+            const worksheet = xlsx.utils.json_to_sheet(decryptedData);
+            xlsx.utils.book_append_sheet(workbook, worksheet, "Users");
+            const excelBuffer = xlsx.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+            const excelFilePath = await UploadHelper.uploadExcel({
+                data: excelBuffer,
+                folderName: "exports",
+                fileName: `exported_users_${await generateFileNameTimestamp()}.xlsx`,
+                uploadType: UploadHelper.uploadType.exportExcel,
+            });
+
+            if (excelFilePath) {
+                const s3PresignedUrl = await AwsHelper.fetchFile(excelFilePath);
+                const urlObject = new URL(s3PresignedUrl);
+                const extractedfilePath = urlObject.pathname;
+                /* const exportEntry = new Export({
+                    filePath: extractedfilePath,
+                    subscriberId: subscriberId,
+                    createdBy: userId,
+                    updatedBy: userId,
+                    type_of_export: 'USER_EXPORT'
+                });
+                await exportEntry.save();
+                const successNotification = {
+                    subscriber: subscriberId,
+                    title: [{ lang: "en", value: `User Export Successful` }],
+                    message: [
+                        {
+                            lang: "en",
+                            // value: `The export user process completed successfully by ${decrypt(userInfo?.firstName)} ${userInfo.lastName ? decrypt(userInfo?.lastName) : ''}.`,
+                            value: `"User Export" file is ready:`,
+                        },
+                    ],
+                    notificationType: NotificationType.EXPORT_SUCCESSFUL,
+                    notifyAllAdmin: false,
+                    isNotificatonForAdmin: true,
+                    notifiers: [userId],
+                    additionalInfo: [
+                        {
+                            infoType: "EXPORT_URL",
+                            infoData: {
+                                filePath: excelFilePath
+                            }
+                        }
+                    ],
+                    employeeNotifiers: [],
+                    affected: [{ targetRef: "Export", target: exportEntry._id }],
+                    icon: notificationiconEnum.SUCCESS,
+                    createdBy: userInfo,
+                };
+                // notifications.push(successNotification);
+                await NotificationHelper.createNotification([successNotification]); */
+                return {
+                    status: true,
+                    message: "User Export successful",
+                    filePath: s3PresignedUrl,
+                    fileName: path.basename(excelFilePath)
+                };
+            } else {
+                throw CustomError(ErrorName.UPLOAD_FAILED);
+            }
+        } catch (error) {
+            throw CustomError(ErrorName.FAILED_TO_EXPORT_USERS_TO_CSV, error.message);
+        }
+    },
     createOrUpdateDynamicData: async ({ input }, context) => {
         const { role, userInfo, userPermissions, subscriberId, isOrganizationManager } =
             AuthUser(context);
