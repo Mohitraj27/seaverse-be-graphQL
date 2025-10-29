@@ -921,7 +921,7 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
                     usersToEnroll.push(...userIds);
                 }
             }
-
+            /*
             if (plan?.targetAudience === targetAudience.GROUP_BASED && plan?.audienceSelection === audienceSelection.ALL_EMPLOYEES) {
 
                 const resultforGroup = await findGroupBasedPublishedLearningPlans(plan, userConditions);
@@ -1005,7 +1005,7 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
 
                 }
             }
-
+            */
             if (usersToEnroll.length > 0) {
 
                 const enrollData = {
