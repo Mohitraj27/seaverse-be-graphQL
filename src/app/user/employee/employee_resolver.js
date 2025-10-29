@@ -4552,7 +4552,7 @@ module.exports.mutations = {
             pipeline.push(projectStage);
 
 
-            const users = await User.aggregate(pipeline);
+            const users = await User.aggregate(pipeline, { allowDiskUse: true }).option({ maxTimeMS: 300000 });
             if (users.length === 0) {
                 throw CustomError(ErrorName.NOT_FOUND, "No users found matching the criteria.");
             }
