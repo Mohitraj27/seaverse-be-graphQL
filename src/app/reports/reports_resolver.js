@@ -1779,7 +1779,7 @@ const exportActiveVesselsToExcel = async () => {
     // 1️⃣ Fetch and populate data
     const vessels = await Vessel.find({ isActive: true, isDeleted: false })
       .populate('typeOfVessel', 'name')
-      .populate('ownerId', 'name')
+      .populate('ownerId', 'firstName lastName')
       .lean();
 
     if (!vessels.length) {
@@ -1791,7 +1791,7 @@ const exportActiveVesselsToExcel = async () => {
       'IMO Number': v.imoNumber || '',
       'Type of Vessel': v.typeOfVessel?.name || ' ',
       'Company Name': v.companyName || '',
-      'Owner Name': v.ownerId?.name ? decrypt(v.ownerId.name) : " ",
+      'Owner Name': v.ownerId? decrypt(v.ownerId.firstName,true) : " " + v.ownerId?.lastName ? decrypt(v.ownerId?.lastName,true) : " ",
       'Status': v.isActive ? 'Active' : 'Inactive',
     }));
     // 3️⃣ Create workbook
