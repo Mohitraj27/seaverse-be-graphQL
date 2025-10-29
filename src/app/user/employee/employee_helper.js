@@ -301,7 +301,7 @@ const evaluateConditionalCustomFields = async (conditionType, conditionalCustomF
         : results.some(Boolean);
 };
 
-const createEnrollmentObject = (userId, trainingId, enrollData, trainingRegistrationIds, trainingModuleCounts, isCertificatePresent, currentCertificateLayout, status, progressPercentage, isFromMigration, overallTrainingProgressId, contentData) => ({
+const createEnrollmentObject = (userId, trainingId, enrollData, trainingRegistrationIds, trainingModuleCounts, isCertificatePresent, currentCertificateLayout, status, progressPercentage, isFromMigration, overallTrainingProgressId, contentData, endDate) => ({
     _id: overallTrainingProgressId,
     isComplete: false,
     isCertificateGenerated: false,
@@ -317,7 +317,8 @@ const createEnrollmentObject = (userId, trainingId, enrollData, trainingRegistra
     isCertificatePresent: isCertificatePresent ?? false,
     currentCertificateLayout: currentCertificateLayout ?? null,
     isFromMigration: isFromMigration || false,
-    contentData
+    contentData,
+    endDate: endDate || null,
 });
 
 async function enrollUsers(enrollDataArray, context) {
@@ -428,6 +429,7 @@ async function enrollUsers(enrollDataArray, context) {
         const trainingContentGroupedByTraining = {};
         let userEmailMap = {};
         let finishedEmailsSet = new Set();
+        let migrationIssuedAtMap = {};
 
         if (trainingsWithMigration.length > 0) {
 
@@ -459,21 +461,21 @@ async function enrollUsers(enrollDataArray, context) {
 
             // ✅ Single SQL query for all migration UIDs
             const sql = `
-                SELECT EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME, COURSE_ID
+                SELECT EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME, COURSE_ID, ISSUED_AT
                 FROM (
-                    SELECT EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME, COURSE_ID
+                    SELECT EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME, COURSE_ID, ISSUED_AT
                     FROM crew_certificates_synergy_new
                     WHERE EMAIL IS NOT NULL
                     AND COURSE_ID IN (?)
 
                     UNION
 
-                    SELECT EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME, COURSE_ID
+                    SELECT EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME, COURSE_ID, ISSUED_AT
                     FROM crew_certificates_denmark_new
                     WHERE EMAIL IS NOT NULL
                     AND COURSE_ID IN (?)
                 ) AS combined
-                GROUP BY EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME, COURSE_ID
+                GROUP BY EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME, COURSE_ID, ISSUED_AT
                 ORDER BY FIRST_NAME, LAST_NAME;
             `;
 
@@ -481,6 +483,14 @@ async function enrollUsers(enrollDataArray, context) {
             for await (const row of runQueryStream(sql, [migrationCourseUIDs, migrationCourseUIDs])) {
                 completedMigrationUsers.push(row);
             }
+
+            // Map: email -> ISSUED_AT date
+            migrationIssuedAtMap = completedMigrationUsers.reduce((acc, user) => {
+                if (user.EMAIL && user.ISSUED_AT) {
+                    acc[user.EMAIL.trim().toLowerCase()] = new Date(user.ISSUED_AT);
+                }
+                return acc;
+            }, {});
 
 
             const emails = completedMigrationUsers.map(user => user.EMAIL.trim().toLowerCase());
@@ -619,7 +629,14 @@ async function enrollUsers(enrollDataArray, context) {
                         let isFromMigration = false;
                         const trainingModuleCount = moduleCountMap[trainingId.toString()] || 0;
                         let contentData = [];
+                        let endDate = null;
                         if (isMigrationCompletedUser) {
+
+                            const decryptedEmail = userEmailMap[userId.toString()];
+                            if (decryptedEmail && migrationIssuedAtMap[decryptedEmail]) {
+                                endDate = migrationIssuedAtMap[decryptedEmail];
+                            }
+
                             status = "COMPLETED";
                             progressPercentage = 100;
                             isFromMigration = true;
@@ -645,7 +662,8 @@ async function enrollUsers(enrollDataArray, context) {
                             progressPercentage,
                             isFromMigration,
                             overallTrainingProgressId,
-                            contentData
+                            contentData,
+                            endDate
                         );
 
 
