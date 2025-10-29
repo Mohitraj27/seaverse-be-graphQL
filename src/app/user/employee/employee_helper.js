@@ -858,7 +858,7 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
                 usersToEnroll.push(...userIds);
             } else if (plan?.targetAudience === targetAudience.EVERYONE_IN_ORGANIZATION && plan?.audienceSelection === audienceSelection.AUTOMATIC) {
 
-                let evaluations;
+                let evaluations = userConditions.map(() => false); // Safe Intialization fallback to false
                 try {
 
                     console.time('evaluateConditionalCustomFields')
