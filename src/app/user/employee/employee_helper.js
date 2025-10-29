@@ -783,7 +783,7 @@ async function enrollUsers(enrollDataArray, context) {
         };
 
         run().then(() => {
-            console.log('✅ Total Inserted Documents:', allEnrollments?.length);;
+            console.log('✅ Total Inserted Documents:', allEnrollments?.length);
         });
 
 
