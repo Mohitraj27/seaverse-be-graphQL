@@ -4603,7 +4603,6 @@ module.exports.mutations = {
                 "User ID": decrypt(user["User ID"]),
             }));
 
-            console.log(decryptedData);
             const workbook = xlsx.utils.book_new();
             const worksheet = xlsx.utils.json_to_sheet(decryptedData);
             xlsx.utils.book_append_sheet(workbook, worksheet, "Users");
