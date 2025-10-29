@@ -492,7 +492,6 @@ async function enrollUsers(enrollDataArray, context) {
                 if (user.email) {
                     try {
                         const decryptedEmail = decrypt(user.email);
-                        console.log("Decrypted email for user:", decryptedEmail);
                         acc[user._id.toString()] = decryptedEmail;
                     } catch (err) {
                         console.error("Decryption failed for app user:", user.email);
@@ -566,8 +565,6 @@ async function enrollUsers(enrollDataArray, context) {
                         let isMigrationCompletedUser = false;
 
                         if (isMigrationTraining) {
-                            console.log('User Email Map:', userEmailMap);
-                            console.log('Finished Emails Set:', finishedEmailsSet);
                             const userEmailEncrypted = userEmailMap[userId.toString()];
                             if (userEmailEncrypted && finishedEmailsSet.has(userEmailEncrypted)) {
                                 isMigrationCompletedUser = true;
@@ -614,9 +611,6 @@ async function enrollUsers(enrollDataArray, context) {
                                 isMigrationCompletedUser = true;
                             }
                         }
-
-                        console.log('User Email Map:', userEmailMap);
-                        console.log('Finished Emails Set:', finishedEmailsSet);
 
                         const trainingRegistrationId = trainingRegistrations.find(tr => tr.training.toString() === trainingId.toString())?._id;
 
