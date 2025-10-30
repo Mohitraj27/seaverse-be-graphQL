@@ -880,25 +880,44 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
                 const usersToRemove = userConditions
                     .filter(user => !validUserIds.has(user._id))
                     .map(user => user._id);
-
+                /*
                 if (usersToRemove.length > 0) {
                     removeUsersData.push({
                         usersToRemove,
                         planId: plan._id
                     });
                 }
+                */
+               //  only push removeUsersData after verifying with LearningPlanAssignment.find()
+               if (usersToRemove.length > 0) {
+                    const existingAssignments = await LearningPlanAssignment.find({
+                        learningPlanId: plan._id,
+                        assignedLearnerId: { $in: usersToRemove },
+                        isDeleted: { $ne: true }
+                    }).lean();
+                    const existingOverallProgress = await OverallTrainingProgress.findOne({
+                        learningPlanId: plan._id,
+                        userId: { $in: usersToRemove },
+                        isDeleted: { $ne: true }
+                    });
+                    if (existingOverallProgress) {
+                        removeUsersData.push({ usersToRemove, planId: plan._id });
+                    }
+                    if (existingAssignments.length > 0 && existingOverallProgress.length >0) {
+                        removeUsersData.push({ usersToRemove, planId: plan._id });
+                    }
+                }
 
-                const userIds = validUsers.map(user => user._id);
+                    const userIds = validUsers.map(user => user._id);
 
                 if (validUsers?.length > 0) {
-
                     const existingAssignments = await LearningPlanAssignment.find({
                         learningPlanId: plan._id,
                         assignedLearnerId: { $in: userIds },
                         isDeleted: { $ne: true }
                     }, { assignedLearnerId: 1 });
 
-                    const alreadyAssignedUserIds = new Set(existingAssignments.map(assignment => assignment.assignedLearnerId.toString()));
+                        const alreadyAssignedUserIds = new Set(existingAssignments.map(assignment => assignment.assignedLearnerId.toString()));
 
                     const newAssignments = userIds
                         .filter(userId => !alreadyAssignedUserIds.has(userId.toString()))
@@ -921,91 +940,6 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
                     usersToEnroll.push(...userIds);
                 }
             }
-            /*
-            if (plan?.targetAudience === targetAudience.GROUP_BASED && plan?.audienceSelection === audienceSelection.ALL_EMPLOYEES) {
-
-                const resultforGroup = await findGroupBasedPublishedLearningPlans(plan, userConditions);
-
-
-                if (resultforGroup?.success) {
-
-                    const usersToRemove = userConditions
-                        .filter(user => !resultforGroup?.allMatchedUsers.includes(user._id))
-                        .map(user => user._id);
-
-                    if (usersToRemove.length > 0) {
-                        removeUsersData.push({
-                            usersToRemove,
-                            planId: plan._id
-                        });
-                    }
-
-                    const assignments = resultforGroup?.allMatchedUsers.map(userId => ({
-                        learningPlanId: resultforGroup?.planId,
-                        assignedLearnerId: userId,
-                        isMannuallyAdded: false,
-                        createdBy: context.user.userId,
-                        updatedBy: context.user.userId
-                    }));
-                    if (assignments?.length) {
-                        await LearningPlanAssignment.insertMany(assignments, { ordered: false });
-                    }
-                    usersToEnroll.push(...resultforGroup?.allMatchedUsers);
-                }
-            } else if (plan?.targetAudience === targetAudience.GROUP_BASED && plan?.audienceSelection === audienceSelection.AUTOMATIC) {
-
-                const resultforGroup = await findGroupBasedPublishedLearningPlans(plan, userConditions);
-
-                if (resultforGroup?.success && resultforGroup?.allMatchedUsers?.length > 0) {
-
-                    const validUsers = userConditions.filter(user =>
-                        evaluateConditionalCustomFields(plan.conditionType, plan.conditionalCustomFields, user)
-                    );
-                    const validUserIds = new Set(validUsers.map(user => user._id));
-                    const usersToRemove = userConditions
-                        .filter(user => !validUserIds.has(user._id))
-                        .map(user => user._id);
-
-                    if (usersToRemove.length > 0) {
-                        removeUsersData.push({
-                            usersToRemove,
-                            planId: plan._id
-                        });
-                    }
-
-                    const userIds = validUsers.map(user => user._id);
-
-                    if (validUsers?.length > 0) {
-
-                        const existingAssignments = await LearningPlanAssignment.find({
-                            learningPlanId: plan._id,
-                            assignedLearnerId: { $in: userIds },
-                            isDeleted: { $ne: true }
-                        }, { assignedLearnerId: 1 });
-
-                        const alreadyAssignedUserIds = new Set(existingAssignments.map(assignment => assignment.assignedLearnerId.toString()));
-
-                        const newAssignments = userIds
-                            .filter(userId => !alreadyAssignedUserIds.has(userId.toString()))
-                            .map(userId => ({
-                                learningPlanId: plan._id,
-                                assignedLearnerId: userId,
-                                isMannuallyAdded: false,
-                                createdBy: context.user.userId,
-                                updatedBy: context.user.userId,
-                                createdAt: new Date(),
-                                updatedAt: new Date()
-                            }));
-
-                        if (newAssignments.length > 0) {
-                            const dataEnrolled = await LearningPlanAssignment.insertMany(newAssignments, { ordered: false });
-                        }
-                        usersToEnroll.push(...userIds);
-                    }
-
-                }
-            }
-            */
             if (usersToEnroll.length > 0) {
 
                 const enrollData = {
@@ -1066,10 +1000,12 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
         userToLearningPlansObject[userId] = Array.from(planIds);
     });
     const nonNotificationRecievers = await OverallTrainingProgress.find({ training: { $in: uniqueTrainingIds }, user: { $in: uniqueUserIds } }).select("training user");
-
-    console.time('enrollUsersInFilterLP')
-    await enrollUsers(enrollmentData, context);
-    console.timeEnd('enrollUsersInFilterLP')
+    
+    if(enrollmentData?.length > 0){
+        console.time('enrollUsersInFilterLP')
+        await enrollUsers(enrollmentData, context);
+        console.timeEnd('enrollUsersInFilterLP')
+    }
 
     if (removeUsersData?.length > 0) {
         const bulkUpdateOps = [];
@@ -3166,7 +3102,12 @@ module.exports = {
             .catch((error) => {
                 console.error(error);
             });
-        const result = await filterLearningPlans(learningPlans, userConditions, context, session);
+            try{
+                const result = await filterLearningPlans(learningPlans, userConditions, context, session);
+                console.log(result,'response from filterLearningPlans helper');
+            }catch(error){
+                console.log(error);
+            };
 
         try {
             const userVesselsDetails = await Vessel.find({ _id: savedEmployee.user?.currentVessel, isDeleted: false, isActive: true }).populate('typeOfVessel', '_id name');
