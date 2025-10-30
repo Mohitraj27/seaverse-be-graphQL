@@ -822,7 +822,6 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
         throw new Error("userConditions should be an array");
     }
 
-    const usersToEnroll = [];
     let enrollDataSet = [];
     let enrollmentData = [];
     let removeUsersData = [];
@@ -831,7 +830,7 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
     const filteredPlans = [];
 
     for (const plan of learningPlans) {
-
+        const usersToEnroll = [];
         try {
 
             if (plan?.targetAudience === targetAudience.EVERYONE_IN_ORGANIZATION && plan?.audienceSelection === audienceSelection.ALL_EMPLOYEES) {
@@ -903,14 +902,12 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
                     if (existingOverallProgress) {
                         removeUsersData.push({ usersToRemove, planId: plan._id });
                     }
-                    if (existingAssignments.length > 0 && existingOverallProgress.length >0) {
+                   if (existingAssignments.length > 0 || existingOverallProgress) {
                         removeUsersData.push({ usersToRemove, planId: plan._id });
                     }
                 }
-
-                    const userIds = validUsers.map(user => user._id);
-
                 if (validUsers?.length > 0) {
+                    const userIds = validUsers.map(user => user._id);              
                     const existingAssignments = await LearningPlanAssignment.find({
                         learningPlanId: plan._id,
                         assignedLearnerId: { $in: userIds },
