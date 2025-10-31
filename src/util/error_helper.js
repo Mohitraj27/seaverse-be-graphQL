@@ -844,7 +844,9 @@ const formatError = error => {
     if (!errorObject) {
         errorObject = errorType[error.message];
     }
-    console.log({ errorObject });
+
+    console.log({ errorObject }, "errorObject");
+    console.log(JSON.stringify(errorObject), "JSON ERR STRINGIFY");
 
     return {
         message: errorObject?.message ?? "An error occurred",
