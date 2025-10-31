@@ -482,7 +482,8 @@ module.exports.mutations = {
             return signIn;
 
         } catch (error) {
-            throw new Error(error.message);
+            console.error("Failed to update last login time:", error);
+            throw CustomError(ErrorName.FAILED, `Failed to update last login time: ${error.message}`);
         }
     },
 
