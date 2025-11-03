@@ -79,7 +79,11 @@ const { client, deleteByQueryFromElasticSearch, updateDocumenttoElasticSearch, u
 const { MongoClient, ObjectId: mongodbObject } = require('mongodb');
 const { VesselType } = require('../../vessle/vessel-type/vessel_type_model');
 const { ImportJob } = require("./import_job_model");
+const { TrainingContentBridge } = require("../../trainings/training_content_bridge/training_content_model");
+const trainingRegistrationHelper = require("../../training-registrations/training_registration_helper");
 const { sendEmailToLearner } = require("../../email-template/sendWelcomeEmail");
+const { MigrationCourse } = require('../../trainings/migrationcourses/migration_courses_model');
+const { runQuery, runQueryStream } = require("../../../util/mysql_helper");
 
 const sendCredentialMail = async ({ userData }) => {
     let subscriberLogo = null;
@@ -297,20 +301,24 @@ const evaluateConditionalCustomFields = async (conditionType, conditionalCustomF
         : results.some(Boolean);
 };
 
-const createEnrollmentObject = (userId, trainingId, enrollData, trainingRegistrationIds, trainingModuleCounts, isCertificatePresent, currentCertificateLayout) => ({
+const createEnrollmentObject = (userId, trainingId, enrollData, trainingRegistrationIds, trainingModuleCounts, isCertificatePresent, currentCertificateLayout, status, progressPercentage, isFromMigration, overallTrainingProgressId, contentData, endDate) => ({
+    _id: overallTrainingProgressId,
     isComplete: false,
     isCertificateGenerated: false,
     learningPlan: enrollData.learningPlan ? [new mongodbObject(enrollData.learningPlan)] : [],
     training: new mongodbObject(trainingId),
     user: new mongodbObject(userId),
     trainingRegistration: new mongodbObject(trainingRegistrationIds[0]),
-    status: "NOT_STARTED",
+    status: status || "NOT_STARTED",
     isEnrolled: true,
-    progressPercentage: 0,
+    progressPercentage: progressPercentage || 0,
     completedModules: 0,
     totalTrainingModules: trainingModuleCounts || 0,
     isCertificatePresent: isCertificatePresent ?? false,
-    currentCertificateLayout: currentCertificateLayout ?? null
+    currentCertificateLayout: currentCertificateLayout ?? null,
+    isFromMigration: isFromMigration || false,
+    contentData,
+    endDate: endDate || null,
 });
 
 async function enrollUsers(enrollDataArray, context) {
@@ -328,8 +336,16 @@ async function enrollUsers(enrollDataArray, context) {
             allTrainingIds.push(...trainingIds);
         }
 
+
+
         const userObjectIds = [...new Set(allUserIds)].map(id => new mongoose.Types.ObjectId(id));
         const trainingObjectIds = [...new Set(allTrainingIds)].map(id => new mongoose.Types.ObjectId(id));
+
+        const trainingsWithMigration = await Training.find({
+            _id: { $in: trainingObjectIds },
+            migrationcoursesId: { $exists: true, $ne: null }
+        }, { _id: 1, migrationcoursesId: 1 }).lean();
+
 
         let trainingRegistrations;
 
@@ -361,7 +377,26 @@ async function enrollUsers(enrollDataArray, context) {
 
 
         const trainingRegistrationIds = trainingRegistrations.map(tr => tr._id);
-        const trainingModuleCounts = await TrainingModule.find({ training: { $in: trainingObjectIds } }).countDocuments();
+        // const trainingModuleCounts = await TrainingModule.find({ training: { $in: trainingObjectIds } }).countDocuments();
+
+        const trainingModuleCounts = await TrainingModule.aggregate([
+            {
+                $match: {
+                    training: { $in: trainingObjectIds }
+                }
+            },
+            {
+                $group: {
+                    _id: "$training",
+                    count: { $sum: 1 }
+                }
+            }
+        ]);
+
+        const moduleCountMap = trainingModuleCounts.reduce((acc, item) => {
+            acc[item._id.toString()] = item.count;
+            return acc;
+        }, {});
 
         const existingEnrollments = await OverallTrainingProgress.find({
             user: { $in: userObjectIds },
@@ -375,16 +410,143 @@ async function enrollUsers(enrollDataArray, context) {
         );
 
         const bulkOps = [];
+        const updateProgressOps = [];
         const insertedEnrollments = [];
+        const insertProgresses = [];
 
         const trainings = [...new Set(enrollDataArray.flatMap(el => el.trainings))];
 
-        const trainingData = await Training.find({ _id: { $in: trainings.map(training => training._id) } }).lean();
+        const trainingData = await Training.find({ _id: { $in: trainings } }).lean();
 
         const trainingDataById = trainingData.reduce((acc, training) => {
             acc[training._id.toString()] = training;
             return acc;
         }, {});
+
+
+        // let trainingModuleContentData = [];
+
+        const trainingContentGroupedByTraining = {};
+        let userEmailMap = {};
+        let finishedEmailsSet = new Set();
+        let migrationIssuedAtMap = {};
+
+        if (trainingsWithMigration.length > 0) {
+
+            // Get the email Ids of all migration users who completed this training
+            const completedMigrationUsers = [];
+
+            // Collect all migration course IDs
+            const migrationCourseIds = trainingsWithMigration
+                .filter(t => t.migrationcoursesId)
+                .map(t => t.migrationcoursesId);
+
+            // Get all migration course IDs and their UIDs
+            const migrationCourses = await MigrationCourse.find({
+                _id: { $in: migrationCourseIds }
+            }).lean();
+
+            // Prepare UID map
+            const migrationCourseUIDMap = migrationCourses.reduce((acc, course) => {
+                const uid =
+                    typeof course.UID === 'string' && !isNaN(course.UID)
+                        ? Number(course.UID)
+                        : course.UID;
+                acc[course._id.toString()] = uid;
+                return acc;
+            }, {});
+
+            // Extract UIDs for SQL query
+            const migrationCourseUIDs = Object.values(migrationCourseUIDMap);
+
+            // ✅ Single SQL query for all migration UIDs
+            const sql = `
+                SELECT EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME, COURSE_ID, ISSUED_AT
+                FROM (
+                    SELECT EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME, COURSE_ID, ISSUED_AT
+                    FROM crew_certificates_synergy_new
+                    WHERE EMAIL IS NOT NULL
+                    AND COURSE_ID IN (?)
+
+                    UNION
+
+                    SELECT EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME, COURSE_ID, ISSUED_AT
+                    FROM crew_certificates_denmark_new
+                    WHERE EMAIL IS NOT NULL
+                    AND COURSE_ID IN (?)
+                ) AS combined
+                GROUP BY EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME, COURSE_ID, ISSUED_AT
+                ORDER BY FIRST_NAME, LAST_NAME;
+            `;
+
+            // Fetch all completed migration users in one go
+            for await (const row of runQueryStream(sql, [migrationCourseUIDs, migrationCourseUIDs])) {
+                completedMigrationUsers.push(row);
+            }
+
+            // Map: email -> ISSUED_AT date
+            migrationIssuedAtMap = completedMigrationUsers.reduce((acc, user) => {
+                if (user.EMAIL && user.ISSUED_AT) {
+                    acc[user.EMAIL.trim().toLowerCase()] = new Date(user.ISSUED_AT);
+                }
+                return acc;
+            }, {});
+
+
+            const emails = completedMigrationUsers.map(user => user.EMAIL.trim().toLowerCase());
+
+            finishedEmailsSet = new Set(emails);
+            const usersData = await User.find({ _id: { $in: userObjectIds } }, { _id: 1, email: 1 }).lean();
+
+            userEmailMap = usersData.reduce((acc, user) => {
+                if (user.email) {
+                    try {
+                        const decryptedEmail = decrypt(user.email);
+                        acc[user._id.toString()] = decryptedEmail;
+                    } catch (err) {
+                        console.error("Decryption failed for app user:", user.email);
+                    }
+                }
+                return acc;
+            }, {});
+
+
+
+            // Fetch content details to mark as completed for migration users
+            const trainingsWithMigrationIds = trainingsWithMigration.map(t => t._id);
+
+            const trainingModuleContentData = await TrainingContentBridge.find(
+                {
+                    training: { $in: trainingsWithMigrationIds },
+                    isDeleted: { $ne: true }
+                }).lean();
+
+
+
+            if (trainingModuleContentData.length > 0) {
+
+                for (const item of trainingModuleContentData) {
+                    const { training, trainingModule, trainingContent } = item;
+
+                    const trainingId = training.toString();
+
+
+                    if (!trainingContentGroupedByTraining[trainingId]) {
+                        trainingContentGroupedByTraining[trainingId] = {};
+                    }
+
+
+                    if (!trainingContentGroupedByTraining[trainingId][trainingModule]) {
+                        trainingContentGroupedByTraining[trainingId][trainingModule] = [];
+                    }
+
+                    trainingContentGroupedByTraining[trainingId][trainingModule].push(trainingContent);
+                }
+
+            }
+
+        }
+
 
         for (const enrollData of enrollDataArray) {
             const userIds = Array.isArray(enrollData.users) ? enrollData.users : [enrollData.users];
@@ -396,25 +558,148 @@ async function enrollUsers(enrollDataArray, context) {
                     const existingEnrollment = existingEnrollmentMap.get(key);
 
                     if (existingEnrollment) {
+                        // bulkOps.push({
+                        //     updateOne: {
+                        //         filter: { _id: existingEnrollment._id },
+                        //         update: {
+                        //             $addToSet: { learningPlan: enrollData.learningPlan }
+                        //         }
+                        //     }
+                        // })
+
+                        // Check if trainingId is in trainingsWithMigration
+                        // const isMigrationTraining = trainingsWithMigration.some(t => t._id.toString() === trainingId.toString());
+                        const migrationTraining = trainingsWithMigration.find(t => t._id.toString() === trainingId.toString());
+                        const isMigrationTraining = Boolean(migrationTraining);
+
+                        let isMigrationCompletedUser = false;
+
+                        if (isMigrationTraining) {
+                            const userEmailEncrypted = userEmailMap[userId.toString()];
+                            if (userEmailEncrypted && finishedEmailsSet.has(userEmailEncrypted)) {
+                                isMigrationCompletedUser = true;
+                            }
+                        }
+
+                        const update = {
+                            $addToSet: { learningPlan: enrollData.learningPlan }
+                        };
+                        if (isMigrationCompletedUser) {
+                            update.$set = { status: "COMPLETED", isFromMigration: true, progressPercentage: 100 };
+                        }
                         bulkOps.push({
                             updateOne: {
                                 filter: { _id: existingEnrollment._id },
-                                update: {
-                                    $addToSet: { learningPlan: enrollData.learningPlan }
-                                }
+                                update
                             }
                         });
+
+
+                        if (isMigrationCompletedUser) {
+                            updateProgressOps.push({
+                                updateMany: {
+                                    filter: {
+                                        overallTrainingProgress: existingEnrollment._id,
+                                    },
+                                    update: { $set: { status: "COMPLETED", progressPercentage: 100 } }
+                                }
+                            });
+                        }
+
                     } else {
+                        // Check if migration training for new enrollment
+                        // const isMigrationTraining = trainingsWithMigration.some(t => t._id.toString() === trainingId.toString());
+
+                        const migrationTraining = trainingsWithMigration.find(t => t._id.toString() === trainingId.toString());
+                        const isMigrationTraining = Boolean(migrationTraining);
+
+                        let isMigrationCompletedUser = false;
+
+                        if (isMigrationTraining) {
+                            const userEmailEncrypted = userEmailMap[userId.toString()];
+                            if (userEmailEncrypted && finishedEmailsSet.has(userEmailEncrypted)) {
+                                isMigrationCompletedUser = true;
+                            }
+                        }
+
+                        const trainingRegistrationId = trainingRegistrations.find(tr => tr.training.toString() === trainingId.toString())?._id;
+
+                        let status = "NOT_STARTED";
+                        let progressPercentage = 0;
+                        let isFromMigration = false;
+                        const trainingModuleCount = moduleCountMap[trainingId.toString()] || 0;
+                        let contentData = [];
+                        let endDate = null;
+                        if (isMigrationCompletedUser) {
+
+                            const decryptedEmail = userEmailMap[userId.toString()];
+                            if (decryptedEmail && migrationIssuedAtMap[decryptedEmail]) {
+                                endDate = migrationIssuedAtMap[decryptedEmail];
+                            }
+
+                            status = "COMPLETED";
+                            progressPercentage = 100;
+                            isFromMigration = true;
+
+                            // Add contentData array with moduleId and contentId
+                            const trainingContentDataForOverallTraining = await trainingRegistrationHelper.extractTrainingContentData(trainingId, isFromMigration);
+                            contentData = trainingContentDataForOverallTraining?.trainingModulesMap ?? [];
+
+                        }
+
+                        // Create mongodb objectId
+                        const overallTrainingProgressId = new ObjectId();
+
                         const newEnrollment = createEnrollmentObject(
                             userId,
                             trainingId,
                             enrollData,
-                            trainingRegistrationIds,
-                            trainingModuleCounts,
+                            trainingRegistrationId,
+                            trainingModuleCount,
                             trainingDataById[trainingId?.toString()]?.isCertificate ?? false,
                             trainingDataById[trainingId?.toString()]?.currentCertificateLayout,
+                            status,
+                            progressPercentage,
+                            isFromMigration,
+                            overallTrainingProgressId,
+                            contentData,
+                            endDate
                         );
+
+
                         insertedEnrollments.push(newEnrollment);
+
+                        // If isMigrationCompletedUser, create docs in trainingProgresses collection with COMPLETED status for each content
+                        if (isMigrationCompletedUser) {
+
+                            const groupedModules = trainingContentGroupedByTraining[trainingId.toString()];
+                            if (!groupedModules) continue;
+
+                            const now = new Date();
+
+
+                            for (const [trainingModule, contents] of Object.entries(groupedModules)) {
+                                for (const trainingContent of contents) {
+
+                                    insertProgresses.push({
+                                        training: trainingId,
+                                        trainingModule: ObjectId(trainingModule),
+                                        trainingModuleContent: trainingContent,
+                                        status: "COMPLETED",
+                                        progressPercentage: 100,
+                                        enroledStatus: true,
+                                        trainingRegistration: trainingRegistrationId,
+                                        overallTrainingProgress: overallTrainingProgressId,
+                                        startedAt: now,
+                                        completedAt: now,
+                                        isDeleted: false
+                                    });
+
+                                }
+                            }
+
+                        }
+
                     }
                 }
             }
@@ -454,23 +739,37 @@ async function enrollUsers(enrollDataArray, context) {
                 const allEnrollments = [];
                 const insertPromises = [];
 
+                const allProgresses = [];
+                const insertProgressPromises = [];
+
                 for (let i = 0; i < uniqueEnrollments.length; i += BATCH_SIZE) {
                     const batch = uniqueEnrollments.slice(i, i + BATCH_SIZE);
-
-
-
                     insertPromises.push(OverallTrainingProgress.insertMany(batch, { ordered: false }));
                 }
 
                 const results = await Promise.all(insertPromises);
 
 
-
                 for (const result of results) {
                     allEnrollments.push(...result); // result is an array of inserted docs
                 }
 
-                // console.log('results', results);
+                for (let i = 0; i < insertProgresses.length; i += BATCH_SIZE) {
+
+                    console.log('inside batch insertion!');
+
+                    const batch = insertProgresses.slice(i, i + BATCH_SIZE);
+
+                    insertProgressPromises.push(TrainingProgress.insertMany(batch, { ordered: false }));
+
+                }
+
+                const progressResults = await Promise.all(insertProgressPromises);
+
+                for (const result of progressResults) {
+                    allProgresses.push(...result);
+                }
+
 
                 console.timeEnd('Batch Insert');
                 return allEnrollments;
@@ -495,6 +794,9 @@ async function enrollUsers(enrollDataArray, context) {
         console.time('OTP bulkWrite LP')
         if (bulkOps.length > 0) {
             await OverallTrainingProgress.bulkWrite(bulkOps);
+        }
+        if (updateProgressOps.length > 0) {
+            await TrainingProgress.bulkWrite(updateProgressOps);
         }
         console.timeEnd('OTP bulkWrite LP')
 
@@ -813,8 +1115,6 @@ async function findGroupBasedPublishedLearningPlans(plan, userConditions) {
 
 const filterLearningPlans = async (learningPlans, userConditions, context, session) => {
 
-    console.log('reached here 123!');
-
     if (!Array.isArray(learningPlans)) {
         throw new Error("learningPlans should be an array");
     }
@@ -1049,7 +1349,7 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
 
     }
 
-    await sendNotificationAndMailForAutoEnrollment(uniqueUserIds, uniqueTrainingIds, nonNotificationRecievers,userToLearningPlansObject, context);
+    await sendNotificationAndMailForAutoEnrollment(uniqueUserIds, uniqueTrainingIds, nonNotificationRecievers, userToLearningPlansObject, context);
 
     return filteredPlans.filter(Boolean);
 }
