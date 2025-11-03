@@ -78,13 +78,11 @@ function rejectionEmailTemplate(data) {
 
           <!-- LOGO SECTION -->
           <tr>
-            <td align="center" style="padding:20px 0; background-color:#ffffff;">
-              <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/9-01.png"
-                   alt="Seaverse Logo"
-                   width="200"
-                   style="display:block; width:200px; height:auto; margin:0 auto;">
+            <td align="center" style="padding: 40px 48px;" class="logo">
+                <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/9-01.png" 
+                    alt="Company Logo"  width="200" style="display: block; border: 0; outline: none; text-decoration: none; height: auto; max-width: 200px;">
             </td>
-          </tr>
+        </tr>
 
           <!-- CONTENT -->
           <tr>
