@@ -1,6 +1,6 @@
 const { Schema, Model, ObjectId, AggregatePaginate } = require("../../../tools");
 const { LocalisedDataSchema } = require("../../../util/localised_data_schema");
-const Types  = require('mongoose');
+const Types = require('mongoose');
 
 const trainingCertificateSchema = new Schema(
     {
@@ -75,7 +75,7 @@ const trainingCertificateSchema = new Schema(
         issuedAt: {
             type: Date,
         },
-        authoringTitle:{
+        authoringTitle: {
             type: String,
             trim: true,
         },
@@ -87,15 +87,15 @@ const trainingCertificateSchema = new Schema(
             type: [LocalisedDataSchema],
             required: true,
         },
-        certificateReference:[LocalisedDataSchema],
+        certificateReference: [LocalisedDataSchema],
         trainerSignature: String,
         trainingTitle: [LocalisedDataSchema],
         trainingDescription: [LocalisedDataSchema],
         trainingImages: [{ url: String }],
         trainingCategories: [ObjectId],
         trainingSubCategories: [ObjectId],
-        trainingDuration: Number, 
-        trainingCertificateValidity: Number, 
+        trainingDuration: Number,
+        trainingCertificateValidity: Number,
         status: String,
         gradeMark: String,
         badge: String,
@@ -107,12 +107,12 @@ const trainingCertificateSchema = new Schema(
         generatedAt: Date,
         expiresAt: Date,
         pdfUrl: String,
-        isFromMigration:{
+        isFromMigration: {
             type: Boolean,
             default: false
         },
         trainingMode: {
-            type: String, 
+            type: String,
             uppercase: true,
         },
         mdName: String,
@@ -143,9 +143,9 @@ const trainingCertificateSchema = new Schema(
             type: Boolean,
             default: false,
         },
-        certificateLayout:{
-            type : ObjectId,
-            ref : "certificateLayout"
+        certificateLayout: {
+            type: ObjectId,
+            ref: "certificateLayout"
         },
         additionalData: [{
             key: { type: String, required: true },
@@ -164,6 +164,16 @@ trainingCertificateSchema.index({ subscriber: 1, organization: 1 });
 trainingCertificateSchema.index({ subscriber: 1, employee: 1 });
 
 trainingCertificateSchema.index({ createdAt: -1 });
+
+// Unique compound index to prevent duplicate certificates for the same user, training, and registration
+trainingCertificateSchema.index({
+    user: 1,
+    training: 1,
+    trainingRegistration: 1
+}, {
+    unique: true,
+    name: 'unique_user_training_registration_certificate'
+});
 
 trainingCertificateSchema.plugin(AggregatePaginate);
 

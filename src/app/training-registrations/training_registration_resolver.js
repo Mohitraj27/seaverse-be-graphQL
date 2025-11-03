@@ -1473,10 +1473,53 @@ module.exports.queries = {
                 };
             });
 
+            function normalizeVideoUrl(url) {
+                if (!url) return '';
+
+                // Remove leading "files/" if present
+                let cleaned = url.startsWith('files/') ? url.substring(6) : url;
+
+                // Find the position of the first ".mp4"
+                const firstMp4Index = cleaned.indexOf('.mp4');
+
+                if (firstMp4Index === -1) return cleaned; // if .mp4 not found, return as is
+
+                // Keep everything up to and including the first ".mp4"
+                return cleaned.substring(0, firstMp4Index + 4);
+            }
+            const transformedTrainingDetails = processedTrainingDetails.map(trainingDetail => {
+                return {
+                    ...trainingDetail,
+                    trainingModules: trainingDetail.trainingModules.map(module => {
+                        return {
+                            ...module,
+                            trainingModuleContents: module.trainingModuleContents.map(content => {
+                                return {
+                                    ...content,
+                                    trainingModuleContentDetails: content.trainingModuleContentDetails.map(detail => {
+                                        return {
+                                            ...detail,
+                                            videos: (detail.videos || []).map(video => ({
+                                                ...video,
+                                                originalUrl: normalizeVideoUrl(video.url),
+                                                originals3Path:"",
+                                               
+                                            }))
+                                        };
+                                    }),
+                                };
+                            }),
+                        };
+                    }),
+                };
+            });
+            // console.log(JSON.stringify(transformedTrainingDetails[0]),"PTRAINIG DETAILS");
+
+
             return {
                 status: true,
                 message: "Course details fetched successfully",
-                course: processedTrainingDetails[0],
+                course: transformedTrainingDetails[0],
                 totalCountofTraining,
             };
         } catch (error) {

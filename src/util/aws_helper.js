@@ -4,7 +4,7 @@ var fs = require('fs');
 
 
 module.exports = {
-    
+
     fetchFile: async (filePath) => {
         if (filePath) {
             // console.log('fetchFile', {
@@ -136,9 +136,9 @@ module.exports = {
                 const response = await ses.sendEmail(params).promise();
                 // const response = " email sent";
                 if (response) {
-                    // return response;
-                    console.log('Email sent', response);
-                    return true;
+                    return response;
+                    // console.log('Email sent', response);
+                    // return true;
                 }
             } catch (e) {
                 throw Error(e.message);
@@ -171,7 +171,7 @@ module.exports = {
                 let params = { Bucket: "sea_verse", Key: bucketPath, Body: fs.readFileSync(filePath) };
                 s3.putObject(params, function (err, data) {
                     if (err) {
-                     throw Error(err.message);
+                        throw Error(err.message);
                     } else {
                         console.log('Successfully uploaded ' + bucketPath);
                     }

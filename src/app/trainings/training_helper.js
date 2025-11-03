@@ -466,7 +466,7 @@ const addDataToOverallTrainingProgress = async (input, errors, session, fromDown
                                         contentFromDownload: {
                                             courseDetails: contentData,
                                             version: doc?.version || 1,
-                                            downloadedCertificateLayoutId : doc?.assignedCertificateLayoutId || null
+                                            downloadedCertificateLayoutId: doc?.assignedCertificateLayoutId || null
                                         }
                                     }
                                 },
@@ -907,18 +907,31 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
         const completedOverallIdNotFirstTime = trainingCompletionStatus.filter((item) => item.isTrainingCompletedNotFirstTime).map((item) => item.overallTrainingProgressId);
 
         if (completedOverallIdNotFirstTime.length > 0) {
+            const claimTimestamp = new Date();
+
+
+            await OverallTrainingProgress.updateMany(
+                {
+                    _id: { $in: completedOverallIdNotFirstTime },
+                    completionNotificationSent: { $ne: true }, 
+                },
+                { $set: { completionNotificationSent: true, claimedAt: claimTimestamp } }
+            );
 
             const trainingData = await OverallTrainingProgress.find({
-                _id: { $in: completedOverallIds }
-            }).populate('training').populate('user').session(session);
+                _id: { $in: completedOverallIdNotFirstTime },
+                claimedAt: claimTimestamp,
+            })
+                .populate("training")
+                .populate("user")
+                .session(session);
 
             const notifications = [];
             const emails = [];
             const idsToUpdate = [];
 
             for (const item of trainingData) {
-
-                if (item.completionNotificationSent) continue;
+                console.log(`[CERT-FLOW] Processing OverallTrainingProgress ID: ${item._id}, notificationSent: ${item.completionNotificationSent}`);
 
                 const trainingName = item?.training?.title[0]?.value;
                 const userId = item?.user?._id;
@@ -964,8 +977,9 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
                 idsToUpdate.push(item._id);
 
             }
-
-            await NotificationHelper.createNotification(notifications);
+            if(notifications.length > 0){
+                await NotificationHelper.createNotification(notifications);
+            }
 
             if (emails.length > 0) {
                 for (const item of emails) {
@@ -978,10 +992,12 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
             }
 
             if (idsToUpdate.length > 0) {
+                console.log(`[CERT-FLOW] Marking ${idsToUpdate.length} overall training progress docs as having sent completion notifications. IDs: ${idsToUpdate}\n\n`);
+                //Not using atomic update here(This is not part of a transaction to avoid an issue caused by racing conditions)
                 await OverallTrainingProgress.updateMany(
                     { _id: { $in: idsToUpdate } },
                     { $set: { completionNotificationSent: true } }
-                ).session(session);
+                );
             }
 
         }
@@ -989,54 +1005,30 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
         const overallDocs = await OverallTrainingProgress.find({
             _id: { $in: completedOverallIds },
             trainingRegistration: { $ne: null },
-            isCertificatePresent: true
+            isCertificatePresent: true,
+            isCertificateGenerated: { $ne: true } // Only get docs that haven't had notifications sent
         }).session(session);
 
+        console.log(`[CERT-FLOW] Found ${overallDocs.length} completed courses needing certificate notifications. IDs: ${overallDocs.map(d => d._id)}`);
+
         if (overallDocs.length > 0) {
-            //certificate generation
-            await TrainingCertificateHelper.generateCertificateBulk(overallDocs, userId, session);
-            const sendCertificateNotification = [];
-            for (const doc of overallDocs) {
-                const training = await Training.findById(doc.training);
-                const courseTitle = training.title?.find((item) => item.lang === 'en')?.value;
-                const isCertificate = training?.isCertificate;
-                if (courseTitle && !doc.isCertificateGenerated) {
-                    if (isCertificate) {
-                        sendCertificateNotification.push({
-                            subscriber: subscriberId,
-                            title: [{ lang: "en", value: `Your course certificate issued` }],
-                            message: [{ lang: "en", value: `Congratulations! Certificate for the ${courseTitle ?? ''} has been issued.` }],
-                            notificationType: NotificationType.COURSE_COMPLETION,
-                            notifyAllAdmin: false,
-                            isNotificatonForAdmin: false,
-                            notifiers: [userId],
-                            employeeNotifiers: [userId],
-                            additionalInfo: [],
-                            affected: [],
-                            createdBy: null,
-                            status: 'SENT',
-                            icon: notificationiconEnum.SUCCESS,
-                            isRead: false,
-                        });
-                    }
-                }
+            console.log(`[CERT-FLOW] Processing ${overallDocs.length} docs for certificate generation`);
+
+            //certificate generation - this function now handles atomic flag updates
+            try {
+                const certErrors = await TrainingCertificateHelper.generateCertificateBulk(overallDocs, userId, session);
+                console.log(`[CERT-FLOW] Certificate generation completed:`, certErrors || 'Success');
+            } catch (error) {
+                console.error(`[CERT-FLOW] Certificate generation failed:`, error);
             }
 
-            if (sendCertificateNotification.length > 0) {
-                await NotificationHelper.createNotification(sendCertificateNotification);
-            }
-
-            await OverallTrainingProgress.updateMany(
-                { _id: { $in: overallDocs.map(doc => doc._id) } },
-                { $set: { isCertificateGenerated: true } }
-            ).session(session);
         }
 
     }
 
 }
 
-const updateOverallProgressPercentage = async (overallDocs,isFromDownload = false, session) => {
+const updateOverallProgressPercentage = async (overallDocs, isFromDownload = false, session) => {
 
     const overallIds = overallDocs.map((item) => item._id);
     const userIds = [...new Set(overallDocs.map(item => item.user))];
@@ -1337,17 +1329,17 @@ const updateTimeSpendInOverallTrainingProgress = async (input, session) => {
     const durationMap = new Map(
         result.map(item => [item._id.toString(), item.totalLastAccessedDuration])
     );
-    
+
 
     // Map input to overallDurationMap using aggregation result
-    
+
     input.forEach(({ overallId, finishedCourseFirstTime }) => {
         overallDurationMap.set(overallId.toString(), {
             totalDuration: durationMap.get(overallId.toString()) || 0,
             finishedCourseFirstTime,
         });
-    }); 
-   
+    });
+
 
     // Prepare bulk updates
     const bulkUpdates = Array.from(overallDurationMap.entries()).map(
@@ -1381,7 +1373,7 @@ const updateTimeSpendInOverallTrainingProgress = async (input, session) => {
 const updateTrainingProgress = async (input, userId, subscriberId, session) => {
 
     const overallIds = input.map((item) => item.overallId);
-    const isFromDownload =  input[0]?.isFromOfflineSync ?? false;
+    const isFromDownload = input[0]?.isFromOfflineSync ?? false;
     console.log(isFromDownload, 'isFromDownload in updateTrainingProgress')
     if (overallIds.length == 0) return;
 
@@ -1683,8 +1675,8 @@ const updateTrainingProgress = async (input, userId, subscriberId, session) => {
     }
 
     if (overallIds) {
-        console.log(isFromDownload,'isFromDownload in updateTrainingProgress - before calling updateOverallProgressPercentage')
-        await updateOverallProgressPercentage(overallDocs,isFromDownload, session);
+        console.log(isFromDownload, 'isFromDownload in updateTrainingProgress - before calling updateOverallProgressPercentage')
+        await updateOverallProgressPercentage(overallDocs, isFromDownload, session);
         await updateTimeSpendInOverallTrainingProgress(input, session)
     }
 
@@ -2036,15 +2028,15 @@ const dataMigrationBackground = async (migrationcourseId, trainingId) => {
 
     // User creation start
     const savedRegistrations = await DbTransactionHelper.performDbTransaction(async session => {
-        
-       const emails = completedMigrationUsers.map(user => {
-           try {
-               return encrypt(user.EMAIL.trim().toLowerCase());
-           } catch (err) {
-               console.error("Encryption failed for email:", user.EMAIL);
-               throw err; 
-           }
-       });
+
+        const emails = completedMigrationUsers.map(user => {
+            try {
+                return encrypt(user.EMAIL.trim().toLowerCase());
+            } catch (err) {
+                console.error("Encryption failed for email:", user.EMAIL);
+                throw err;
+            }
+        });
 
 
         // const ids = completedMigrationUsers.map((user) => encrypt(user.EMPLOYEE_ID));
@@ -2103,7 +2095,7 @@ const dataMigrationBackground = async (migrationcourseId, trainingId) => {
             );
 
             const updatedRegistrations = await TrainingRegistration.find({
-                training: ObjectId(trainingId), 
+                training: ObjectId(trainingId),
             }).session(session);
             trainingRegistrationId = existingTrainingRegId;
 

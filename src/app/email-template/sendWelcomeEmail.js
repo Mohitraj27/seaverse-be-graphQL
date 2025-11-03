@@ -72,7 +72,7 @@ function sendWelcomeEmailsToLearner(user) {
                                 <tr>
                                     <td style="padding: 0 0 24px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; line-height: 24px; color: #384860;">
                                         In case of any difficulty, here is your 
-                                        <a href="${stepByStepGuideLink}" target="_blank" style="font-weight:700; color:#FFFFFF; text-decoration:none; background-color:#1E3A76; border-radius:4px;padding:4px 8px;  display:inline-block;line-height:1;white-space:nowrap;">Step-by-Step Guide</a>
+                                        <a href="${stepByStepGuideLink}" target="_blank" style="font-weight:700; color:#FFFFFF; text-decoration:none; background-color:#1E3A76; border-radius:0px;padding:2px 1px;  display:inline-block;line-height:1;white-space:nowrap;">Step-by-Step Guide</a>
                                     </td>
                                 </tr>
                                 <tr>
@@ -177,7 +177,7 @@ function sendEmailToLearner(user) {
                                 <tr>
                                     <td style="padding: 0 0 24px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; line-height: 24px; color: #384860;">
                                         In case of any difficulty, here is your 
-                                       <a href="${stepByStepGuideLink}" target="_blank" style="font-weight:700; color:#FFFFFF; text-decoration:none; background-color:#1E3A76; border-radius:4px;padding:4px 8px;  display:inline-block;line-height:1;white-space:nowrap;">Step-by-Step Guide</a>.
+                                       <a href="${stepByStepGuideLink}" target="_blank" style="font-weight:700; color:#FFFFFF; text-decoration:none; background-color:#1E3A76; border-radius:0px;padding:2px 1px;  display:inline-block;line-height:1;white-space:nowrap;">Step-by-Step Guide</a>.
                                     </td>
                                 </tr>
                                 <tr>

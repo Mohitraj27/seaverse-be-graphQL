@@ -79,6 +79,11 @@ const { client, deleteByQueryFromElasticSearch, updateDocumenttoElasticSearch, u
 const { MongoClient, ObjectId: mongodbObject } = require('mongodb');
 const { VesselType } = require('../../vessle/vessel-type/vessel_type_model');
 const { ImportJob } = require("./import_job_model");
+const { TrainingContentBridge } = require("../../trainings/training_content_bridge/training_content_model");
+const trainingRegistrationHelper = require("../../training-registrations/training_registration_helper");
+const { sendEmailToLearner } = require("../../email-template/sendWelcomeEmail");
+const { MigrationCourse } = require('../../trainings/migrationcourses/migration_courses_model');
+const { runQuery, runQueryStream } = require("../../../util/mysql_helper");
 
 const sendCredentialMail = async ({ userData }) => {
     let subscriberLogo = null;
@@ -296,20 +301,24 @@ const evaluateConditionalCustomFields = async (conditionType, conditionalCustomF
         : results.some(Boolean);
 };
 
-const createEnrollmentObject = (userId, trainingId, enrollData, trainingRegistrationIds, trainingModuleCounts, isCertificatePresent, currentCertificateLayout) => ({
+const createEnrollmentObject = (userId, trainingId, enrollData, trainingRegistrationIds, trainingModuleCounts, isCertificatePresent, currentCertificateLayout, status, progressPercentage, isFromMigration, overallTrainingProgressId, contentData, endDate) => ({
+    _id: overallTrainingProgressId,
     isComplete: false,
     isCertificateGenerated: false,
     learningPlan: enrollData.learningPlan ? [new mongodbObject(enrollData.learningPlan)] : [],
     training: new mongodbObject(trainingId),
     user: new mongodbObject(userId),
     trainingRegistration: new mongodbObject(trainingRegistrationIds[0]),
-    status: "NOT_STARTED",
+    status: status || "NOT_STARTED",
     isEnrolled: true,
-    progressPercentage: 0,
+    progressPercentage: progressPercentage || 0,
     completedModules: 0,
     totalTrainingModules: trainingModuleCounts || 0,
     isCertificatePresent: isCertificatePresent ?? false,
-    currentCertificateLayout: currentCertificateLayout ?? null
+    currentCertificateLayout: currentCertificateLayout ?? null,
+    isFromMigration: isFromMigration || false,
+    contentData,
+    endDate: endDate || null,
 });
 
 async function enrollUsers(enrollDataArray, context) {
@@ -327,8 +336,16 @@ async function enrollUsers(enrollDataArray, context) {
             allTrainingIds.push(...trainingIds);
         }
 
+
+
         const userObjectIds = [...new Set(allUserIds)].map(id => new mongoose.Types.ObjectId(id));
         const trainingObjectIds = [...new Set(allTrainingIds)].map(id => new mongoose.Types.ObjectId(id));
+
+        const trainingsWithMigration = await Training.find({
+            _id: { $in: trainingObjectIds },
+            migrationcoursesId: { $exists: true, $ne: null }
+        }, { _id: 1, migrationcoursesId: 1 }).lean();
+
 
         let trainingRegistrations;
 
@@ -360,7 +377,26 @@ async function enrollUsers(enrollDataArray, context) {
 
 
         const trainingRegistrationIds = trainingRegistrations.map(tr => tr._id);
-        const trainingModuleCounts = await TrainingModule.find({ training: { $in: trainingObjectIds } }).countDocuments();
+        // const trainingModuleCounts = await TrainingModule.find({ training: { $in: trainingObjectIds } }).countDocuments();
+
+        const trainingModuleCounts = await TrainingModule.aggregate([
+            {
+                $match: {
+                    training: { $in: trainingObjectIds }
+                }
+            },
+            {
+                $group: {
+                    _id: "$training",
+                    count: { $sum: 1 }
+                }
+            }
+        ]);
+
+        const moduleCountMap = trainingModuleCounts.reduce((acc, item) => {
+            acc[item._id.toString()] = item.count;
+            return acc;
+        }, {});
 
         const existingEnrollments = await OverallTrainingProgress.find({
             user: { $in: userObjectIds },
@@ -374,16 +410,143 @@ async function enrollUsers(enrollDataArray, context) {
         );
 
         const bulkOps = [];
+        const updateProgressOps = [];
         const insertedEnrollments = [];
+        const insertProgresses = [];
 
         const trainings = [...new Set(enrollDataArray.flatMap(el => el.trainings))];
 
-        const trainingData = await Training.find({ _id: { $in: trainings.map(training => training._id) } }).lean();
+        const trainingData = await Training.find({ _id: { $in: trainings } }).lean();
 
         const trainingDataById = trainingData.reduce((acc, training) => {
             acc[training._id.toString()] = training;
             return acc;
         }, {});
+
+
+        // let trainingModuleContentData = [];
+
+        const trainingContentGroupedByTraining = {};
+        let userEmailMap = {};
+        let finishedEmailsSet = new Set();
+        let migrationIssuedAtMap = {};
+
+        if (trainingsWithMigration.length > 0) {
+
+            // Get the email Ids of all migration users who completed this training
+            const completedMigrationUsers = [];
+
+            // Collect all migration course IDs
+            const migrationCourseIds = trainingsWithMigration
+                .filter(t => t.migrationcoursesId)
+                .map(t => t.migrationcoursesId);
+
+            // Get all migration course IDs and their UIDs
+            const migrationCourses = await MigrationCourse.find({
+                _id: { $in: migrationCourseIds }
+            }).lean();
+
+            // Prepare UID map
+            const migrationCourseUIDMap = migrationCourses.reduce((acc, course) => {
+                const uid =
+                    typeof course.UID === 'string' && !isNaN(course.UID)
+                        ? Number(course.UID)
+                        : course.UID;
+                acc[course._id.toString()] = uid;
+                return acc;
+            }, {});
+
+            // Extract UIDs for SQL query
+            const migrationCourseUIDs = Object.values(migrationCourseUIDMap);
+
+            // ✅ Single SQL query for all migration UIDs
+            const sql = `
+                SELECT EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME, COURSE_ID, ISSUED_AT
+                FROM (
+                    SELECT EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME, COURSE_ID, ISSUED_AT
+                    FROM crew_certificates_synergy_new
+                    WHERE EMAIL IS NOT NULL
+                    AND COURSE_ID IN (?)
+
+                    UNION
+
+                    SELECT EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME, COURSE_ID, ISSUED_AT
+                    FROM crew_certificates_denmark_new
+                    WHERE EMAIL IS NOT NULL
+                    AND COURSE_ID IN (?)
+                ) AS combined
+                GROUP BY EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME, COURSE_ID, ISSUED_AT
+                ORDER BY FIRST_NAME, LAST_NAME;
+            `;
+
+            // Fetch all completed migration users in one go
+            for await (const row of runQueryStream(sql, [migrationCourseUIDs, migrationCourseUIDs])) {
+                completedMigrationUsers.push(row);
+            }
+
+            // Map: email -> ISSUED_AT date
+            migrationIssuedAtMap = completedMigrationUsers.reduce((acc, user) => {
+                if (user.EMAIL && user.ISSUED_AT) {
+                    acc[user.EMAIL.trim().toLowerCase()] = new Date(user.ISSUED_AT);
+                }
+                return acc;
+            }, {});
+
+
+            const emails = completedMigrationUsers.map(user => user.EMAIL.trim().toLowerCase());
+
+            finishedEmailsSet = new Set(emails);
+            const usersData = await User.find({ _id: { $in: userObjectIds } }, { _id: 1, email: 1 }).lean();
+
+            userEmailMap = usersData.reduce((acc, user) => {
+                if (user.email) {
+                    try {
+                        const decryptedEmail = decrypt(user.email);
+                        acc[user._id.toString()] = decryptedEmail;
+                    } catch (err) {
+                        console.error("Decryption failed for app user:", user.email);
+                    }
+                }
+                return acc;
+            }, {});
+
+
+
+            // Fetch content details to mark as completed for migration users
+            const trainingsWithMigrationIds = trainingsWithMigration.map(t => t._id);
+
+            const trainingModuleContentData = await TrainingContentBridge.find(
+                {
+                    training: { $in: trainingsWithMigrationIds },
+                    isDeleted: { $ne: true }
+                }).lean();
+
+
+
+            if (trainingModuleContentData.length > 0) {
+
+                for (const item of trainingModuleContentData) {
+                    const { training, trainingModule, trainingContent } = item;
+
+                    const trainingId = training.toString();
+
+
+                    if (!trainingContentGroupedByTraining[trainingId]) {
+                        trainingContentGroupedByTraining[trainingId] = {};
+                    }
+
+
+                    if (!trainingContentGroupedByTraining[trainingId][trainingModule]) {
+                        trainingContentGroupedByTraining[trainingId][trainingModule] = [];
+                    }
+
+                    trainingContentGroupedByTraining[trainingId][trainingModule].push(trainingContent);
+                }
+
+            }
+
+        }
+
 
         for (const enrollData of enrollDataArray) {
             const userIds = Array.isArray(enrollData.users) ? enrollData.users : [enrollData.users];
@@ -395,25 +558,148 @@ async function enrollUsers(enrollDataArray, context) {
                     const existingEnrollment = existingEnrollmentMap.get(key);
 
                     if (existingEnrollment) {
+                        // bulkOps.push({
+                        //     updateOne: {
+                        //         filter: { _id: existingEnrollment._id },
+                        //         update: {
+                        //             $addToSet: { learningPlan: enrollData.learningPlan }
+                        //         }
+                        //     }
+                        // })
+
+                        // Check if trainingId is in trainingsWithMigration
+                        // const isMigrationTraining = trainingsWithMigration.some(t => t._id.toString() === trainingId.toString());
+                        const migrationTraining = trainingsWithMigration.find(t => t._id.toString() === trainingId.toString());
+                        const isMigrationTraining = Boolean(migrationTraining);
+
+                        let isMigrationCompletedUser = false;
+
+                        if (isMigrationTraining) {
+                            const userEmailEncrypted = userEmailMap[userId.toString()];
+                            if (userEmailEncrypted && finishedEmailsSet.has(userEmailEncrypted)) {
+                                isMigrationCompletedUser = true;
+                            }
+                        }
+
+                        const update = {
+                            $addToSet: { learningPlan: enrollData.learningPlan }
+                        };
+                        if (isMigrationCompletedUser) {
+                            update.$set = { status: "COMPLETED", isFromMigration: true, progressPercentage: 100 };
+                        }
                         bulkOps.push({
                             updateOne: {
                                 filter: { _id: existingEnrollment._id },
-                                update: {
-                                    $addToSet: { learningPlan: enrollData.learningPlan }
-                                }
+                                update
                             }
                         });
+
+
+                        if (isMigrationCompletedUser) {
+                            updateProgressOps.push({
+                                updateMany: {
+                                    filter: {
+                                        overallTrainingProgress: existingEnrollment._id,
+                                    },
+                                    update: { $set: { status: "COMPLETED", progressPercentage: 100 } }
+                                }
+                            });
+                        }
+
                     } else {
+                        // Check if migration training for new enrollment
+                        // const isMigrationTraining = trainingsWithMigration.some(t => t._id.toString() === trainingId.toString());
+
+                        const migrationTraining = trainingsWithMigration.find(t => t._id.toString() === trainingId.toString());
+                        const isMigrationTraining = Boolean(migrationTraining);
+
+                        let isMigrationCompletedUser = false;
+
+                        if (isMigrationTraining) {
+                            const userEmailEncrypted = userEmailMap[userId.toString()];
+                            if (userEmailEncrypted && finishedEmailsSet.has(userEmailEncrypted)) {
+                                isMigrationCompletedUser = true;
+                            }
+                        }
+
+                        const trainingRegistrationId = trainingRegistrations.find(tr => tr.training.toString() === trainingId.toString())?._id;
+
+                        let status = "NOT_STARTED";
+                        let progressPercentage = 0;
+                        let isFromMigration = false;
+                        const trainingModuleCount = moduleCountMap[trainingId.toString()] || 0;
+                        let contentData = [];
+                        let endDate = null;
+                        if (isMigrationCompletedUser) {
+
+                            const decryptedEmail = userEmailMap[userId.toString()];
+                            if (decryptedEmail && migrationIssuedAtMap[decryptedEmail]) {
+                                endDate = migrationIssuedAtMap[decryptedEmail];
+                            }
+
+                            status = "COMPLETED";
+                            progressPercentage = 100;
+                            isFromMigration = true;
+
+                            // Add contentData array with moduleId and contentId
+                            const trainingContentDataForOverallTraining = await trainingRegistrationHelper.extractTrainingContentData(trainingId, isFromMigration);
+                            contentData = trainingContentDataForOverallTraining?.trainingModulesMap ?? [];
+
+                        }
+
+                        // Create mongodb objectId
+                        const overallTrainingProgressId = new ObjectId();
+
                         const newEnrollment = createEnrollmentObject(
                             userId,
                             trainingId,
                             enrollData,
-                            trainingRegistrationIds,
-                            trainingModuleCounts,
+                            trainingRegistrationId,
+                            trainingModuleCount,
                             trainingDataById[trainingId?.toString()]?.isCertificate ?? false,
                             trainingDataById[trainingId?.toString()]?.currentCertificateLayout,
+                            status,
+                            progressPercentage,
+                            isFromMigration,
+                            overallTrainingProgressId,
+                            contentData,
+                            endDate
                         );
+
+
                         insertedEnrollments.push(newEnrollment);
+
+                        // If isMigrationCompletedUser, create docs in trainingProgresses collection with COMPLETED status for each content
+                        if (isMigrationCompletedUser) {
+
+                            const groupedModules = trainingContentGroupedByTraining[trainingId.toString()];
+                            if (!groupedModules) continue;
+
+                            const now = new Date();
+
+
+                            for (const [trainingModule, contents] of Object.entries(groupedModules)) {
+                                for (const trainingContent of contents) {
+
+                                    insertProgresses.push({
+                                        training: trainingId,
+                                        trainingModule: ObjectId(trainingModule),
+                                        trainingModuleContent: trainingContent,
+                                        status: "COMPLETED",
+                                        progressPercentage: 100,
+                                        enroledStatus: true,
+                                        trainingRegistration: trainingRegistrationId,
+                                        overallTrainingProgress: overallTrainingProgressId,
+                                        startedAt: now,
+                                        completedAt: now,
+                                        isDeleted: false
+                                    });
+
+                                }
+                            }
+
+                        }
+
                     }
                 }
             }
@@ -453,23 +739,37 @@ async function enrollUsers(enrollDataArray, context) {
                 const allEnrollments = [];
                 const insertPromises = [];
 
+                const allProgresses = [];
+                const insertProgressPromises = [];
+
                 for (let i = 0; i < uniqueEnrollments.length; i += BATCH_SIZE) {
                     const batch = uniqueEnrollments.slice(i, i + BATCH_SIZE);
-
-
-
                     insertPromises.push(OverallTrainingProgress.insertMany(batch, { ordered: false }));
                 }
 
                 const results = await Promise.all(insertPromises);
 
 
-
                 for (const result of results) {
                     allEnrollments.push(...result); // result is an array of inserted docs
                 }
 
-                // console.log('results', results);
+                for (let i = 0; i < insertProgresses.length; i += BATCH_SIZE) {
+
+                    console.log('inside batch insertion!');
+
+                    const batch = insertProgresses.slice(i, i + BATCH_SIZE);
+
+                    insertProgressPromises.push(TrainingProgress.insertMany(batch, { ordered: false }));
+
+                }
+
+                const progressResults = await Promise.all(insertProgressPromises);
+
+                for (const result of progressResults) {
+                    allProgresses.push(...result);
+                }
+
 
                 console.timeEnd('Batch Insert');
                 return allEnrollments;
@@ -494,6 +794,9 @@ async function enrollUsers(enrollDataArray, context) {
         console.time('OTP bulkWrite LP')
         if (bulkOps.length > 0) {
             await OverallTrainingProgress.bulkWrite(bulkOps);
+        }
+        if (updateProgressOps.length > 0) {
+            await TrainingProgress.bulkWrite(updateProgressOps);
         }
         console.timeEnd('OTP bulkWrite LP')
 
@@ -582,7 +885,45 @@ async function enrollUsers(enrollDataArray, context) {
         throw CustomError(ErrorName.FAILED, error.message);
     }
 }
+const sendWelcomeEmailBulk = async () => {
+    try {
+        let results = [];
+        while (true) {
+            const emailBatch = await SqliteEmailHelper.fetchInsertSendWelcomeEmailsBatch();
+            if (!emailBatch.length) break;
 
+            // Generate HTML content dynamically
+            const emailsToSend = emailBatch.map(email => {
+
+                const html = sendEmailToLearner({
+                    firstName: email.firstName,
+                    email: email.email,
+                    temp_password: email.temp_password,
+                    buttonLink: `${process.env.APP_URL}/login?isResetPasswordDialog=false&isTermsAccepted=false`
+                });
+
+                console.log("-----emailsToSend----- ", email.email);
+                return { to: email.email, subject: "Registration Invitation", html };
+            });
+            // Send emails (use sendWithRetry logic from existing code)
+            const batchResults = await sendCourseMailsWithRetry(emailsToSend);
+            results = results.concat(batchResults);
+            await delay(200);
+
+            // Delete processed emails
+            const emailIds = emailBatch.map(email => email.id);
+            await SqliteEmailHelper.deleteInsertSendWelcomeEmailsBatch(emailIds);
+        }
+
+        // Return summary ( in case you have to verify success and errors, console the results)
+        const { successCount, errorCount, errors } = summarizeResults(results);
+
+        return { success: true, message: `Sent ${successCount}, failed ${errorCount}`, errors };
+
+    } catch (error) {
+        return { success: false, message: error.message };
+    }
+};
 const sendCourseEmailBulk = async (action = 'ENROLL') => {
     try {
         let results = [];
@@ -774,8 +1115,6 @@ async function findGroupBasedPublishedLearningPlans(plan, userConditions) {
 
 const filterLearningPlans = async (learningPlans, userConditions, context, session) => {
 
-    console.log('reached here 123!');
-
     if (!Array.isArray(learningPlans)) {
         throw new Error("learningPlans should be an array");
     }
@@ -783,7 +1122,6 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
         throw new Error("userConditions should be an array");
     }
 
-    const usersToEnroll = [];
     let enrollDataSet = [];
     let enrollmentData = [];
     let removeUsersData = [];
@@ -792,7 +1130,7 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
     const filteredPlans = [];
 
     for (const plan of learningPlans) {
-
+        const usersToEnroll = [];
         try {
 
             if (plan?.targetAudience === targetAudience.EVERYONE_IN_ORGANIZATION && plan?.audienceSelection === audienceSelection.ALL_EMPLOYEES) {
@@ -819,7 +1157,7 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
                 usersToEnroll.push(...userIds);
             } else if (plan?.targetAudience === targetAudience.EVERYONE_IN_ORGANIZATION && plan?.audienceSelection === audienceSelection.AUTOMATIC) {
 
-                let evaluations;
+                let evaluations = userConditions.map(() => false); // Safe Intialization fallback to false
                 try {
 
                     console.time('evaluateConditionalCustomFields')
@@ -841,25 +1179,42 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
                 const usersToRemove = userConditions
                     .filter(user => !validUserIds.has(user._id))
                     .map(user => user._id);
-
+                /*
                 if (usersToRemove.length > 0) {
                     removeUsersData.push({
                         usersToRemove,
                         planId: plan._id
                     });
                 }
-
-                const userIds = validUsers.map(user => user._id);
-
+                */
+               //  only push removeUsersData after verifying with LearningPlanAssignment.find()
+               if (usersToRemove.length > 0) {
+                    const existingAssignments = await LearningPlanAssignment.find({
+                        learningPlanId: plan._id,
+                        assignedLearnerId: { $in: usersToRemove },
+                        isDeleted: { $ne: true }
+                    }).lean();
+                    const existingOverallProgress = await OverallTrainingProgress.findOne({
+                        learningPlanId: plan._id,
+                        userId: { $in: usersToRemove },
+                        isDeleted: { $ne: true }
+                    });
+                    if (existingOverallProgress) {
+                        removeUsersData.push({ usersToRemove, planId: plan._id });
+                    }
+                   if (existingAssignments.length > 0 || existingOverallProgress) {
+                        removeUsersData.push({ usersToRemove, planId: plan._id });
+                    }
+                }
                 if (validUsers?.length > 0) {
-
+                    const userIds = validUsers.map(user => user._id);              
                     const existingAssignments = await LearningPlanAssignment.find({
                         learningPlanId: plan._id,
                         assignedLearnerId: { $in: userIds },
                         isDeleted: { $ne: true }
                     }, { assignedLearnerId: 1 });
 
-                    const alreadyAssignedUserIds = new Set(existingAssignments.map(assignment => assignment.assignedLearnerId.toString()));
+                        const alreadyAssignedUserIds = new Set(existingAssignments.map(assignment => assignment.assignedLearnerId.toString()));
 
                     const newAssignments = userIds
                         .filter(userId => !alreadyAssignedUserIds.has(userId.toString()))
@@ -882,91 +1237,6 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
                     usersToEnroll.push(...userIds);
                 }
             }
-
-            if (plan?.targetAudience === targetAudience.GROUP_BASED && plan?.audienceSelection === audienceSelection.ALL_EMPLOYEES) {
-
-                const resultforGroup = await findGroupBasedPublishedLearningPlans(plan, userConditions);
-
-
-                if (resultforGroup?.success) {
-
-                    const usersToRemove = userConditions
-                        .filter(user => !resultforGroup?.allMatchedUsers.includes(user._id))
-                        .map(user => user._id);
-
-                    if (usersToRemove.length > 0) {
-                        removeUsersData.push({
-                            usersToRemove,
-                            planId: plan._id
-                        });
-                    }
-
-                    const assignments = resultforGroup?.allMatchedUsers.map(userId => ({
-                        learningPlanId: resultforGroup?.planId,
-                        assignedLearnerId: userId,
-                        isMannuallyAdded: false,
-                        createdBy: context.user.userId,
-                        updatedBy: context.user.userId
-                    }));
-                    if (assignments?.length) {
-                        await LearningPlanAssignment.insertMany(assignments, { ordered: false });
-                    }
-                    usersToEnroll.push(...resultforGroup?.allMatchedUsers);
-                }
-            } else if (plan?.targetAudience === targetAudience.GROUP_BASED && plan?.audienceSelection === audienceSelection.AUTOMATIC) {
-
-                const resultforGroup = await findGroupBasedPublishedLearningPlans(plan, userConditions);
-
-                if (resultforGroup?.success && resultforGroup?.allMatchedUsers?.length > 0) {
-
-                    const validUsers = userConditions.filter(user =>
-                        evaluateConditionalCustomFields(plan.conditionType, plan.conditionalCustomFields, user)
-                    );
-                    const validUserIds = new Set(validUsers.map(user => user._id));
-                    const usersToRemove = userConditions
-                        .filter(user => !validUserIds.has(user._id))
-                        .map(user => user._id);
-
-                    if (usersToRemove.length > 0) {
-                        removeUsersData.push({
-                            usersToRemove,
-                            planId: plan._id
-                        });
-                    }
-
-                    const userIds = validUsers.map(user => user._id);
-
-                    if (validUsers?.length > 0) {
-
-                        const existingAssignments = await LearningPlanAssignment.find({
-                            learningPlanId: plan._id,
-                            assignedLearnerId: { $in: userIds },
-                            isDeleted: { $ne: true }
-                        }, { assignedLearnerId: 1 });
-
-                        const alreadyAssignedUserIds = new Set(existingAssignments.map(assignment => assignment.assignedLearnerId.toString()));
-
-                        const newAssignments = userIds
-                            .filter(userId => !alreadyAssignedUserIds.has(userId.toString()))
-                            .map(userId => ({
-                                learningPlanId: plan._id,
-                                assignedLearnerId: userId,
-                                isMannuallyAdded: false,
-                                createdBy: context.user.userId,
-                                updatedBy: context.user.userId,
-                                createdAt: new Date(),
-                                updatedAt: new Date()
-                            }));
-
-                        if (newAssignments.length > 0) {
-                            const dataEnrolled = await LearningPlanAssignment.insertMany(newAssignments, { ordered: false });
-                        }
-                        usersToEnroll.push(...userIds);
-                    }
-
-                }
-            }
-
             if (usersToEnroll.length > 0) {
 
                 const enrollData = {
@@ -1027,10 +1297,12 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
         userToLearningPlansObject[userId] = Array.from(planIds);
     });
     const nonNotificationRecievers = await OverallTrainingProgress.find({ training: { $in: uniqueTrainingIds }, user: { $in: uniqueUserIds } }).select("training user");
-
-    console.time('enrollUsersInFilterLP')
-    await enrollUsers(enrollmentData, context);
-    console.timeEnd('enrollUsersInFilterLP')
+    
+    if(enrollmentData?.length > 0){
+        console.time('enrollUsersInFilterLP')
+        await enrollUsers(enrollmentData, context);
+        console.timeEnd('enrollUsersInFilterLP')
+    }
 
     if (removeUsersData?.length > 0) {
         const bulkUpdateOps = [];
@@ -1077,7 +1349,7 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
 
     }
 
-    await sendNotificationAndMailForAutoEnrollment(uniqueUserIds, uniqueTrainingIds, nonNotificationRecievers,userToLearningPlansObject, context);
+    await sendNotificationAndMailForAutoEnrollment(uniqueUserIds, uniqueTrainingIds, nonNotificationRecievers, userToLearningPlansObject, context);
 
     return filteredPlans.filter(Boolean);
 }
@@ -2931,6 +3203,7 @@ module.exports = {
     enrollUsers,
     // moveExpiredDeletedUsers,
     sendNotificationOnBULK,
+    sendWelcomeEmailBulk,
     updateEmployees: async ({ id, input, userId, subscriberId, role, userInfo }, context, session) => {
 
         const employeeFilterConditions = { subscriber: subscriberId };
@@ -3126,7 +3399,12 @@ module.exports = {
             .catch((error) => {
                 console.error(error);
             });
-        const result = await filterLearningPlans(learningPlans, userConditions, context, session);
+            try{
+                const result = await filterLearningPlans(learningPlans, userConditions, context, session);
+                console.log(result,'response from filterLearningPlans helper');
+            }catch(error){
+                console.log(error);
+            };
 
         try {
             const userVesselsDetails = await Vessel.find({ _id: savedEmployee.user?.currentVessel, isDeleted: false, isActive: true }).populate('typeOfVessel', '_id name');
@@ -3166,12 +3444,12 @@ module.exports = {
                 isPushNotification: savedEmployee.user?.isPushNotification,
                 lastLoginAt: savedEmployee.user?.lastLoginAt,
                 isSignupAdminAprroved: savedEmployee.user?.isSignupAdminAprroved,
-                vesselName: userVesselsDetails[0]?.name===undefined?null:userVesselsDetails[0]?.name,
-                vesselIsActive: userVesselsDetails[0]?.isActive===undefined?null:userVesselsDetails[0]?.isActive,
-                vesselId: userVesselsDetails[0]?._id===undefined?null:userVesselsDetails[0]?._id.toString(),
-                vesselIsDeleted: userVesselsDetails[0]?.isDeleted===undefined?null:userVesselsDetails[0]?.isDeleted,
-                typeOfVesselName: userVesselsDetails[0]?.typeOfVessel?.name===undefined?null:userVesselsDetails[0]?.typeOfVessel?.name,
-                tyepOfVesselId: userVesselsDetails[0]?.typeOfVessel?._id===undefined?null:userVesselsDetails[0]?.typeOfVessel?._id.toString(),
+                vesselName: userVesselsDetails[0]?.name === undefined ? null : userVesselsDetails[0]?.name,
+                vesselIsActive: userVesselsDetails[0]?.isActive === undefined ? null : userVesselsDetails[0]?.isActive,
+                vesselId: userVesselsDetails[0]?._id === undefined ? null : userVesselsDetails[0]?._id.toString(),
+                vesselIsDeleted: userVesselsDetails[0]?.isDeleted === undefined ? null : userVesselsDetails[0]?.isDeleted,
+                typeOfVesselName: userVesselsDetails[0]?.typeOfVessel?.name === undefined ? null : userVesselsDetails[0]?.typeOfVessel?.name,
+                tyepOfVesselId: userVesselsDetails[0]?.typeOfVessel?._id === undefined ? null : userVesselsDetails[0]?.typeOfVessel?._id.toString(),
                 userCreatedAt: savedEmployee.user?.createdAt,
                 userUpdatedAt: savedEmployee.user?.updatedAt,
             };
@@ -3604,13 +3882,48 @@ module.exports = {
 
         const caseInsensitiveEmpIdArray = empIdsArray.map((id) => new RegExp(`^${id}$`, 'i'));
 
+        // Filter out users with missing required fields before processing
+        users = users.filter(user => user.civilIdOrPassport && user.email);
+
+        // Check for duplicates within the CSV data itself
+        const csvEmails = new Map(); // Use Map to track row numbers
+        const csvEmpIds = new Map();
+        const duplicateErrors = [];
+
+        console.log(`Processing ${users.length} users after filtering missing fields`);
+
+        users = users.filter((user, index) => {
+            const email = user.email?.trim().toLowerCase();
+            const empId = user.civilIdOrPassport?.trim().toUpperCase();
+
+            if (csvEmails.has(email)) {
+                const firstOccurrence = csvEmails.get(email);
+                duplicateErrors.push(`Row ${index + 1}: Duplicate email found in CSV - ${email} (first seen at row ${firstOccurrence})`);
+                console.log(`Duplicate email detected: ${email} at row ${index + 1} (first seen at row ${firstOccurrence})`);
+                return false;
+            }
+
+            if (csvEmpIds.has(empId)) {
+                const firstOccurrence = csvEmpIds.get(empId);
+                duplicateErrors.push(`Row ${index + 1}: Duplicate User ID found in CSV - ${empId} (first seen at row ${firstOccurrence})`);
+                console.log(`Duplicate User ID detected: ${empId} at row ${index + 1} (first seen at row ${firstOccurrence})`);
+                return false;
+            }
+
+            csvEmails.set(email, index + 1);
+            csvEmpIds.set(empId, index + 1);
+            return true;
+        });
+
+        console.log(`After duplicate removal: ${users.length} users remaining, ${duplicateErrors.length} duplicates found`);
+
         users = users.map(user => {
             return {
                 ...user,
-                firstName: encrypt(user.firstName.trim().toLowerCase()),
-                lastName: user.lastName.trim().toLowerCase() ? encrypt(user.lastName.trim().toLowerCase()) : '',
-                civilIdOrPassport: encrypt(user.civilIdOrPassport.trim().toUpperCase()),
-                email: encrypt(user.email.trim().toLowerCase()),
+                firstName: encrypt(user.firstName?.trim().toLowerCase()),
+                lastName: user.lastName?.trim().toLowerCase() ? encrypt(user.lastName.trim().toLowerCase()) : '',
+                civilIdOrPassport: user.civilIdOrPassport ? encrypt(user.civilIdOrPassport.trim().toUpperCase()) : '',
+                email: encrypt(user.email?.trim().toLowerCase()),
             }
         })
 
@@ -3638,12 +3951,12 @@ module.exports = {
         })
 
         const existingEmpIdEmailMap = existingUsers.map(user => ({
-            [user.civilIdOrPassport.toLowerCase()]: user.email?.toLowerCase()
+            [user.civilIdOrPassport?.toLowerCase()]: user.email?.toLowerCase()
         }));
 
 
         const existingEmailEmpIdMap = existingUsers.map(user => ({
-            [user.email?.toLowerCase()]: user.civilIdOrPassport.toLowerCase()
+            [user.email?.toLowerCase()]: user.civilIdOrPassport?.toLowerCase()
         }))
 
 
@@ -3651,9 +3964,18 @@ module.exports = {
         const getAllDBUsers = await User.find().select('email civilIdOrPassport');
         const getAllDBEmails = getAllDBUsers.map(user => user.email?.toLowerCase());
         const getAllDBEmpIds = getAllDBUsers.map(user => user.civilIdOrPassport?.toUpperCase());
-        let errors = [];
+        let errors = [...duplicateErrors];
         const updates = [];
         const inserts = [];
+
+        // If there are duplicate errors, return early
+        if (duplicateErrors.length > 0) {
+            return {
+                success: false,
+                errors: errors,
+                message: `CSV contains duplicate entries. Please fix duplicates and try again.`
+            };
+        }
 
         let userIndex = 0;
 
@@ -3680,6 +4002,12 @@ module.exports = {
 
         console.time('userValidationLoop');
         for (const user of users) {
+            // Skip users with missing required fields
+            if (!user.civilIdOrPassport || !user.email) {
+                errors.push(`Row ${userIndex + 1}: Missing required fields (User ID or Email)`);
+                userIndex++;
+                continue;
+            }
 
             const existingEmpIdsMap = existingEmpIdEmailMap.find(empObj => empObj[user.civilIdOrPassport?.toLowerCase()]);
             const existingEmailIdsMap = existingEmailEmpIdMap.find(emailObj => emailObj[user.email?.toLowerCase()]);
@@ -3687,11 +4015,11 @@ module.exports = {
 
             if (existingEmpIdsMap) {
 
-                const email = existingEmpIdsMap[user.civilIdOrPassport.toLowerCase()];
+                const email = existingEmpIdsMap[user.civilIdOrPassport?.toLowerCase()];
 
                 if (existingEmailIdsMap) {
 
-                    const empId = existingEmailIdsMap[user.email?.toLowerCase()].toUpperCase();
+                    const empId = existingEmailIdsMap[user.email?.toLowerCase()]?.toUpperCase();
 
                     if (empId !== user.civilIdOrPassport?.toUpperCase() && existingEmailsInDB.has(user.civilIdOrPassport?.toUpperCase())) {
 
@@ -3710,6 +4038,7 @@ module.exports = {
                                         civilIdOrPassport: user.civilIdOrPassport,
                                         vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                                         currentVessel: user?.imoNumber && user?.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
+                                        isRegistered: false, // to enter users in unregistered state
                                     },
                                 },
                             },
@@ -3744,6 +4073,7 @@ module.exports = {
                                     email: user.email,
                                     vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                                     currentVessel: user?.imoNumber && user?.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
+                                    isRegistered: false, // to enter users in unregistered state
                                 },
                             },
                         },
@@ -3770,7 +4100,7 @@ module.exports = {
 
                     const email = existingEmpIdsMap[user.civilIdOrPassport?.toUpperCase()];
 
-                    if (email !== user.email.toLowerCase() && existingEmpIdsInDB.has(user.email.toLowerCase())) {
+                    if (email !== user.email?.toLowerCase() && existingEmpIdsInDB.has(user.email?.toLowerCase())) {
 
                         errors.push(errors.push(`Conflict in Row ${userIndex + 1}: The provided User ID or Email ID is already associated with another user`));
                         break;
@@ -3788,6 +4118,7 @@ module.exports = {
                                         email: user.email,
                                         vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                                         currentVessel: user?.imoNumber && user?.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
+                                        isRegistered: false, // to enter users in unregistered state
                                     },
                                 },
                             },
@@ -3822,6 +4153,7 @@ module.exports = {
                                     civilIdOrPassport: user.civilIdOrPassport,
                                     vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                                     currentVessel: user?.imoNumber && user?.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
+                                    isRegistered: false, // to enter users in unregistered state
                                 },
                             },
                         },
@@ -3848,13 +4180,24 @@ module.exports = {
                     break;
 
 
-                } else if (getAllDBEmpIds.includes(user.civilIdOrPassport.toLowerCase())) {
+                } else if (getAllDBEmpIds.includes(user.civilIdOrPassport?.toLowerCase())) {
 
                     errors.push(errors.push(`Conflict in Row ${userIndex + 1}: The provided User ID or Email ID is already associated with another user`));
                     break;
 
                 } else {
 
+                    // Double-check for duplicates in inserts array before adding
+                    const isDuplicateInInserts = inserts.some(existingUser =>
+                        existingUser.email === user.email ||
+                        existingUser.civilIdOrPassport === user.civilIdOrPassport
+                    );
+
+                    if (isDuplicateInInserts) {
+                        errors.push(`Row ${userIndex + 1}: Duplicate entry detected in processing queue`);
+                        userIndex++;
+                        continue;
+                    }
 
                     let password = dummyPassword.dummy_pwd;
 
@@ -3867,7 +4210,8 @@ module.exports = {
                         currentVessel: user.imoNumber && user.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
                         password: await CryptoHelper.hash(password, 10),
                         subscriber: subscriber_Id ?? null,
-                        isSignupAdminAprroved: true
+                        isSignupAdminAprroved: true,
+                        isRegistered: false, // to enter users in unregistered state
                     });
 
                     if (user.imoNumber && user.vesselStatus.toUpperCase() !== VesselStatus.ONSHORE) {
@@ -3936,10 +4280,44 @@ module.exports = {
 
         let endUsers = [];
 
+        console.log(`About to insert ${inserts.length} users`);
+        console.log('Sample insert emails:', inserts.slice(0, 3).map(u => u.email));
+
         const saveEmployees = await DbTransactionHelper.performDbTransaction(async session => {
 
             console.time("bulkInsertUsers")
-            bulkInsertUsers = await User.insertMany(inserts, { session: session });
+            try {
+                bulkInsertUsers = await User.insertMany(inserts, { session: session, ordered: false });
+            } catch (error) {
+                if (error.name === 'BulkWriteError') {
+                    // Handle partial success - some users were inserted successfully
+                    console.log(`Bulk insert partially successful. ${error.result.insertedCount} users inserted, ${error.writeErrors.length} errors`);
+                    bulkInsertUsers = error.result.insertedIds ? Object.values(error.result.insertedIds) : [];
+
+                    // Log the specific duplicate errors with more detail
+                    error.writeErrors.forEach((writeError, index) => {
+                        if (writeError.code === 11000) { // Duplicate key error
+                            console.log(`Duplicate key error at index ${writeError.index}:`, writeError.errmsg);
+
+                            // Try to find the original user data that caused this error
+                            const failedUser = inserts[writeError.index];
+                            if (failedUser) {
+                                console.log(`Failed user data:`, {
+                                    email: failedUser.email,
+                                    civilIdOrPassport: failedUser.civilIdOrPassport
+                                });
+                            }
+
+                            errors.push(`Duplicate entry detected at row ${writeError.index + 1}: Email or User ID already exists in database`);
+                        } else {
+                            console.log(`Other error at index ${writeError.index}:`, writeError.errmsg);
+                            errors.push(`Error at row ${writeError.index + 1}: ${writeError.errmsg}`);
+                        }
+                    });
+                } else {
+                    throw error; // Re-throw if it's not a BulkWriteError
+                }
+            }
             console.timeEnd("bulkInsertUsers")
 
 
@@ -4057,7 +4435,7 @@ module.exports = {
                 console.timeEnd('vesselBulkWrite')
 
                 const employeesToInsert = allUpdatedUsers.map(user => {
-                    const originalUserData = users.find(u => u.civilIdOrPassport.toLowerCase() === user.civilIdOrPassport.toLowerCase());
+                    const originalUserData = users.find(u => u.civilIdOrPassport?.toLowerCase() === user.civilIdOrPassport?.toLowerCase());
 
 
                     return {
@@ -4248,9 +4626,9 @@ module.exports = {
                     throw CustomError(ErrorName.INDEX_DOC_ELASTIC_SEARCH, `Elastic Insert Error (users): ${error}`)
                 }
 
-                console.time('filterPlans')
-                const filteredPlans = await filterLearningPlans(learningPlans, conditionsList, context, session);
-                console.timeEnd('filterPlans')
+                // console.time('filterPlans')
+                // const filteredPlans = await filterLearningPlans(learningPlans, conditionsList, context, session);
+                // console.timeEnd('filterPlans')
 
                 // if (filteredPlans.length > 0) {
                 //     console.log("filteredPlans: ", filteredPlans);
