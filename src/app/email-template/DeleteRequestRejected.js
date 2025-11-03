@@ -86,15 +86,11 @@ function DeleteRequestRejected(data) {
     <!-- ✅ Responsive logo table for Outlook Mobile -->
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
       <tr>
-        <td align="center" style="padding: 20px 0;">
-          <img 
-            src="https://squadra-media.s3.ap-south-1.amazonaws.com/9-01.png"
-            alt="Company Logo"
-            width="160"
-            style="display:block; width:160px; max-width:80%; height:auto; margin:0 auto;"
-          />
-        </td>
-      </tr>
+          <td align="center" style="padding: 40px 48px;" class="logo">
+                <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/9-01.png" 
+                    alt="Company Logo"  width="200" style="display: block; border: 0; outline: none; text-decoration: none; height: auto; max-width: 200px;">
+            </td>
+        </tr>
     </table>
 
     <!-- Email main content container -->
