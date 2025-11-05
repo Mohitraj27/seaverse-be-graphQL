@@ -1801,9 +1801,12 @@ module.exports.queries = {
                     if (!emailRegex.test(decryptEmail)) {
                         messages.push(`Invalid Email format: ${decryptEmail}`);
                         return;
+                    } 
+                    const encryptedEmail = encrypt(email);                 
+                    let currentUserData = await User.findOne({ email: encryptedEmail, isDeleted: false, isRegistered: true });
+                    if(!currentUserData){
+                        throw CustomError(ErrorName.USER_NOT_FOUND, `User Not Found`);
                     }
-
-                    let currentUserData = await User.findOne({ email: encrypt(email), isDeleted: false, isRegistered: true });
                     const fieldsToUpdate = ['firstName', 'lastName', 'email'];
                     fieldsToUpdate.forEach(field => {
                         if (currentUserData[field]) {
