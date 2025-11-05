@@ -47,6 +47,7 @@ module.exports = {
             """in days"""
             durationHours: String
             """in days"""
+            totalCourseLength: String
             certificateValidity: Int
             targetAudienceId: TargetAudience
             courseType: CourseType
