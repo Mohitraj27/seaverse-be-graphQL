@@ -88,11 +88,12 @@ function DeleteRequestApproved(data) {
         <table class="container" role="presentation" cellpadding="0" cellspacing="0" width="600" style="background-color:#ffffff; border:1px solid #e0e0e0; border-radius:8px;">
           
           <!-- Logo Section -->
-          <tr>
-            <td class="logo-container" align="center" style="padding:20px 0;">
-              <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/9-01.png" alt="Seaverse Logo" class="logo" style="max-width:200px; height:auto; display:block; margin:0 auto;">
+         <tr>
+            <td align="center" style="padding: 40px 48px;" class="logo">
+                <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/9-01.png" 
+                    alt="Company Logo"  width="200" style="display: block; border: 0; outline: none; text-decoration: none; height: auto; max-width: 200px;">
             </td>
-          </tr>
+        </tr>
 
           <!-- Content -->
           <tr>
