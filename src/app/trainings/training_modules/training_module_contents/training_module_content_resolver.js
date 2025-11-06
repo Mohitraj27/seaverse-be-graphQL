@@ -2070,126 +2070,131 @@ module.exports.mutations = {
         }
 
         try {
+            return await DbTransactionHelper.performDbTransaction(async session => {
+                const inputContents = await TrainingModuleContent.find({
+                    _id: { $in: ids },
+                    subscriber: subscriberId,
+                }).session(session);
 
-            const inputContents = await TrainingModuleContent.find({
-                _id: { $in: ids },
-                subscriber: subscriberId,
-            });
-
-            if (!inputContents || inputContents.length === 0) {
-                throw CustomError(ErrorName.NOT_FOUND);
-            }
-
-            const contentUIDs = inputContents.map(content => content.UID);
-
-            const matchingTrainingContents = await TrainingModuleContent.find({ UID: { $in: contentUIDs } }).select('_id');
-            const matchingTrainingContentIds = matchingTrainingContents.map(content => content._id);
-
-            const fetchCurrentContents = await TrainingContentBridge.find({ trainingContent: { $in: matchingTrainingContentIds } }).populate('trainingContent').lean();
-
-            if (!fetchCurrentContents.length) {
-                throw CustomError(ErrorName.NOT_FOUND);
-            }
-
-            const trainingsUsedTheContent = fetchCurrentContents.map((currentContent) => currentContent.training);
-            if (trainingsUsedTheContent.length > 0) {
-                // Update not started OVerall Training Progresses
-                await OverallTrainingProgress.updateMany(
-                    { training: { $in: trainingsUsedTheContent }, status: 'NOT_STARTED' },
-                    {
-                        $inc: {
-                            version: 1
-                        }
-                    },
-                )
-            }
-
-            const bridgesToUpdate = fetchCurrentContents.map(content => ({
-                bridgeId: content._id,
-                trainingContentId: inputContents.find(ic => ic.UID === content.trainingContent.UID)._id,
-                currentContent: content?.trainingContent?._id
-            }));
-
-            const bulkBridgeUpdates = bridgesToUpdate.map(({ bridgeId, trainingContentId }) => ({
-                updateOne: {
-                    filter: { _id: bridgeId },
-                    update: { trainingContent: trainingContentId }
+                if (!inputContents || inputContents.length === 0) {
+                    throw CustomError(ErrorName.NOT_FOUND);
                 }
-            }));
 
-            await TrainingContentBridge.bulkWrite(bulkBridgeUpdates);
+                const contentUIDs = inputContents.map(content => content.UID);
 
-            const currentContentId = bridgesToUpdate[0].currentContent;
-            const trainingContentId = bridgesToUpdate[0].trainingContentId;
+                const matchingTrainingContents = await TrainingModuleContent.find({ UID: { $in: contentUIDs } }).select('_id').session(session);
+                const matchingTrainingContentIds = matchingTrainingContents.map(content => content._id);
 
-            const updatedDocs = await TrainingProgress.find({
-                trainingModuleContent: { $in: currentContentId },
-                isDeleted: { $ne: true },
-                status: 'NOT_STARTED'
-            }).lean();
+                const fetchCurrentContents = await TrainingContentBridge.find({ trainingContent: { $in: matchingTrainingContentIds } }).populate('trainingContent').lean().session(session);
 
-            await TrainingProgress.updateMany(
-                {
+                if (!fetchCurrentContents.length) {
+                    throw CustomError(ErrorName.NOT_FOUND);
+                }
+
+                const trainingsUsedTheContent = fetchCurrentContents.map((currentContent) => currentContent.training);
+                if (trainingsUsedTheContent.length > 0) {
+                    // Update not started Overall Training Progresses
+                    await OverallTrainingProgress.updateMany(
+                        { training: { $in: trainingsUsedTheContent }, status: 'NOT_STARTED' },
+                        {
+                            $inc: {
+                                version: 1
+                            }
+                        },
+                        { session }
+                    );
+                }
+
+                const bridgesToUpdate = fetchCurrentContents.map(content => ({
+                    bridgeId: content._id,
+                    trainingContentId: inputContents.find(ic => ic.UID === content.trainingContent.UID)._id,
+                    currentContent: content?.trainingContent?._id
+                }));
+
+                const bulkBridgeUpdates = bridgesToUpdate.map(({ bridgeId, trainingContentId }) => ({
+                    updateOne: {
+                        filter: { _id: bridgeId },
+                        update: { trainingContent: trainingContentId }
+                    }
+                }));
+
+                await TrainingContentBridge.bulkWrite(bulkBridgeUpdates, { session });
+
+                const currentContentId = bridgesToUpdate[0].currentContent;
+                const trainingContentId = bridgesToUpdate[0].trainingContentId;
+
+                const updatedDocs = await TrainingProgress.find({
                     trainingModuleContent: { $in: currentContentId },
                     isDeleted: { $ne: true },
                     status: 'NOT_STARTED'
-                },
-                [
-                    { $set: { trainingModuleContent: trainingContentId } }
-                ]
-            );
+                }).lean().session(session);
 
-            const overallTrainingProgressIds = updatedDocs.map(doc => doc.overallTrainingProgress);
-            if (overallTrainingProgressIds.length > 0) {
-                await OverallTrainingProgress.updateMany(
+                await TrainingProgress.updateMany(
                     {
-                        _id: { $in: overallTrainingProgressIds },
-                        "contentData.contentIds": { $in: currentContentId }
+                        trainingModuleContent: { $in: currentContentId },
+                        isDeleted: { $ne: true },
+                        status: 'NOT_STARTED'
                     },
-                    {
-                        $set: {
-                            "contentData.$[outer].contentIds.$[inner]": trainingContentId
-                        },
-                        $inc: {
-                            version: 1
-                        }
-                    },
-                    {
-                        arrayFilters: [
-                            { "outer.contentIds": { $in: currentContentId } },
-                            { "inner": { $in: currentContentId } }
-                        ]
-                    }
+                    [
+                        { $set: { trainingModuleContent: trainingContentId } }
+                    ],
+                    { session }
                 );
-            }
 
-            await TrainingModuleContent.updateMany(
-                { _id: { $in: ids }, subscriber: subscriberId },
-                { $set: { isPublished: false } }
-            );
+                const overallTrainingProgressIds = updatedDocs.map(doc => doc.overallTrainingProgress);
+                if (overallTrainingProgressIds.length > 0) {
+                    await OverallTrainingProgress.updateMany(
+                        {
+                            _id: { $in: overallTrainingProgressIds },
+                            "contentData.contentIds": { $in: currentContentId }
+                        },
+                        {
+                            $set: {
+                                "contentData.$[outer].contentIds.$[inner]": trainingContentId
+                            },
+                            $inc: {
+                                version: 1
+                            }
+                        },
+                        {
+                            arrayFilters: [
+                                { "outer.contentIds": { $in: currentContentId } },
+                                { "inner": { $in: currentContentId } }
+                            ],
+                            session
+                        }
+                    );
+                }
 
-            const impactedCoursesCount = bridgesToUpdate.length;
-            const titles = inputContents.map((content) => content.title[0]?.value).join(", ");
-            /* 
-                        await NotificationHelper.createNotificationhelper({
-                            subscriber: subscriberId,
-                            titleValue: `Content Successfully Pushed to the Courses`,
-                            messageValue: `The contents titled ${titles} have been successfully pushed to ${impactedCoursesCount} course(s) by ${userInfo?.firstName} ${userInfo?.lastName}.`,
-                            notificationType: NotificationType.CONTENT_PUSHED,
-                            notifyAllAdmin: true,
-                            affected: inputContents.map((content) => ({
-                                targetRef: "TrainingModuleContent",
-                                target: content._id,
-                            })),
-                            status: 'SENT',
-                            icon: notificationiconEnum.SUCCESS,
-                            createdBy: userId,
-                        }); 
-            */
-            return {
-                status: 1,
-                message: "New content pushed to lessons successfully.",
-            };
+                await TrainingModuleContent.updateMany(
+                    { _id: { $in: ids }, subscriber: subscriberId },
+                    { $set: { isPublished: false } },
+                    { session }
+                );
+
+                const impactedCoursesCount = bridgesToUpdate.length;
+                const titles = inputContents.map((content) => content.title[0]?.value).join(", ");
+                /* 
+                            await NotificationHelper.createNotificationhelper({
+                                subscriber: subscriberId,
+                                titleValue: `Content Successfully Pushed to the Courses`,
+                                messageValue: `The contents titled ${titles} have been successfully pushed to ${impactedCoursesCount} course(s) by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                                notificationType: NotificationType.CONTENT_PUSHED,
+                                notifyAllAdmin: true,
+                                affected: inputContents.map((content) => ({
+                                    targetRef: "TrainingModuleContent",
+                                    target: content._id,
+                                })),
+                                status: 'SENT',
+                                icon: notificationiconEnum.SUCCESS,
+                                createdBy: userId,
+                            }); 
+                */
+                return {
+                    status: 1,
+                    message: "New content pushed to lessons successfully.",
+                };
+            });
 
         } catch (error) {
             return Error(error);
