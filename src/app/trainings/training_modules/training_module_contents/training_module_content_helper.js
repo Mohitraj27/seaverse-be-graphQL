@@ -343,14 +343,14 @@ module.exports = {
         return updateTrainingBridge;
 
     },
-updateTrainingDurations: async (validTrainings) => {
+updateTrainingDurations: async (validTrainings,session) => {
     try {
         const trainingIds = [...new Set(validTrainings.map(v => v.training._id.toString()))];
 
         const allTrainingBridges = await TrainingContentBridge.find({
             training: { $in: trainingIds },
             isDeleted: false
-        }).select('training trainingContent').lean();
+        }).select('training trainingContent').lean().session(session);
 
         const allContentIds = [...new Set(allTrainingBridges.map(b => b.trainingContent.toString()))];
 
@@ -358,7 +358,7 @@ updateTrainingDurations: async (validTrainings) => {
             _id: { $in: allContentIds },
             isDeleted: false,
             contentStatus: 'PUBLISHED'
-        }).select('_id duration').lean();
+        }).select('_id duration').lean().session(session);
 
         // Convert "1.35" / "12" / "0.32" / "00:01:35" → seconds
         const toSeconds = (durationValue) => {
@@ -415,7 +415,7 @@ updateTrainingDurations: async (validTrainings) => {
         }));
 
         if (bulkUpdates.length > 0) {
-            await Training.bulkWrite(bulkUpdates);
+            await Training.bulkWrite(bulkUpdates,{session});
         }
 
     } catch (error) {

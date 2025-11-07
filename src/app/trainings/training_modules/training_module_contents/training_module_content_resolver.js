@@ -2194,7 +2194,7 @@ module.exports.mutations = {
             const fetchTraining = await TrainingContentBridge.find({ trainingContent: { $in: matchingTrainingContentIds }, isDeleted: false }).populate({ path: 'training',match: { isDeleted: false ,status:'PUBLISHED'} }).lean();
             const validTrainings = fetchTraining.filter(item => item.training && item.training._id);
             if(validTrainings.length > 0){
-                await updateTrainingDurations(validTrainings);
+                await updateTrainingDurations(validTrainings,session);
             }
                 return {
                     status: 1,
