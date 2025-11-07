@@ -6,7 +6,8 @@ const CounterHelper = require("../../../counters/counter_helper");
 const { TrainingContentBridge } = require("../../training_content_bridge/training_content_model");
 const { S3Client, PutObjectCommand } = require("@aws-sdk/client-s3");
 const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
-
+const { Training} = require("../../training_model");
+const mongoose = require("mongoose");
 const uploadTrainingModuleContentVideos = async ({ videos, folderName }) => {
     const trainingModuleContentVideos = [];
 
@@ -341,5 +342,84 @@ module.exports = {
 
         return updateTrainingBridge;
 
+    },
+updateTrainingDurations: async (validTrainings) => {
+    try {
+        const trainingIds = [...new Set(validTrainings.map(v => v.training._id.toString()))];
+
+        const allTrainingBridges = await TrainingContentBridge.find({
+            training: { $in: trainingIds },
+            isDeleted: false
+        }).select('training trainingContent').lean();
+
+        const allContentIds = [...new Set(allTrainingBridges.map(b => b.trainingContent.toString()))];
+
+        const validContents = await TrainingModuleContent.find({
+            _id: { $in: allContentIds },
+            isDeleted: false,
+            contentStatus: 'PUBLISHED'
+        }).select('_id duration').lean();
+
+        // Convert "1.35" / "12" / "0.32" / "00:01:35" → seconds
+        const toSeconds = (durationValue) => {
+            if (!durationValue) return 0;
+
+            if (typeof durationValue === 'string' && durationValue.includes(':')) {
+                const [hh = 0, mm = 0, ss = 0] = durationValue.split(':').map(Number);
+                return hh * 3600 + mm * 60 + ss;
+            }
+
+            const str = durationValue.toString();
+            let minutes = 0, seconds = 0;
+
+            if (str.includes('.')) {
+                const [minPart, secPart] = str.split('.');
+                minutes = Number(minPart) || 0;
+                seconds = Number(secPart.padEnd(2, '0')) || 0;
+            } else {
+                minutes = Number(str) || 0;
+                seconds = 0;
+            }
+
+            return (minutes * 60) + seconds;
+        };
+
+        // Map content → seconds
+        const contentDurationMap = validContents.reduce((acc, curr) => {
+            acc[curr._id.toString()] = toSeconds(curr.duration);
+            return acc;
+        }, {});
+
+        // Sum per training
+        const trainingDurationMap = {};
+        allTrainingBridges.forEach(bridge => {
+            const trainingId = bridge.training.toString();
+            const contentId = bridge.trainingContent.toString();
+            const durationInSeconds = contentDurationMap[contentId] || 0;
+            trainingDurationMap[trainingId] = (trainingDurationMap[trainingId] || 0) + durationInSeconds;
+        });
+
+        // Convert seconds → "M.SS" (like 1.35)
+        const toDurationHoursFormat = (totalSeconds) => {
+            const totalMinutes = Math.floor(totalSeconds / 60);
+            const remainingSeconds = totalSeconds % 60;
+            const result = `${totalMinutes}.${remainingSeconds.toString().padStart(2, '0')}`;
+            return parseFloat(result);
+        };
+
+        const bulkUpdates = Object.entries(trainingDurationMap).map(([trainingId, totalSeconds]) => ({
+            updateOne: {
+                filter: { _id: trainingId },
+                update: { $set: { durationHours: toDurationHoursFormat(totalSeconds) } },
+            },
+        }));
+
+        if (bulkUpdates.length > 0) {
+            await Training.bulkWrite(bulkUpdates);
+        }
+
+    } catch (error) {
+        throw CustomError(ErrorName.FAILED_UPDATE_TRAINING_DURATION, error.message);
     }
+}
 }

@@ -26,7 +26,8 @@ const { TrainingProgress } = require("../../../training-registrations/training-p
 const { OverallTrainingProgress } = require("../../../training-registrations/overall-course-progress/overall_progress_model");
 const { default: mongoose } = require("mongoose");
 const { decrypt } = require("../../../../util/encryption_helper");
-
+const {updateTrainingDurations} = require("./training_module_content_helper");
+const { Training} = require('../../../trainings/training_model');
 const axios = require('axios');
 const FormData = require('form-data');
 const fs = require('fs');
@@ -2186,13 +2187,18 @@ module.exports.mutations = {
                             createdBy: userId,
                         }); 
             */
+            const fetchTraining = await TrainingContentBridge.find({ trainingContent: { $in: matchingTrainingContentIds }, isDeleted: false }).populate({ path: 'training',match: { isDeleted: false ,status:'PUBLISHED'} }).lean();
+            const validTrainings = fetchTraining.filter(item => item.training && item.training._id);
+            if(validTrainings.length > 0){
+                await updateTrainingDurations(validTrainings);
+            }
             return {
                 status: 1,
                 message: "New content pushed to lessons successfully.",
             };
 
         } catch (error) {
-            return Error(error);
+            throw CustomError(ErrorName.FAILED_TO_PUSH_LATEST_CONTENT, error.message);
         }
 
     },
