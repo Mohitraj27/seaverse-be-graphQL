@@ -210,7 +210,7 @@ function mapElasticToOldAPI(elasticResults) {
     return {
         totalCount: elasticResults.total,
         totalEmployees: elasticResults.total,
-        employees: elasticResults.employees.map(async(emp) => {
+        employees: elasticResults.employees.map(async (emp) => {
             const avatarUrl = emp.avatar ? await AwsHelper.fetchFile(emp.avatar) : null;
             return {
                 user: {
@@ -225,7 +225,7 @@ function mapElasticToOldAPI(elasticResults) {
                     vesselStatus: emp.vesselStatus || null,
                     subRoles: emp.subRoles || [],
                     isResetPasswordDialog: emp.isResetPasswordDialog || false,
-                    avatar: avatarUrl|| null,
+                    avatar: avatarUrl || null,
                     __typename: "User",
                 },
                 empDesignation: emp.empDesignation
@@ -1801,10 +1801,10 @@ module.exports.queries = {
                     if (!emailRegex.test(decryptEmail)) {
                         messages.push(`Invalid Email format: ${decryptEmail}`);
                         return;
-                    } 
-                    const encryptedEmail = encrypt(email);                 
+                    }
+                    const encryptedEmail = encrypt(email);
                     let currentUserData = await User.findOne({ email: encryptedEmail, isDeleted: false, isRegistered: true });
-                    if(!currentUserData){
+                    if (!currentUserData) {
                         throw CustomError(ErrorName.USER_NOT_FOUND, `User Not Found`);
                     }
                     const fieldsToUpdate = ['firstName', 'lastName', 'email'];
@@ -2264,20 +2264,20 @@ const changeRegisterEmployees = async ({ input }, context) => {
             if (learningPlans?.length > 0) {
                 const filteredPlans = await filterLearningPlans(learningPlans, conditions, context);
             }
-/* 
-            await NotificationHelper.createNotificationhelper({
-                subscriber: subscriberId,
-                titleValue: `Registered Successfully`,
-                messageValue: `You're now successfully registered.`,
-                notificationType: NotificationType.EMPLOYEE_UPDATED,
-                notifyAllAdmin: false,
-                isNotificatonForAdmin: false,
-                notifiers: input?.users ?? [],
-                status: "SUCCESS",
-                icon: notificationiconEnum.SUCCESS,
-                createdBy: userInfo,
-            });
- */
+            /* 
+                        await NotificationHelper.createNotificationhelper({
+                            subscriber: subscriberId,
+                            titleValue: `Registered Successfully`,
+                            messageValue: `You're now successfully registered.`,
+                            notificationType: NotificationType.EMPLOYEE_UPDATED,
+                            notifyAllAdmin: false,
+                            isNotificatonForAdmin: false,
+                            notifiers: input?.users ?? [],
+                            status: "SUCCESS",
+                            icon: notificationiconEnum.SUCCESS,
+                            createdBy: userInfo,
+                        });
+             */
         } else if (input.type === "Unregistered") {
             const alreadyUnregisteredUsers = users.filter((user) => !user.isRegistered);
             if (alreadyUnregisteredUsers.length > 0) {
@@ -2320,22 +2320,22 @@ const changeRegisterEmployees = async ({ input }, context) => {
                     type: input.type,
                 }));
                 // await EmployeeHelper.notifyEmployeeStatusChange(notificationsData);
-/* 
-                for (const user of users) {
-                    const emailContent =
-                        input.type === "Registered"
-                            ? registered_status({ firstName: decrypt(user.firstName) })
-                            : Unregistered_Status({ firstName: decrypt(user.firstName) });
-                    const subjectMessage = input.type === "Registered" ? "You're Now Registered!" : "SeaVerse Account Access Restricted";
-                    console.log("user email: ", user.email,decrypt(user?.email));
-                    await SendEmail({
-                        receiverEmail: decrypt(user?.email),
-                        subject: subjectMessage,
-                        htmlContent: emailContent,
-                    });
-                }
- */
-                
+                /* 
+                                for (const user of users) {
+                                    const emailContent =
+                                        input.type === "Registered"
+                                            ? registered_status({ firstName: decrypt(user.firstName) })
+                                            : Unregistered_Status({ firstName: decrypt(user.firstName) });
+                                    const subjectMessage = input.type === "Registered" ? "You're Now Registered!" : "SeaVerse Account Access Restricted";
+                                    console.log("user email: ", user.email,decrypt(user?.email));
+                                    await SendEmail({
+                                        receiverEmail: decrypt(user?.email),
+                                        subject: subjectMessage,
+                                        htmlContent: emailContent,
+                                    });
+                                }
+                 */
+
                 return { count: updateUsers.nModified, success: true };
             } else {
                 return { count: updateUsers.nModified, success: false };
@@ -2964,7 +2964,7 @@ module.exports.mutations = {
                     //     params.MessageGroupId = 'csv-import'; // Required for FIFO
                     //     params.MessageDeduplicationId = `${jobData.jobId}-${Date.now()}`; // Ensure unique
                     // }
-                    
+
                     const data = await sqsClient.send(new SendMessageCommand(params));
 
                     console.log(`📋 Job sent to SQS: ${data.MessageId}`);
@@ -3424,18 +3424,18 @@ module.exports.mutations = {
                 return changes;
             }, {});
 
-             await NotificationHelper.createNotificationhelper({
-                 subscriber: subscriberId,
-                 titleValue: `Profile Updated Successfully`,
-                 messageValue: `Your profile details have been successfully updated on Seaverse.`,
-                 notificationType: NotificationType.EMPLOYEE_UPDATED,
-                 notifyAllAdmin: false,
-                 isNotificatonForAdmin: false,
-                 notifiers: [id],
-                 status: "SUCCESS",
-                 icon: notificationiconEnum.SUCCESS,
-                 createdBy: userInfo,
-             });
+            await NotificationHelper.createNotificationhelper({
+                subscriber: subscriberId,
+                titleValue: `Profile Updated Successfully`,
+                messageValue: `Your profile details have been successfully updated on Seaverse.`,
+                notificationType: NotificationType.EMPLOYEE_UPDATED,
+                notifyAllAdmin: false,
+                isNotificatonForAdmin: false,
+                notifiers: [id],
+                status: "SUCCESS",
+                icon: notificationiconEnum.SUCCESS,
+                createdBy: userInfo,
+            });
 
             return savedEmployee;
 

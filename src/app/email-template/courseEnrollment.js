@@ -68,7 +68,7 @@ function courseEnrollment({ firstName, courses, isAdmin }) {
           <!-- LOGO -->
           <tr>
             <td align="center" style="padding: 40px 0 20px 0;" class="logo">
-              <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/9-01.png"
+              <img src="https://seaverse-prod.s3.eu-west-1.amazonaws.com/public/seaverse-logo.png"
                    alt="Company Logo"
                    width="200"
                    style="display:block; border:0; outline:none; text-decoration:none; height:auto; max-width:200px;">

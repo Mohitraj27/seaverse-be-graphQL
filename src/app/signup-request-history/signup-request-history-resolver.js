@@ -1,6 +1,6 @@
 const HistorySignupRequest = require('./signup-request-history-model');
 const { CustomError } = require('../../util/error_helper');
-const { AuthUser,ErrorName } = require('../../util');
+const { AuthUser, ErrorName } = require('../../util');
 const sortingFieldJSONData = require('../signup-request/sortingField.json');
 const { decrypt, encrypt } = require('../../util/encryption_helper');
 module.exports.queries = {
@@ -25,11 +25,42 @@ module.exports.queries = {
             let encryptedSearch = search ? encrypt(search?.trim()?.toLowerCase()) : '';
 
             if (search) {
-                query.$or = [
+                const searchTerm = search?.trim()?.toLowerCase();
+                const searchConditions = [
                     { email: { $regex: encryptedSearch, $options: 'i' } },
                     { firstName: { $regex: encryptedSearch, $options: 'i' } },
                     { lastName: { $regex: encryptedSearch, $options: 'i' } }
                 ];
+
+                // Check if search contains space (indicating full name search)
+                if (searchTerm.includes(' ')) {
+                    const nameParts = searchTerm.split(' ').filter(part => part.trim());
+
+                    if (nameParts.length >= 2) {
+                        const firstName = nameParts[0];
+                        const lastName = nameParts.slice(1).join(' '); // Handle multiple last names
+
+                        // Add firstName + lastName combination searches
+                        searchConditions.push(
+                            // Exact firstName + exact lastName
+                            {
+                                $and: [
+                                    { firstName: { $regex: encrypt(firstName), $options: 'i' } },
+                                    { lastName: { $regex: encrypt(lastName), $options: 'i' } }
+                                ]
+                            },
+                            // firstName prefix + lastName prefix
+                            {
+                                $and: [
+                                    { firstName: { $regex: `^${encrypt(firstName)}`, $options: 'i' } },
+                                    { lastName: { $regex: `^${encrypt(lastName)}`, $options: 'i' } }
+                                ]
+                            }
+                        );
+                    }
+                }
+
+                query.$or = searchConditions;
             }
 
             if (signupStatus) {
@@ -41,23 +72,23 @@ module.exports.queries = {
             } else {
                 sortObj[sortingField] = sortingOrder;
             }
-            
+
             const items = await HistorySignupRequest.find(query)
                 .sort(sortObj)
                 .skip(skip)
                 .limit(limit);
             const totalCount = await HistorySignupRequest.countDocuments(query);
-                const decryptedItems = items?.map(item => {
-                    const obj = item.toObject();
-                    return {
-                        ...obj,
-                        firstName: decrypt(obj?.firstName),
-                        lastName: obj?.lastName ? decrypt(obj?.lastName) : '',
-                        email: decrypt(obj?.email?.trim())
-                    };
-                });
+            const decryptedItems = items?.map(item => {
+                const obj = item.toObject();
+                return {
+                    ...obj,
+                    firstName: decrypt(obj?.firstName),
+                    lastName: obj?.lastName ? decrypt(obj?.lastName) : '',
+                    email: decrypt(obj?.email?.trim())
+                };
+            });
             return {
-                items:decryptedItems,
+                items: decryptedItems,
                 totalCount
             };
         } catch (error) {
