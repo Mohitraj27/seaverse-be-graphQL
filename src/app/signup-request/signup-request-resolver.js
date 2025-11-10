@@ -18,7 +18,7 @@ const aws_helper = require("../../util/aws_helper");
 const { LearningPlan } = require('../learning-plan/learning_plan_model');
 const { Vessel } = require('../vessle/vessel_model');
 const { filterLearningPlans } = require("../user/employee/employee_helper");
-const { decrypt ,encrypt} = require('../../util/encryption_helper');
+const { decrypt, encrypt } = require('../../util/encryption_helper');
 const { updateByQueryToElasticSearch, deleteByQueryFromElasticSearch } = require("../../util/elastic_helper");
 module.exports.queries = {
     getSignupRequest: async ({ id, search, pageInput }, context) => {
@@ -51,13 +51,44 @@ module.exports.queries = {
             let query = { isDeleted: false };
 
             if (search) {
+                const searchTerm = search?.trim()?.toLowerCase();
+                const searchConditions = [
+                    { email: { $regex: encrypt(searchTerm), $options: 'i' } },
+                    { firstName: { $regex: encrypt(searchTerm), $options: 'i' } },
+                    { lastName: { $regex: encrypt(searchTerm), $options: 'i' } }
+                ];
+
+                // Check if search contains space (indicating full name search)
+                if (searchTerm.includes(' ')) {
+                    const nameParts = searchTerm.split(' ').filter(part => part.trim());
+
+                    if (nameParts.length >= 2) {
+                        const firstName = nameParts[0];
+                        const lastName = nameParts.slice(1).join(' '); // Handle multiple last names
+
+                        // Add firstName + lastName combination searches
+                        searchConditions.push(
+                            // Exact firstName + exact lastName
+                            {
+                                $and: [
+                                    { firstName: { $regex: encrypt(firstName), $options: 'i' } },
+                                    { lastName: { $regex: encrypt(lastName), $options: 'i' } }
+                                ]
+                            },
+                            // firstName prefix + lastName prefix
+                            {
+                                $and: [
+                                    { firstName: { $regex: `^${encrypt(firstName)}`, $options: 'i' } },
+                                    { lastName: { $regex: `^${encrypt(lastName)}`, $options: 'i' } }
+                                ]
+                            }
+                        );
+                    }
+                }
+
                 query = {
                     ...query,
-                    $or: [
-                        { email: { $regex: search, $options: 'i' } },
-                        { firstName: { $regex: search, $options: 'i' } },
-                        { lastName: { $regex: search, $options: 'i' } }
-                    ]
+                    $or: searchConditions
                 };
             }
             const sortObj = {};
@@ -67,15 +98,15 @@ module.exports.queries = {
                 .sort(sortObj)
                 .skip(skip)
                 .limit(limit);
-                const decryptedItems = items?.map(item => {
-                    const obj = item.toObject();
-                    return {
-                        ...obj,
-                        firstName: decrypt(obj?.firstName),
-                        lastName: obj?.lastName ? decrypt(obj?.lastName): '',
-                        email: decrypt(obj?.email?.trim())
-                    };
-                });
+            const decryptedItems = items?.map(item => {
+                const obj = item.toObject();
+                return {
+                    ...obj,
+                    firstName: decrypt(obj?.firstName),
+                    lastName: obj?.lastName ? decrypt(obj?.lastName) : '',
+                    email: decrypt(obj?.email?.trim())
+                };
+            });
             return {
                 items: decryptedItems,
                 pendingStatusCount
@@ -173,8 +204,8 @@ module.exports.mutations = {
 
                     try {
                         await updateByQueryToElasticSearch(
-                        'users', 
-                        `
+                            'users',
+                            `
                             ctx._source.designation = params.designation;
                             ctx._source.empDesignation = params.empDesignation;
                             ctx._source.civilIdOrPassport = params.civilIdOrPassport;
@@ -189,27 +220,27 @@ module.exports.mutations = {
                             ctx._source.typeOfVesselName = params.typeOfVesselName;
                             ctx._source.tyepOfVesselId = params.tyepOfVesselId;
                         `,
-                        {
-                            term: {
-                            userId: signupRequest?.userId?.toString()
+                            {
+                                term: {
+                                    userId: signupRequest?.userId?.toString()
+                                }
+                            },
+                            {
+                                designation: designationObject?.name,
+                                empDesignation: designation,
+                                civilIdOrPassport: encrypt(employeeId?.toUpperCase()),
+                                isSignupAdminAprroved: true,
+                                isRegistered,
+                                vesselStatus: vesselStatus || null,
+                                currentVessel: vesselName || null,
+                                vesselName: userVesselsDetails[0]?.name || null,
+                                vesselId: userVesselsDetails[0]?._id || null,
+                                vesselIsDeleted: userVesselsDetails[0]?.isDeleted || null,
+                                vesselIsActive: userVesselsDetails[0]?.isActive || null,
+                                typeOfVesselName: userVesselsDetails[0]?.typeOfVessel?.name || null,
+                                tyepOfVesselId: userVesselsDetails[0]?.typeOfVessel?._id || null,
                             }
-                        },
-                        {
-                            designation: designationObject?.name,
-                            empDesignation: designation,
-                            civilIdOrPassport: encrypt(employeeId?.toUpperCase()),
-                            isSignupAdminAprroved: true,
-                            isRegistered,
-                            vesselStatus: vesselStatus || null,
-                            currentVessel: vesselName || null,
-                            vesselName: userVesselsDetails[0]?.name||null,
-                            vesselId: userVesselsDetails[0]?._id||null,
-                            vesselIsDeleted: userVesselsDetails[0]?.isDeleted||null,
-                            vesselIsActive: userVesselsDetails[0]?.isActive||null,
-                            typeOfVesselName: userVesselsDetails[0]?.typeOfVessel?.name||null,
-                            tyepOfVesselId: userVesselsDetails[0]?.typeOfVessel?._id||null,
-                        }
-                    );
+                        );
                     } catch (error) {
                         throw CustomError(
                             ErrorName.ELASTIC_UPDATE_FAILED,
@@ -233,7 +264,7 @@ module.exports.mutations = {
                     }], { session });
 
                     await SignupRequest.deleteOne({ userId }, { session });
-                    const decryptfirstNameforEmail =  decrypt(signupRequest?.firstName);
+                    const decryptfirstNameforEmail = decrypt(signupRequest?.firstName);
 
                     const sendmailforApproval = await aws_helper.sendEmail({
                         receiverEmail: decrypt(signupRequest?.email),
@@ -245,7 +276,7 @@ module.exports.mutations = {
                     });
 
                     if (isRegistered) {
-                        
+
                         // Conditions for auto enrollment
                         const learningPlans = await LearningPlan.find({ isDeleted: false, status: 'ACTIVE' });
                         const existingVesselType = await Vessel.findOne({ _id: vesselName }).select('ownerName typeOfVessel -_id').lean();
@@ -253,23 +284,23 @@ module.exports.mutations = {
                             designationID: designation,
                             vesselID: vesselName || "",
                             vesselTypeID: existingVesselType ? existingVesselType.typeOfVessel : "",
-                            owner : existingVesselType ? existingVesselType?.ownerName : "",
+                            owner: existingVesselType ? existingVesselType?.ownerName : "",
                             currentStatus: vesselStatus || "",
                             email: decrypt(signupRequest?.email),
                             _id: signupRequest?.userId,
                             role: 'LEARNER',
                         }];
-    
+
                         if (learningPlans.length > 0) {
                             const result = await filterLearningPlans(learningPlans, conditions, context, session);
                         }
-                        
+
                     }
 
                     if (!sendmailforApproval) {
                         throw CustomError(ErrorName.FAILED_TO_SEND_APPROVAL_EMAIL, 'Failed to send approval email');
                     }
-                    const userName = `${decrypt(signupRequest?.firstName)} ${signupRequest?.lastName ? decrypt(signupRequest?.lastName):'' || ''}`.trim();
+                    const userName = `${decrypt(signupRequest?.firstName)} ${signupRequest?.lastName ? decrypt(signupRequest?.lastName) : '' || ''}`.trim();
                     return {
                         status: true,
                         message: `Signup request for ${userName} has been APPROVED successfully.`
@@ -292,10 +323,10 @@ module.exports.mutations = {
 
                     try {
                         await deleteByQueryFromElasticSearch('users', {
-                        term: {
-                            userId: signupRequest?.userId?.toString()
-                        }
-                    });
+                            term: {
+                                userId: signupRequest?.userId?.toString()
+                            }
+                        });
                     } catch (error) {
                         throw CustomError(
                             ErrorName.ELASTIC_UPDATE_FAILED,
@@ -315,7 +346,7 @@ module.exports.mutations = {
                     }], { session });
                     await SignupRequest.deleteOne({ userId }, { session });
                     const userName = `${decrypt(signupRequest?.firstName)} ${signupRequest?.lastName ? decrypt(signupRequest?.lastName) : '' || ''}`.trim();
-                    const decryptfirstNameforEmail =  decrypt(signupRequest?.firstName);
+                    const decryptfirstNameforEmail = decrypt(signupRequest?.firstName);
                     const sendmailforRejection = await aws_helper.sendEmail({
                         receiverEmail: decrypt(signupRequest?.email),
                         subject: 'Signup request REJECTED',

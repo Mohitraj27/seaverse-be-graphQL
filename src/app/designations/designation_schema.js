@@ -2,7 +2,7 @@ module.exports = {
     types: `
         type Designation {
             _id: ID
-            name: String!
+            name: String
             createdAt: String!
             updatedAt: String!
             isManager: Boolean!

@@ -143,7 +143,7 @@ const searchEmployeesFromElastic = async ({
   subRoleAdminId = null,
   lastSeenStart = null,
   lastSeenEnd = null,
-  sortField = "user.firstName.keyword",
+  sortField = "firstName.keyword",
   sortOrder = "asc",
   skip = 0,
   limit = 10,
@@ -173,29 +173,85 @@ const searchEmployeesFromElastic = async ({
         const encryptedFirstName = encrypt(firstName.toLowerCase());
         const encryptedLastName = encrypt(lastName.toLowerCase());
 
-        // Add full name search - firstName + lastName combination
-        shouldClauses.push({
-          bool: {
-            must: [
-              { match_phrase_prefix: { firstName: encryptedFirstName } },
-              { match_phrase_prefix: { lastName: encryptedLastName } }
-            ]
+        // Add full name search - firstName + lastName combination (multiple strategies)
+        shouldClauses.push(
+          // Strategy 1: match_phrase_prefix (existing - works with text fields)
+          {
+            bool: {
+              must: [
+                { match_phrase_prefix: { firstName: encryptedFirstName } },
+                { match_phrase_prefix: { lastName: encryptedLastName } }
+              ]
+            }
+          },
+          // Strategy 2: prefix with .keyword (more exact - works with encrypted data)
+          {
+            bool: {
+              must: [
+                { prefix: { "firstName.keyword": encryptedFirstName } },
+                { prefix: { "lastName.keyword": encryptedLastName } }
+              ]
+            }
+          },
+          // Strategy 3: wildcard with .keyword for more flexible matching
+          {
+            bool: {
+              must: [
+                { wildcard: { "firstName.keyword": `${encryptedFirstName}*` } },
+                { wildcard: { "lastName.keyword": `${encryptedLastName}*` } }
+              ]
+            }
+          },
+          // Strategy 4: firstName exact + lastName wildcard (for cases like "ari s" -> "Ari Sulistyo")
+          {
+            bool: {
+              must: [
+                { prefix: { "firstName.keyword": encryptedFirstName } },
+                { wildcard: { "lastName.keyword": `${encryptedLastName}*` } }
+              ]
+            }
+          },
+          // Strategy 5: firstName wildcard + lastName prefix (broader matching)
+          {
+            bool: {
+              must: [
+                { wildcard: { "firstName.keyword": `*${encryptedFirstName}*` } },
+                { prefix: { "lastName.keyword": encryptedLastName } }
+              ]
+            }
+          },
+          // Strategy 6: Both fields with wildcard (most flexible)
+          {
+            bool: {
+              must: [
+                { wildcard: { "firstName.keyword": `*${encryptedFirstName}*` } },
+                { wildcard: { "lastName.keyword": `${encryptedLastName}*` } }
+              ]
+            }
           }
-        });
+        );
 
-        // Also search if fullName field exists (if indexed)
-        shouldClauses.push({
-          match_phrase_prefix: { fullName: encryptedLower }
-        });
+
       }
     }
 
-    // Add individual field searches (existing logic)
+    // Add individual field searches with fullName support
     shouldClauses.push(
+      // Text field searches (work with analyzed data)
       { match_phrase_prefix: { firstName: encryptedLower } },
       { match_phrase_prefix: { lastName: encryptedLower } },
       { match_phrase_prefix: { email: encryptedLower } },
-      { match_phrase_prefix: { civilIdOrPassport: encryptedUpper } }
+      { match_phrase_prefix: { civilIdOrPassport: encryptedUpper } },
+
+      // Keyword field searches (work with exact encrypted data)
+      { prefix: { "firstName.keyword": encryptedLower } },
+      { prefix: { "lastName.keyword": encryptedLower } },
+      { wildcard: { "firstName.keyword": `${encryptedLower}*` } },
+      { wildcard: { "lastName.keyword": `${encryptedLower}*` } },
+      { wildcard: { "firstName.keyword": `*${encryptedLower}*` } },
+      { wildcard: { "lastName.keyword": `*${encryptedLower}*` } },
+
+
     );
 
     // Add additional fields for reports
