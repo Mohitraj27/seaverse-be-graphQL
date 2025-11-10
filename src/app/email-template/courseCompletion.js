@@ -35,7 +35,7 @@ function courseCompletion(user) {
         <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" width="640" style="max-width:640px;">
           <tr>
             <td align="center" style="padding:40px 0;" class="logo">
-              <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/9-01.png" alt="Company Logo" width="200" style="display:block; border:0; outline:none; text-decoration:none; height:auto; max-width:200px;">
+              <img src="https://seaverse-prod.s3.eu-west-1.amazonaws.com/public/seaverse-logo.png" alt="Company Logo" width="200" style="display:block; border:0; outline:none; text-decoration:none; height:auto; max-width:200px;">
             </td>
           </tr>
         </table>
