@@ -402,7 +402,7 @@ module.exports.mutations = {
                 }
 
              
-                const isPasswordValid = await CryptoHelper.compare(input.password, existingUser.password);
+                const isPasswordValid = await CryptoHelper.compare(input.password.trim(), existingUser.password);
 
              
                 if (!isPasswordValid) {
