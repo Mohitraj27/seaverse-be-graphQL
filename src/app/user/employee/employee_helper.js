@@ -301,7 +301,7 @@ const evaluateConditionalCustomFields = async (conditionType, conditionalCustomF
         : results.some(Boolean);
 };
 
-const createEnrollmentObject = (userId, trainingId, enrollData, trainingRegistrationIds, trainingModuleCounts, isCertificatePresent, currentCertificateLayout, status, progressPercentage, isFromMigration, overallTrainingProgressId, contentData, endDate) => ({
+const createEnrollmentObject = (userId, trainingId, enrollData, trainingRegistrationIds, trainingModuleCounts, isCertificatePresent, currentCertificateLayout, status, progressPercentage, isFromMigration, overallTrainingProgressId, contentData, endDate, certificateExpiryDate) => ({
     _id: overallTrainingProgressId,
     isComplete: false,
     isCertificateGenerated: false,
@@ -319,6 +319,7 @@ const createEnrollmentObject = (userId, trainingId, enrollData, trainingRegistra
     isFromMigration: isFromMigration || false,
     contentData,
     endDate: endDate || null,
+    certificateExpiryDate: certificateExpiryDate
 });
 
 async function enrollUsers(enrollDataArray, context) {
@@ -430,6 +431,7 @@ async function enrollUsers(enrollDataArray, context) {
         let userEmailMap = {};
         let finishedEmailsSet = new Set();
         let migrationIssuedAtMap = {};
+        let migrationExpiryDateMap = {};
 
         if (trainingsWithMigration.length > 0) {
 
@@ -461,21 +463,21 @@ async function enrollUsers(enrollDataArray, context) {
 
             // ✅ Single SQL query for all migration UIDs
             const sql = `
-                SELECT EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME, COURSE_ID, ISSUED_AT
+                SELECT DISTINCT 
+                    EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME, COURSE_ID, ISSUED_AT, EXPIRY_DATE
                 FROM (
-                    SELECT EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME, COURSE_ID, ISSUED_AT
+                    SELECT EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME, COURSE_ID, ISSUED_AT, EXPIRY_DATE
                     FROM crew_certificates_synergy_new
                     WHERE EMAIL IS NOT NULL
-                    AND COURSE_ID IN (?)
+                      AND COURSE_ID IN (?)
 
                     UNION
 
-                    SELECT EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME, COURSE_ID, ISSUED_AT
+                    SELECT EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME, COURSE_ID, ISSUED_AT, EXPIRY_DATE
                     FROM crew_certificates_denmark_new
                     WHERE EMAIL IS NOT NULL
-                    AND COURSE_ID IN (?)
+                      AND COURSE_ID IN (?)
                 ) AS combined
-                GROUP BY EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME, COURSE_ID, ISSUED_AT
                 ORDER BY FIRST_NAME, LAST_NAME;
             `;
 
@@ -488,6 +490,13 @@ async function enrollUsers(enrollDataArray, context) {
             migrationIssuedAtMap = completedMigrationUsers.reduce((acc, user) => {
                 if (user.EMAIL && user.ISSUED_AT) {
                     acc[user.EMAIL.trim().toLowerCase()] = new Date(user.ISSUED_AT);
+                }
+                return acc;
+            }, {});
+
+            migrationExpiryDateMap = completedMigrationUsers.reduce((acc, user) => {
+                if (user.EMAIL) {
+                    acc[user.EMAIL.trim().toLowerCase()] = user.EXPIRY_DATE ? new Date(user.EXPIRY_DATE) : null;
                 }
                 return acc;
             }, {});
@@ -630,11 +639,16 @@ async function enrollUsers(enrollDataArray, context) {
                         const trainingModuleCount = moduleCountMap[trainingId.toString()] || 0;
                         let contentData = [];
                         let endDate = null;
+                        let certificateExpiryDate = null;
                         if (isMigrationCompletedUser) {
 
                             const decryptedEmail = userEmailMap[userId.toString()];
                             if (decryptedEmail && migrationIssuedAtMap[decryptedEmail]) {
                                 endDate = migrationIssuedAtMap[decryptedEmail];
+                            }
+
+                            if (decryptedEmail && migrationExpiryDateMap[decryptedEmail]) {
+                                certificateExpiryDate = migrationExpiryDateMap[decryptedEmail];
                             }
 
                             status = "COMPLETED";
@@ -663,8 +677,11 @@ async function enrollUsers(enrollDataArray, context) {
                             isFromMigration,
                             overallTrainingProgressId,
                             contentData,
-                            endDate
+                            endDate,
+                            certificateExpiryDate
                         );
+
+                        console.log("New Enrollment: ", newEnrollment);
 
 
                         insertedEnrollments.push(newEnrollment);

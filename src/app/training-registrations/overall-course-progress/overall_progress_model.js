@@ -134,6 +134,7 @@ const overallProgressSchema = new Schema(
             }
         ],
         claimedAt: Date,
+        certificateExpiryDate: Date
     },
     { timestamps: true }
 )
