@@ -270,7 +270,7 @@ module.exports = {
             progress : Float
         }
         input customReportInput {
-            dateRange : filterDateRange!
+            dateRange : filterDateRange
             courseIds : [ID]
             courseStatus: [String]
             vesselType : [ID]

@@ -18,7 +18,7 @@ const { Group } = require("../user/group-user/group_model");
 const { TrainingProgress } = require("./training-progress/training_progress_model");
 
 const TrainingRegistrationHelper = require("../training-registrations/training_registration_helper");
-const EmployeeHelper = require("./../user/employee/employee_helper");
+
 const LogHelper = require("../logs/log_helper");
 const SubRoleHelper = require("../user/sub-roles/sub_role_helper");
 const { BatchHelper } = require("../batches/batch_helper");
@@ -404,11 +404,19 @@ const enrolUserVerificationHelper = async (inputUsers, existingTrainings, fromUn
     }
 };
 
-const extractTrainingContentData = async (trainings) => {
+const extractTrainingContentData = async (trainings, isFromMigration) => {
 
-    const trainingContentBridges = await TrainingContentBridge.find({
-        training: { $in: trainings.map(training => training._id) }, isDeleted: false
-    });
+    let trainingContentBridges;
+
+    if (!isFromMigration) {
+        trainingContentBridges = await TrainingContentBridge.find({
+            training: { $in: trainings.map(training => training._id) }, isDeleted: false
+        });
+    } else {
+        trainingContentBridges = await TrainingContentBridge.find({
+            training: ObjectId(trainings), isDeleted: { $ne: true }
+        })
+    }
 
 
     const trainingModulesMap = trainingContentBridges.reduce((result, bridge) => {
@@ -431,11 +439,12 @@ const extractTrainingContentData = async (trainings) => {
 
         return result;
     }, []);
+
     const trainingTotalModules = trainingModulesMap.length
     return { trainingModulesMap, trainingTotalModules };
 };
 
-const createTrainingProgressForMigrationUsersHelper = async (userIds, trainingId, subscriberId, trainingRegistrationId, errors, session) => {
+const createTrainingProgressForMigrationUsersHelper = async (userIds, trainingId, subscriberId, trainingRegistrationId, errors, userIssuedExpiryMap, session) => {
 
     try {
 
@@ -520,6 +529,29 @@ const createTrainingProgressForMigrationUsersHelper = async (userIds, trainingId
         for (const user of userIds) {
             let overallId;
 
+            let issuedDate = null;
+            let expiryDate = null;
+
+            if (userIssuedExpiryMap) {
+                let entry;
+
+                if (userIssuedExpiryMap instanceof Map) {
+                    entry = userIssuedExpiryMap.get(user.toString()) || userIssuedExpiryMap.get(user);
+                } else if (Array.isArray(userIssuedExpiryMap)) {
+                    entry = userIssuedExpiryMap.find(e =>
+                        e.user === user || (e.user && e.user.toString && e.user.toString() === user.toString())
+                    );
+                } else {
+                    entry = userIssuedExpiryMap[user.toString()] || userIssuedExpiryMap[user];
+                }
+
+                if (entry) {
+                    const asDate = v => (v ? (v instanceof Date ? v : new Date(v)) : null);
+                    issuedDate = asDate(entry.issuedAt ?? null);
+                    expiryDate = asDate(entry.expiryDate ?? null);
+                }
+            }
+
             if (existingMap.has(user.toString())) {
                 overallId = existingMap.get(user.toString());
             } else {
@@ -541,6 +573,8 @@ const createTrainingProgressForMigrationUsersHelper = async (userIds, trainingId
                             totalTrainingModules: trainingModuleCount || 0,
                             unenrollmentDate: null,
                             isFromMigration: true,
+                            certificateExpiryDate: expiryDate,
+                            endDate: issuedDate,
                         },
                         $setOnInsert: {
                             _id: overallId,
@@ -550,7 +584,6 @@ const createTrainingProgressForMigrationUsersHelper = async (userIds, trainingId
                             subscriberId: subscriberId,
                             isCertificatePresent: trainingDataById[trainingId.toString()]?.isCertificate ?? false,
                             startDate: null,
-                            endDate: null,
                             totalDuration: trainingDataById[trainingId.toString()]?.durationHours ?? 0,
                         },
                     },

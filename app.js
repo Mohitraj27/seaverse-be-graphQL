@@ -210,6 +210,18 @@ const { httpsServer, httpServer, apolloServer } = (() => {
         ]
     });
 
+    // Add password reset reminder routes
+    const passwordResetReminderRoutes = require('./src/routes/password-reset-reminder');
+    ExpressServer.use('/api/password-reset-reminder', passwordResetReminderRoutes);
+
+    // Serve static files for the UI
+    ExpressServer.use('/public', express.static(path.join(__dirname, 'public')));
+
+    // Serve the password reset reminder UI
+    ExpressServer.get('/password-reset-reminder', (req, res) => {
+        res.sendFile(path.join(__dirname, 'public', 'password-reset-reminder.html'));
+    });
+
     apolloServer.applyMiddleware({ app: ExpressServer, cors: false });
 
 

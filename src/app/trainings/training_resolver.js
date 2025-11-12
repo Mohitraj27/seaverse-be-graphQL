@@ -46,6 +46,52 @@ const { Subscriber } = require("../saas/subscriber/subscriber_model");
 const { fork } = require("child_process");
 const { decrypt } = require("../../util/encryption_helper");
 
+async function calculateTotalDurationCourseLength(trainingModules) {
+  const parseToSeconds = (duration) => {
+    if (typeof duration === 'number') {
+      const durationString = duration.toString();
+      const parts = durationString.split('.');
+      
+      const minutes = parseInt(parts[0], 10) || 0;
+      let seconds = 0;
+      
+      if (parts[1]) {
+        const decimal = parseFloat('0.' + parts[1]);
+        seconds = Math.round(decimal * 100);
+      }
+      
+      return minutes * 60 + seconds;
+    }
+    
+    if (typeof duration === 'string') {
+      const parts = duration.split(':');
+      
+      if (parts.length === 3) {
+        const hours = parseInt(parts[0], 10) || 0;
+        const minutes = parseInt(parts[1], 10) || 0;
+        const seconds = parseInt(parts[2], 10) || 0;
+        
+        return hours * 3600 + minutes * 60 + seconds;
+      }
+    }
+    
+    return 0;
+  };
+
+  const totalSeconds = trainingModules
+    .flatMap(module => module.trainingModuleContents || [])
+    .reduce((sum, content) => sum + parseToSeconds(content?.duration), 0);
+
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  return [
+    hours.toString().padStart(2, '0'),
+    minutes.toString().padStart(2, '0'),
+    seconds.toString().padStart(2, '0')
+  ].join(':');
+}
 module.exports.queries = {
     getTrainings: async ({ pageInput, filterInput }, context) => {
         const { role, userPermissions, subscriberId } = AuthUser(context);
@@ -249,6 +295,7 @@ module.exports.queries = {
             module.trainingModuleContents = moduleContentsMap[module._id] || [];
         });
         const migrationCoursesId = training.migrationCoursesId || null;
+        training.totalCourseLength = await calculateTotalDurationCourseLength(training.trainingModules);
         return { ...training, countOfUsers, migrationCoursesId };
     },
     checkCourseUpdateBeforeSync: async ({ input }, context) => {

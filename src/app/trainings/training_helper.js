@@ -913,7 +913,7 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
             await OverallTrainingProgress.updateMany(
                 {
                     _id: { $in: completedOverallIdNotFirstTime },
-                    completionNotificationSent: { $ne: true }, 
+                    completionNotificationSent: { $ne: true },
                 },
                 { $set: { completionNotificationSent: true, claimedAt: claimTimestamp } }
             );
@@ -977,7 +977,7 @@ const validateAndGenerateCertificate = async (overallIds, userId, subscriberId, 
                 idsToUpdate.push(item._id);
 
             }
-            if(notifications.length > 0){
+            if (notifications.length > 0) {
                 await NotificationHelper.createNotification(notifications);
             }
 
@@ -1994,26 +1994,23 @@ const dataMigrationBackground = async (migrationcourseId, trainingId) => {
 
     try {
 
-        const sql = `SELECT EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME
-        FROM (
-            SELECT EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME
-            FROM crew_certificates_synergy_new
-            WHERE EMAIL IS NOT NULL 
-            AND COURSE_ID = ?
+        const sql = `SELECT DISTINCT 
+                EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME, ISSUED_AT, EXPIRY_DATE
+            FROM (
+                SELECT EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME, ISSUED_AT, EXPIRY_DATE
+                FROM crew_certificates_synergy_new
+                WHERE EMAIL IS NOT NULL
+                  AND COURSE_ID IN (?)
 
-            UNION
+                UNION
 
-            SELECT EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME
-            FROM crew_certificates_denmark_new
-            WHERE EMAIL IS NOT NULL 
-            AND COURSE_ID = ?
-        ) AS combined
-        GROUP BY EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME
-        ORDER BY FIRST_NAME, LAST_NAME;`;
-
-        // const sql = `SELECT EMPLOYEE_ID, EMAIL FROM crew_certificates_synergy_new LIMIT 5`;
-
-        // const users = await runQueryStream(sql);
+                SELECT EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME, ISSUED_AT, EXPIRY_DATE
+                FROM crew_certificates_denmark_new
+                WHERE EMAIL IS NOT NULL
+                  AND COURSE_ID IN (?)
+            ) AS combined
+            ORDER BY FIRST_NAME, LAST_NAME;
+        `;
 
         for await (const row of runQueryStream(sql, [migrationCourseUID, migrationCourseUID])) {
             completedMigrationUsers.push(row);
@@ -2054,6 +2051,24 @@ const dataMigrationBackground = async (migrationcourseId, trainingId) => {
         if (subscriber) subscriberId = subscriber._id;
 
         let userIds = [];
+
+        // Create dataset to userIds to ISSUED_AT and EXPIRY_DATE mapping
+        const userIssuedExpiryMap = new Map();
+
+        completedMigrationUsers.forEach((row, idx) => {
+            const encryptedEmail = emails[idx];
+            if (!encryptedEmail) return;
+
+            const matchedUser = existingUsers.find(u => u.email === encryptedEmail);
+            if (!matchedUser) return;
+
+            userIssuedExpiryMap.set(matchedUser._id.toString(), {
+                issuedAt: row.ISSUED_AT ? new Date(row.ISSUED_AT) : null,
+                expiryDate: row.EXPIRY_DATE ? new Date(row.EXPIRY_DATE) : null,
+            });
+        });
+
+        console.log('userIssuedExpiryMap first, ', userIssuedExpiryMap);
 
         existingUsers.forEach(user => {
             userIds.push(user._id);
@@ -2106,12 +2121,13 @@ const dataMigrationBackground = async (migrationcourseId, trainingId) => {
 
         }
 
+        let errors = [];
         if (savedTrainingRegistration) {
 
             let trainingProgressIds;
 
             let overallIds = [];
-            trainingProgressIds = await createTrainingProgressForMigrationUsersHelper(userIds, trainingId, subscriberId, trainingRegistrationId, session);
+            trainingProgressIds = await createTrainingProgressForMigrationUsersHelper(userIds, trainingId, subscriberId, trainingRegistrationId, errors, userIssuedExpiryMap, session);
 
         }
         console.log('✅ Courese Migration completed for users count: ', userIds?.length);

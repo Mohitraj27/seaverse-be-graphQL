@@ -28,137 +28,139 @@ function courseEnrollment({ firstName, courses, isAdmin }) {
         )
         .join("");
     return `
-      <html lang="en">
-      <head>
-          <meta charset="UTF-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Course Assignment</title>
-          <style>
-              @media screen and (max-width: 600px) {
-                  .container {
-                      padding: 20px 10px !important;
-                  }
+      <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Course Assignment</title>
+  <style>
+    @media screen and (max-width: 600px) {
+      .container {
+        padding: 20px 10px !important;
+      }
+      .logo {
+        padding: 20px 24px !important;
+      }
+      .content {
+        width: 100% !important;
+        border-radius: 0 !important;
+      }
+      .content-inner {
+        padding: 20px 24px !important;
+      }
+    }
+  </style>
+</head>
 
-                  .logo {
-                      padding: 20px 24px !important;
-                  }
+<body style="font-family: Arial, sans-serif; background-color: #F7FBFF; margin: 0; padding: 0; width: 100%;">
+  <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" bgcolor="#F7FBFF" align="center" style="margin:0; padding:40px 0;">
+    <tr>
+      <td align="center" valign="top">
 
-                  .content {
-                      width: 100% !important;
-                      border-radius: 0 !important;
-                  }
+        <!--[if mso]>
+        <table role="presentation" border="0" cellspacing="0" cellpadding="0" width="640" align="center">
+        <tr><td align="center" valign="top">
+        <![endif]-->
 
-                  .content-inner {
-                      padding: 20px 24px !important;
-                  }
-              }
-          </style>
-      </head>
-
-      <body style="font-family: Arial, sans-serif; background-color: #F7FBFF; margin: 0; padding: 0; width: 100%;">
-          <table style="width: 100%; padding: 40px 20px;" align="center" border="0" cellpadding="0" cellspacing="0">
-              <tr style="display: flex; justify-content: center; align-items: center; margin: auto;">
-            <td style="padding: 40px 48px; text-align: center; margin: auto;" class="logo">
-                <img src="https://squadra-media.s3.ap-south-1.amazonaws.com/9-01.png" alt="Company Logo" style="max-width: 200px; height: auto;">
+        <table role="presentation" border="0" cellspacing="0" cellpadding="0" width="100%" style="max-width:640px; margin:0 auto;" class="container">
+          
+          <!-- LOGO -->
+          <tr>
+            <td align="center" style="padding: 40px 0 20px 0;" class="logo">
+              <img src="https://seaverse-prod.s3.eu-west-1.amazonaws.com/public/seaverse-logo.png"
+                   alt="Company Logo"
+                   width="200"
+                   style="display:block; border:0; outline:none; text-decoration:none; height:auto; max-width:200px;">
             </td>
-        </tr>
-              <tr>
-                  <td>
-                      <table style="background-color: #FFFFFF; border-radius: 8px; margin: 0 auto; width: 640px;" border="0"
-                          cellpadding="0" cellspacing="0" class="content">
-                          <tr>
-                              <td style="padding: 32px 40px;" class="content-inner">
-                                  <table border="0" cellpadding="0" cellspacing="0" width="100%">
-                                      <tr>
-                                          <td
-                                              style="padding: 24px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; color: #384860;">
-                                              Hello <strong>${firstName}</strong> 👋
-                                          </td>
-                                      </tr>
-                                      <tr>
-                                          <td
-                                              style="padding: 0 0 24px 0; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; line-height: 24px; color: #384860;">
-                                              You have been assigned to a new course. Start learning today and stay on track to
-                                              achieve your goals!
-                                          </td>
-                                      </tr>
-                                  </table>
-                              </td>
-                          </tr>
-                      </table>
-                  </td>
-              </tr>
-              <tr>
-                  <td style="padding: 13px 0 0 0;">
-                      <table style="background-color: #FFFFFF; border-radius: 8px; margin: 0 auto; width: 640px;" border="0"
-                          cellpadding="0" cellspacing="0" class="content">
-                          <tr>
-                              <td style="padding: 32px 40px;" class="content-inner">
-                                  <table border="0" cellpadding="0" cellspacing="0" width="100%">
-                                      <tr>
-                                          <td style="text-align: center;">
-                                              <div
-                                                  style="width: 364px; margin: 0 auto; font-family: 'Inter', sans-serif; font-weight: 700; font-size: 24px; line-height: 33.6px; color: #384860;">
-                                                  Welcome! You’ve Been Assigned to New Course.
-                                              </div>
-                                          </td>
-                                      </tr>
-                                  </table>
-                              </td>
-                          </tr>
-                          ${coursesHTML}
-                       
+          </tr>
 
+          <!-- INTRO BLOCK -->
+          <tr>
+            <td align="center">
+              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width:640px; background-color:#FFFFFF; border-radius:8px;" class="content">
+                <tr>
+                  <td style="padding:32px 40px;" class="content-inner">
+                    <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
+                      <tr>
+                        <td style="padding: 24px 0; font-family: 'Inter', sans-serif; font-weight:400; font-size:16px; color:#384860;">
+                          Hello <strong>${firstName}</strong> 👋
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding-bottom:24px; font-family:'Inter', sans-serif; font-weight:400; font-size:16px; line-height:24px; color:#384860;">
+                          You have been assigned to a new course. Start learning today and stay on track to achieve your goals!
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
 
-                           <tr>
-              <td align="center" style="padding: 32px 40px; text-align: center">
-                <table
-                  border="0"
-                  cellpadding="0"
-                  cellspacing="0"
-                  align="center"
-                >
-                  <tr>
-                    <td
-                      align="center"
-                      bgcolor="#1E3A76"
-                      style="border-radius: 6px"
-                    >
-                      <a
-                        href="${isAdmin ? `${process.env.APP_URL}/courses?learner=true` : `${process.env.APP_URL}/learner`}"
-                        target="_blank"
-                        style="
-                          font-family: 'Inter', sans-serif;
-                          font-size: 16px;
-                          font-weight: 500;
-                          line-height: 24px;
-                          color: #ffffff;
-                          text-decoration: none;
-                          display: inline-block;
-                          padding: 12px 24px;
-                          border-radius: 6px;
-                        "
-                      >
-                        Start Training
-                      </a>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-                      </table>
+          <!-- COURSE BLOCK -->
+          <tr>
+            <td align="center" style="padding-top:13px;">
+              <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width:640px; background-color:#FFFFFF; border-radius:8px;" class="content">
+                <tr>
+                  <td style="padding:32px 40px;" class="content-inner">
+                    <table role="presentation" width="100%" border="0" cellspacing="0" cellpadding="0">
+                      <tr>
+                        <td align="center">
+                          <div style="max-width:364px; margin:0 auto; font-family:'Inter', sans-serif; font-weight:700; font-size:24px; line-height:33.6px; color:#384860;">
+                            Welcome! You’ve Been Assigned to a New Course.
+                          </div>
+                        </td>
+                      </tr>
+                    </table>
                   </td>
-              </tr>
-              <tr>
-                  <td
-                      style="padding: 24px 40px; text-align: center; font-family: 'Inter', sans-serif; font-weight: 400; font-size: 16px; line-height: 24px; color: #202B3C;">
-                      Sent by Seaverse - Training for Advanced Navigation Techniques
+                </tr>
+
+                <!-- Dynamic Course Cards -->
+                ${coursesHTML}
+
+                <!-- CTA Button -->
+                <tr>
+                  <td align="center" style="padding: 32px 40px;">
+                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" align="center">
+                      <tr>
+                        <td align="center" bgcolor="#1E3A76" style="border-radius:6px;">
+                          <a href="${isAdmin ? `${process.env.APP_URL}/courses?learner=true` : `${process.env.APP_URL}/learner`}"
+                             target="_blank"
+                             style="font-family:'Inter', sans-serif; font-size:16px; font-weight:500; line-height:24px; color:#FFFFFF; text-decoration:none; display:inline-block; padding:12px 24px; border-radius:6px;">
+                             Start Training
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
                   </td>
-              </tr>
-          </table>
-      </body>
-  
-      </html>
+                </tr>
+
+              </table>
+            </td>
+          </tr>
+
+          <!-- FOOTER -->
+          <tr>
+            <td align="center"
+                style="padding: 24px 40px; text-align:center; font-family:'Inter', sans-serif; font-weight:400; font-size:16px; line-height:24px; color:#202B3C;">
+              Sent by Seaverse - Training for Advanced Navigation Techniques
+            </td>
+          </tr>
+
+        </table>
+
+        <!--[if mso]>
+        </td></tr></table>
+        <![endif]-->
+
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+
     `;
 }
 

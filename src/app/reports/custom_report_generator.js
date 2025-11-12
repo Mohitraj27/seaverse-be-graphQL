@@ -21,16 +21,16 @@ const performCustomReportGeneration = async ({ input, subscriberId, userId, user
     try {
         const matchStage = [];
         if (input && Object.keys(input).length > 0) {
-            if (input.dateRange) {
-                const { startDate, endDate } = input.dateRange;
+            // if (input.dateRange) {
+                // const { startDate, endDate } = input.dateRange;
 
-                if (!startDate || !endDate) {
-                    throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Both startDate and endDate are required when dateRange is provided.");
-                }
+                // if (!startDate || !endDate) {
+                //     throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Both startDate and endDate are required when dateRange is provided.");
+                // }
 
-                if (![input.courseIds, input.vesselType, input.vesselName, input.designation, input.learnerStatus, input.courseStatus].some(field => field && field.length > 0)) {
-                    throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Please enter one or more fields.");
-                }
+                // if (![input.courseIds, input.vesselType, input.vesselName, input.designation, input.learnerStatus, input.courseStatus].some(field => field && field.length > 0)) {
+                //     throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Please enter one or more fields.");
+                // }
 
                 if (input.courseIds && Array.isArray(input.courseIds) && input.courseIds.length > 0) {
                     matchStage.push({
@@ -74,15 +74,15 @@ const performCustomReportGeneration = async ({ input, subscriberId, userId, user
                         }
                     });
                 }
-                const dateFilter = {};
+               /*  const dateFilter = {};
                 if (startDate) dateFilter['$gte'] = new Date(startDate);
                 if (endDate) {
                     const endDateObj = new Date(endDate);
                     endDateObj.setHours(23, 59, 59, 999);
                     dateFilter['$lte'] = endDateObj;
                 }
-                matchStage.push({ $match: { createdAt: dateFilter } });
-            }
+                matchStage.push({ $match: { createdAt: dateFilter } }); */
+            // }
         }
         let data;
         let dataToExport = [];
@@ -288,7 +288,7 @@ const performCustomReportGeneration = async ({ input, subscriberId, userId, user
 
         if (excelFilePath) {
             s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
-            console.log("presignedUrl: ",s3PresignedUrl);
+            // console.log("presignedUrl: ",s3PresignedUrl);
             const notificationMessage =
                 input?.reportType == "ENROLLMENT"
                     ? `Custom report is ready to download`
@@ -340,6 +340,26 @@ const performCustomReportGeneration = async ({ input, subscriberId, userId, user
 
         }
 
+        // Default date logic
+        const defaultStartDate = new Date("2025-10-17"); // 17th October 2025 (or adjust year if needed)
+        const defaultEndDate = new Date(); // Today's date
+
+        // Safely extract and apply defaults
+        const { dateRange } = input || {};
+        const { startDate, endDate } = dateRange || {};
+
+        const effectiveStartDate = startDate ? new Date(startDate) : defaultStartDate;
+        const effectiveEndDate = endDate ? new Date(endDate) : defaultEndDate;
+
+        // Build new input object with merged date range but without overwriting original reference
+        const updatedInput = {
+            ...input,
+            dateRange: {
+                startDate: effectiveStartDate,
+                endDate: effectiveEndDate,
+            },
+        };
+
         const newReport = new Export({
             filePath: excelFilePath,
             subscriberId: subscriberId,
@@ -348,7 +368,7 @@ const performCustomReportGeneration = async ({ input, subscriberId, userId, user
             additionalData: [
                 {
                     key: "criteria",
-                    value: { ...input },
+                    value: { ...updatedInput },
                 },
             ],
         });

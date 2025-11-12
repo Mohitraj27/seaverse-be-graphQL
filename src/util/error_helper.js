@@ -136,7 +136,9 @@ const errorName = {
     INDEX_DOC_ELASTIC_SEARCH:"INDEX_DOC_ELASTIC_SEARCH",
     UPDATE_DOC_ELASTIC_SEARCH: "UPDATE_DOC_ELASTIC_SEARCH",
     DELETE_DOC_ELASTIC_SEARCH: "DELETE_DOC_ELASTIC_SEARCH",
-    GET_DOC_ELASTIC_SEARCH: "GET_DOC_ELASTIC_SEARCH"
+    GET_DOC_ELASTIC_SEARCH: "GET_DOC_ELASTIC_SEARCH",
+    FAILED_TO_PUSH_LATEST_CONTENT:"FAILED_TO_PUSH_LATEST_CONTENT",
+    FAILED_UPDATE_TRAINING_DURATION:"FAILED_UPDATE_TRAINING_DURATION"
 };
 
 const errorType = {
@@ -824,6 +826,16 @@ const errorType = {
         message: 'Get Doc Elastic Search',
         status: 400,
         type: "GET_DOC_ELASTIC_SEARCH"
+    },
+    FAILED_TO_PUSH_LATEST_CONTENT:{
+        message: 'Failed to push latest content',
+        status: 400,
+        type: "FAILED_TO_PUSH_LATEST_CONTENT"
+    },
+    FAILED_UPDATE_TRAINING_DURATION:{
+        message: 'Failed to update training duration',
+        status: 400,
+        type: "FAILED_UPDATE_TRAINING_DURATION"
     }
 };
 
