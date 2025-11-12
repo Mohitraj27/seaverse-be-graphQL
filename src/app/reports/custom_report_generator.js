@@ -22,7 +22,8 @@ const performCustomReportGeneration = async ({ input, subscriberId, userId, user
         const matchStage = [];
         if (input && Object.keys(input).length > 0) {
             // if (input.dateRange) {
-                // const { startDate, endDate } = input.dateRange;
+                const startDate = input?.dateRange?.startDate;
+                const endDate = input?.dateRange?.endDate;
 
                 // if (!startDate || !endDate) {
                 //     throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Both startDate and endDate are required when dateRange is provided.");
@@ -74,14 +75,14 @@ const performCustomReportGeneration = async ({ input, subscriberId, userId, user
                         }
                     });
                 }
-               /*  const dateFilter = {};
+                const dateFilter = {};
                 if (startDate) dateFilter['$gte'] = new Date(startDate);
                 if (endDate) {
                     const endDateObj = new Date(endDate);
                     endDateObj.setHours(23, 59, 59, 999);
                     dateFilter['$lte'] = endDateObj;
                 }
-                matchStage.push({ $match: { createdAt: dateFilter } }); */
+                matchStage.push({ $match: { createdAt: dateFilter } });
             // }
         }
         let data;
@@ -341,25 +342,31 @@ const performCustomReportGeneration = async ({ input, subscriberId, userId, user
         }
 
         // Default date logic
-        const defaultStartDate = new Date("2025-10-17"); // 17th October 2025 (or adjust year if needed)
+        const defaultStartDate = new Date("2025-10-17"); // 17th October 2025
         const defaultEndDate = new Date(); // Today's date
 
-        // Safely extract and apply defaults
-        const { dateRange } = input || {};
-        const { startDate, endDate } = dateRange || {};
-
+        // Safely extract
+        const dateRange = input?.dateRange || {};
+        console.log("Original Input Date Range:", dateRange);
+        const  startDate = dateRange?.startDate;
+        const  endDate = dateRange?.endDate;
+        console.log("Extracted Start Date:", startDate);
+        console.log("Extracted End Date:", endDate);
+        // Compute with fallbacks
         const effectiveStartDate = startDate ? new Date(startDate) : defaultStartDate;
         const effectiveEndDate = endDate ? new Date(endDate) : defaultEndDate;
 
-        // Build new input object with merged date range but without overwriting original reference
+        // Build updated input preserving original fields
         const updatedInput = {
             ...input,
             dateRange: {
+                ...dateRange, // keep existing fields
                 startDate: effectiveStartDate,
                 endDate: effectiveEndDate,
             },
         };
 
+        console.log("Updated Input Date Range:", updatedInput.dateRange);
         const newReport = new Export({
             filePath: excelFilePath,
             subscriberId: subscriberId,
