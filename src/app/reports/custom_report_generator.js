@@ -340,6 +340,26 @@ const performCustomReportGeneration = async ({ input, subscriberId, userId, user
 
         }
 
+        // Default date logic
+        const defaultStartDate = new Date("2025-10-17"); // 17th October 2025 (or adjust year if needed)
+        const defaultEndDate = new Date(); // Today's date
+
+        // Safely extract and apply defaults
+        const { dateRange } = input || {};
+        const { startDate, endDate } = dateRange || {};
+
+        const effectiveStartDate = startDate ? new Date(startDate) : defaultStartDate;
+        const effectiveEndDate = endDate ? new Date(endDate) : defaultEndDate;
+
+        // Build new input object with merged date range but without overwriting original reference
+        const updatedInput = {
+            ...input,
+            dateRange: {
+                startDate: effectiveStartDate,
+                endDate: effectiveEndDate,
+            },
+        };
+
         const newReport = new Export({
             filePath: excelFilePath,
             subscriberId: subscriberId,
@@ -348,7 +368,7 @@ const performCustomReportGeneration = async ({ input, subscriberId, userId, user
             additionalData: [
                 {
                     key: "criteria",
-                    value: { ...input },
+                    value: { ...updatedInput },
                 },
             ],
         });
