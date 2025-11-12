@@ -71,7 +71,7 @@ const aws_helper = require("../../../util/aws_helper");
 const { DeleteRequestApproved } = require("../../email-template/DeleteRequestApproved");
 const { DeleteRequestRejected } = require("../../email-template/DeleteRequestRejected");
 const signupRequestModel = require("../../signup-request/signup-request-model");
-const { generateFileNameTimestamp } = require("../../reports/reports_helper");
+const { generateFileNameTimestamp, formatDate } = require("../../reports/reports_helper");
 const LearningPlanStatus = require('../../learning-plan/enumFields/learning_plan_status.json');
 const LearningPlanAssignment = require('../../learning-plan/assignedLearner/assignedLearnerModel');
 const { OverallTrainingProgress } = require('../../training-registrations/overall-course-progress/overall_progress_model');
@@ -93,6 +93,7 @@ const { toUpperCaseFirstLetter } = require("../../../util/string_helper");
 // const { JOB_NAMES } = require("../../queues/queue.enum");
 
 const { SQSClient, SendMessageCommand } = require('@aws-sdk/client-sqs');
+const { pipeline } = require("stream");
 
 const sqsClient = new SQSClient({
     region: process.env.SQS_AWS_REGION,
@@ -3927,7 +3928,8 @@ module.exports.mutations = {
             'Created At',
             'User Roles',
             'Vessel Type',
-            'User Status'
+            'User Status',
+            'User State'
         ];
         try {
             if (userObjectIds?.regType === undefined || userObjectIds?.regType === null) {
@@ -3966,31 +3968,42 @@ module.exports.mutations = {
                 employeeQuery = { regType: regType };
             }
 
-            let userIds = [];
-            if (userObjectIds?.ids && userObjectIds.ids.length > 0) {
+            // let userIds = [];
+            /* if (userObjectIds?.ids && userObjectIds.ids.length > 0) {
                 await checkUserRegType(userObjectIds.ids, regType);
                 userIds = userObjectIds.ids.map(id => mongoose.Types.ObjectId(id));
             } else {
                 const employees = await Employee.find(employeeQuery).select('user');
                 userIds = employees.map(emp => emp.user);
+            } */
+            const userIds = userObjectIds?.ids?.length > 0
+                ? userObjectIds.ids.map(id => mongoose.Types.ObjectId(id))
+                : [];
+
+            let initialMatchStage = null;
+
+            if (userIds.length > 0) {
+                initialMatchStage = {
+                    $match: {
+                        _id: { $in: userIds },
+                        isDeleted: false
+                    }
+                };
             }
-            const initialMatchStage = {
-                $match: {
-                    _id: { $in: userIds },
-                    isDeleted: false
-                }
-            };
+
             if (userObjectIds?.filterInput) {
                 await processFilters(userObjectIds.filterInput, initialMatchStage);
             }
             const pipeline = [
-                initialMatchStage,
                 {
                     $lookup: {
                         from: 'employees',
                         localField: '_id',
                         foreignField: 'user',
                         as: 'employeeDetails',
+                        pipeline:[
+                            { $match: { isDeleted: false} }
+                        ]
                     },
                 },
                 { $unwind: { path: '$employeeDetails', preserveNullAndEmptyArrays: true } },
@@ -4095,6 +4108,10 @@ module.exports.mutations = {
                 }
             ];
 
+            if (initialMatchStage != null) {
+                pipeline.unshift(initialMatchStage);
+            }
+
             const projectStage = {
                 $project: {
                     'First Name*': '$firstName',
@@ -4161,19 +4178,24 @@ module.exports.mutations = {
                             else: { $toDate: '$createdAt' },
                         },
                     },
-                    isResetPasswordDialog: 1,
                     'User Status': {
                         $cond: {
+                            if: { $eq: ['$isResetPasswordDialog', true] },
+                            then: 'Accepted',
+                            else: 'Not Accepted',
+                        },
+                    },
+                    'User State': {
+                        $cond: {
                             if: { $eq: ['$isRegistered', true] },
-                            then: 'Active',
-                            else: 'Inactive',
+                            then: 'Registered',
+                            else: 'Unregistered',
                         },
                     },
 
                 },
             };
             pipeline.push(projectStage);
-
 
             const users = await User.aggregate(pipeline);
             if (users.length === 0) {
@@ -4183,42 +4205,17 @@ module.exports.mutations = {
                 const rowData = {};
                 const isResetPassword = user?.isResetPasswordDialog ?? true;
                 hardcodedFields.forEach(field => {
-                    if (field === 'isResetPasswordDialog') {
-                        return;
-                    }
+
                     if (field === 'Last Login' && user['Last Login'] !== 'N/A') {
-                        rowData[field] = isResetPassword ? formatDateWithSuffix(new Date(user['Last Login'])) : "";
+                        rowData[field] = isResetPassword ? formatDate(new Date(user['Last Login'])) : "";
                     } else if (field === 'Created At' && user['Created At'] !== 'N/A') {
-                        rowData[field] = formatDateWithSuffix(new Date(user['Created At']));
+                        rowData[field] = formatDate(new Date(user['Created At']));
                     } else {
                         rowData[field] = user[field] || ' ';
                     }
                 });
                 return rowData;
             });
-
-            /**  
-                        @initial_requirement
-                        //Old data to export user to csv
-            
-                        // const workbook = xlsx.utils.book_new();
-                        const worksheet = xlsx.utils.json_to_sheet(data);
-                        const csvData = xlsx.utils.sheet_to_csv(worksheet);
-                        // xlsx.utils.book_append_sheet(workbook, worksheet, "Users");
-                        // const excelBuffer = xlsx.write(workbook, { bookType: 'xlsx', type: 'buffer' });
-                        const csvBuffer = Buffer.from(csvData, 'utf-8');
-                        const excelFilePath = await UploadHelper.uploadExcel({
-                            data: csvBuffer,
-                            folderName: "exports",
-                            fileName: `exported_users_${Date.now()}.csv`,
-                            uploadType: UploadHelper.uploadType.exportExcel,
-                        });
-              */
-
-            /**
-             * @description
-             *  New change exporting to xlsx file since csv had issue opening user ids with leading zeros
-             */
             const decryptedData = data?.map(user => {
                 return {
                     ...user,
@@ -4228,7 +4225,7 @@ module.exports.mutations = {
                     'User ID*': decrypt(user['User ID*']),
                 };
             });
-            console.log(decryptedData);
+
             const workbook = xlsx.utils.book_new();
             const worksheet = xlsx.utils.json_to_sheet(decryptedData);
             xlsx.utils.book_append_sheet(workbook, worksheet, "Users");
@@ -4291,6 +4288,7 @@ module.exports.mutations = {
                 throw CustomError(ErrorName.UPLOAD_FAILED);
             }
         } catch (error) {
+            console.log(error)
             throw CustomError(ErrorName.FAILED_TO_EXPORT_USERS_TO_CSV, error.message);
         }
     },
