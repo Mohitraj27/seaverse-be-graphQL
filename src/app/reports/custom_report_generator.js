@@ -21,16 +21,16 @@ const performCustomReportGeneration = async ({ input, subscriberId, userId, user
     try {
         const matchStage = [];
         if (input && Object.keys(input).length > 0) {
-            if (input.dateRange) {
-                const { startDate, endDate } = input.dateRange;
+            // if (input.dateRange) {
+                // const { startDate, endDate } = input.dateRange;
 
-                if (!startDate || !endDate) {
-                    throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Both startDate and endDate are required when dateRange is provided.");
-                }
+                // if (!startDate || !endDate) {
+                //     throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Both startDate and endDate are required when dateRange is provided.");
+                // }
 
-                if (![input.courseIds, input.vesselType, input.vesselName, input.designation, input.learnerStatus, input.courseStatus].some(field => field && field.length > 0)) {
-                    throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Please enter one or more fields.");
-                }
+                // if (![input.courseIds, input.vesselType, input.vesselName, input.designation, input.learnerStatus, input.courseStatus].some(field => field && field.length > 0)) {
+                //     throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Please enter one or more fields.");
+                // }
 
                 if (input.courseIds && Array.isArray(input.courseIds) && input.courseIds.length > 0) {
                     matchStage.push({
@@ -74,15 +74,15 @@ const performCustomReportGeneration = async ({ input, subscriberId, userId, user
                         }
                     });
                 }
-                const dateFilter = {};
+               /*  const dateFilter = {};
                 if (startDate) dateFilter['$gte'] = new Date(startDate);
                 if (endDate) {
                     const endDateObj = new Date(endDate);
                     endDateObj.setHours(23, 59, 59, 999);
                     dateFilter['$lte'] = endDateObj;
                 }
-                matchStage.push({ $match: { createdAt: dateFilter } });
-            }
+                matchStage.push({ $match: { createdAt: dateFilter } }); */
+            // }
         }
         let data;
         let dataToExport = [];
@@ -288,7 +288,7 @@ const performCustomReportGeneration = async ({ input, subscriberId, userId, user
 
         if (excelFilePath) {
             s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
-            console.log("presignedUrl: ",s3PresignedUrl);
+            // console.log("presignedUrl: ",s3PresignedUrl);
             const notificationMessage =
                 input?.reportType == "ENROLLMENT"
                     ? `Custom report is ready to download`

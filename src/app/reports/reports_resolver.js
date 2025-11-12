@@ -1398,15 +1398,22 @@ const generateCustomReport = async ({ input }, context) => {
     if (!input || !input.reportType) {
         throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Report type is required.");
     }
-     if (input.dateRange) {
-        const { startDate, endDate } = input.dateRange;
+    if (!input.vesselName || input.vesselName.length === 0) {
+        throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Vessel ids are required.");
+    }
+    if (![input.courseIds, input.vesselType, input.vesselName, input.designation, input.learnerStatus, input.courseStatus].some(field => field && field.length > 0)) {
+        throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Please enter one or more fields.");
+    }
+
+     /* if (input.dateRange) {
+        // const { startDate, endDate } = input.dateRange;
         if (!startDate || !endDate) {
             throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Both startDate and endDate are required when dateRange is provided.");
         }
-         if (![input.courseIds, input.vesselType, input.vesselName, input.designation, input.learnerStatus, input.courseStatus].some(field => field && field.length > 0)) {
+         if(![input.courseIds, input.vesselType, input.vesselName, input.designation, input.learnerStatus, input.courseStatus].some(field => field && field.length > 0)) {
             throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Please enter one or more fields.");
         }
-    }
+    } */
 
 
     // 2. Fork the child process

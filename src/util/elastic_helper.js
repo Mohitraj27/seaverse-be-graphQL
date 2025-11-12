@@ -303,10 +303,16 @@ const searchEmployeesFromElastic = async ({
     });
   }
 
-  if (typeof filterInput?.showInvited === "boolean" && filterInput?.showInvited===true) {
-    must.push({
-      term: { "isResetPasswordDialog": !filterInput?.showInvited },
-    });
+  if (typeof filterInput?.showInvited === "boolean") {
+    if (filterInput?.showInvited === true) {
+      must.push({
+        term: { "isResetPasswordDialog": !filterInput?.showInvited },
+      });
+    } else if (filterInput?.showInvited === false) {
+      must.push({
+        term: { "isResetPasswordDialog": !filterInput?.showInvited },
+      });
+    }
   }
 
   if (filterInput?.role?.length > 0) {
