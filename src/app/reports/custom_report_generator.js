@@ -347,11 +347,10 @@ const performCustomReportGeneration = async ({ input, subscriberId, userId, user
 
         // Safely extract
         const dateRange = input?.dateRange || {};
-        console.log("Original Input Date Range:", dateRange);
+
         const  startDate = dateRange?.startDate;
         const  endDate = dateRange?.endDate;
-        console.log("Extracted Start Date:", startDate);
-        console.log("Extracted End Date:", endDate);
+
         // Compute with fallbacks
         const effectiveStartDate = startDate ? new Date(startDate) : defaultStartDate;
         const effectiveEndDate = endDate ? new Date(endDate) : defaultEndDate;
@@ -366,7 +365,6 @@ const performCustomReportGeneration = async ({ input, subscriberId, userId, user
             },
         };
 
-        console.log("Updated Input Date Range:", updatedInput.dateRange);
         const newReport = new Export({
             filePath: excelFilePath,
             subscriberId: subscriberId,
