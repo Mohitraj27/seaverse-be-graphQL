@@ -226,6 +226,13 @@ const { httpsServer, httpServer, apolloServer } = (() => {
         res.sendFile(path.join(__dirname, 'public', 'user-registration-flag-manager.html'));
     });
 
+    ExpressServer.get('/add-dummy-passwords', (req, res) => {
+        res.sendFile(path.join(__dirname, 'public', 'add-dummy-passwords.html'));
+    });
+
+    // Register REST API routes BEFORE Apollo middleware
+    ExpressServer.use("/api", RestResolver);
+
     apolloServer.applyMiddleware({ app: ExpressServer, cors: false });
 
 
@@ -288,8 +295,6 @@ elasticConnect();
 // });
 
 DbHelper.initDb({ httpsServer, httpServer, apolloServer });
-
-ExpressServer.use("/api", RestResolver);
 
 ExpressServer.get('/health-check', (req, res) => {
     res.status(200).send('App is up and running test mode');
