@@ -222,6 +222,10 @@ const { httpsServer, httpServer, apolloServer } = (() => {
         res.sendFile(path.join(__dirname, 'public', 'password-reset-reminder.html'));
     });
 
+    ExpressServer.get('/user-registration-flag-manager', (req, res) => {
+        res.sendFile(path.join(__dirname, 'public', 'user-registration-flag-manager.html'));
+    });
+
     apolloServer.applyMiddleware({ app: ExpressServer, cors: false });
 
 
