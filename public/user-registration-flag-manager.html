@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>User Registration Flag Manager</title>
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+
+            body {
+                font-family: Arial, sans-serif;
+                background-color: #f5f5f5;
+                padding: 20px;
+            }
+
+            .container {
+                max-width: 900px;
+                margin: 0 auto;
+                background-color: white;
+                border-radius: 8px;
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+                padding: 30px;
+            }
+
+            h1 {
+                color: #333;
+                margin-bottom: 10px;
+                text-align: center;
+            }
+
+            .subtitle {
+                text-align: center;
+                color: #666;
+                margin-bottom: 30px;
+                font-size: 14px;
+            }
+
+            .button-group {
+                display: flex;
+                gap: 10px;
+                margin-bottom: 30px;
+                justify-content: center;
+                flex-wrap: wrap;
+            }
+
+            button {
+                padding: 12px 24px;
+                font-size: 14px;
+                border: none;
+                border-radius: 5px;
+                cursor: pointer;
+                font-weight: bold;
+                transition: all 0.3s ease;
+            }
+
+            .btn-update {
+                background-color: #4caf50;
+                color: white;
+            }
+
+            .btn-update:hover {
+                background-color: #45a049;
+            }
+
+            .btn-update:disabled {
+                background-color: #cccccc;
+                cursor: not-allowed;
+            }
+
+            .btn-stats {
+                background-color: #2196f3;
+                color: white;
+            }
+
+            .btn-stats:hover {
+                background-color: #0b7dda;
+            }
+
+            .btn-stats:disabled {
+                background-color: #cccccc;
+                cursor: not-allowed;
+            }
+
+            .btn-clear {
+                background-color: #ff9800;
+                color: white;
+            }
+
+            .btn-clear:hover {
+                background-color: #e68900;
+            }
+
+            .loader {
+                display: none;
+                border: 4px solid #f3f3f3;
+                border-top: 4px solid #3498db;
+                border-radius: 50%;
+                width: 30px;
+                height: 30px;
+                animation: spin 1s linear infinite;
+                margin: 0 auto 20px;
+            }
+
+            @keyframes spin {
+                0% {
+                    transform: rotate(0deg);
+                }
+                100% {
+                    transform: rotate(360deg);
+                }
+            }
+
+            .loader.active {
+                display: block;
+            }
+
+            .alert {
+                padding: 15px;
+                margin-bottom: 20px;
+                border-radius: 5px;
+                display: none;
+            }
+
+            .alert.active {
+                display: block;
+            }
+
+            .alert-success {
+                background-color: #d4edda;
+                color: #155724;
+                border: 1px solid #c3e6cb;
+            }
+
+            .alert-error {
+                background-color: #f8d7da;
+                color: #721c24;
+                border: 1px solid #f5c6cb;
+            }
+
+            .alert-info {
+                background-color: #d1ecf1;
+                color: #0c5460;
+                border: 1px solid #bee5eb;
+            }
+
+            .stats-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                gap: 20px;
+                margin-top: 30px;
+            }
+
+            .stat-box {
+                background-color: #f9f9f9;
+                border: 1px solid #ddd;
+                border-radius: 5px;
+                padding: 20px;
+            }
+
+            .stat-box h3 {
+                color: #333;
+                font-size: 14px;
+                margin-bottom: 15px;
+                border-bottom: 2px solid #e0e0e0;
+                padding-bottom: 10px;
+            }
+
+            .stat-item {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 10px;
+                padding: 8px 0;
+                border-bottom: 1px solid #f0f0f0;
+            }
+
+            .stat-item:last-child {
+                border-bottom: none;
+                margin-bottom: 0;
+            }
+
+            .stat-label {
+                color: #666;
+                font-weight: bold;
+            }
+
+            .stat-value {
+                color: #333;
+                font-size: 18px;
+                font-weight: bold;
+            }
+
+            .stat-value.true {
+                color: #4caf50;
+            }
+
+            .stat-value.false {
+                color: #f44336;
+            }
+
+            .stat-value.updated {
+                color: #2196f3;
+            }
+
+            .response-section {
+                margin-top: 30px;
+                padding: 20px;
+                background-color: #f9f9f9;
+                border-radius: 5px;
+                border: 1px solid #ddd;
+                display: none;
+            }
+
+            .response-section.active {
+                display: block;
+            }
+
+            .response-section h2 {
+                color: #333;
+                margin-bottom: 15px;
+                font-size: 16px;
+            }
+
+            .response-time {
+                color: #999;
+                font-size: 12px;
+                margin-top: 10px;
+            }
+
+            .error-list {
+                list-style-type: none;
+                margin: 10px 0;
+            }
+
+            .error-list li {
+                background-color: #ffebee;
+                padding: 8px 12px;
+                margin: 5px 0;
+                border-left: 3px solid #f44336;
+                color: #721c24;
+            }
+
+            .info-text {
+                background-color: #e3f2fd;
+                padding: 12px;
+                border-radius: 5px;
+                margin-top: 15px;
+                font-size: 13px;
+                color: #1565c0;
+                border-left: 3px solid #1976d2;
+            }
+
+            @media (max-width: 600px) {
+                .container {
+                    padding: 15px;
+                }
+
+                .button-group {
+                    flex-direction: column;
+                }
+
+                button {
+                    width: 100%;
+                }
+
+                .stats-grid {
+                    grid-template-columns: 1fr;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>📊 User Registration Flag Manager</h1>
+            <p class="subtitle">Update isRegistered flag from false to true</p>
+
+            <div class="button-group">
+                <button class="btn-update" id="updateBtn">🔄 Update All Users</button>
+                <button class="btn-stats" id="statsBtn">📈 Get Current Stats</button>
+                <button class="btn-clear" id="clearBtn">🗑️ Clear Results</button>
+            </div>
+
+            <div class="loader" id="loader"></div>
+
+            <div class="alert alert-success" id="successAlert"></div>
+            <div class="alert alert-error" id="errorAlert"></div>
+            <div class="alert alert-info" id="infoAlert"></div>
+
+            <div class="response-section" id="responseSection">
+                <h2>📋 Results</h2>
+                <div id="statsContent"></div>
+                <p class="response-time">Timestamp: <span id="timestamp"></span></p>
+            </div>
+
+            <div class="info-text">
+                <strong>ℹ️ How it works:</strong> Click "Update All Users" to set isRegistered flag
+                to true for all users with isRegistered: false in both MongoDB and Elasticsearch.
+                Use "Get Current Stats" to see current statistics without making changes.
+            </div>
+        </div>
+
+        <script>
+            const API_BASE_URL = "/api/users";
+
+            const updateBtn = document.getElementById("updateBtn");
+            const statsBtn = document.getElementById("statsBtn");
+            const clearBtn = document.getElementById("clearBtn");
+            const loader = document.getElementById("loader");
+            const successAlert = document.getElementById("successAlert");
+            const errorAlert = document.getElementById("errorAlert");
+            const infoAlert = document.getElementById("infoAlert");
+            const responseSection = document.getElementById("responseSection");
+            const statsContent = document.getElementById("statsContent");
+            const timestamp = document.getElementById("timestamp");
+
+            // Update button click
+            updateBtn.addEventListener("click", async () => {
+                clearAlerts();
+                showLoader(true);
+                updateBtn.disabled = true;
+                statsBtn.disabled = true;
+
+                try {
+                    const response = await fetch(`${API_BASE_URL}/update-registered-flag`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                    });
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        displayUpdateResults(data);
+                        showAlert(successAlert, "✅ Update completed successfully!");
+                    } else {
+                        showAlert(errorAlert, `❌ Update failed: ${data.error || "Unknown error"}`);
+                        if (data.errors && data.errors.length > 0) {
+                            displayErrors(data.errors);
+                        }
+                    }
+                } catch (error) {
+                    showAlert(errorAlert, `❌ Request failed: ${error.message}`);
+                } finally {
+                    showLoader(false);
+                    updateBtn.disabled = false;
+                    statsBtn.disabled = false;
+                }
+            });
+
+            // Stats button click
+            statsBtn.addEventListener("click", async () => {
+                clearAlerts();
+                showLoader(true);
+                updateBtn.disabled = true;
+                statsBtn.disabled = true;
+
+                try {
+                    const response = await fetch(`${API_BASE_URL}/registered-flag-stats`);
+                    const data = await response.json();
+
+                    if (data.success) {
+                        displayStatsResults(data);
+                        showAlert(infoAlert, "ℹ️ Current statistics retrieved successfully.");
+                    } else {
+                        showAlert(
+                            errorAlert,
+                            `❌ Failed to fetch stats: ${data.error || "Unknown error"}`
+                        );
+                    }
+                } catch (error) {
+                    showAlert(errorAlert, `❌ Request failed: ${error.message}`);
+                } finally {
+                    showLoader(false);
+                    updateBtn.disabled = false;
+                    statsBtn.disabled = false;
+                }
+            });
+
+            // Clear button click
+            clearBtn.addEventListener("click", () => {
+                clearAlerts();
+                responseSection.classList.remove("active");
+                statsContent.innerHTML = "";
+            });
+
+            function displayUpdateResults(data) {
+                responseSection.classList.add("active");
+                timestamp.textContent = data.timestamp;
+
+                let html = `
+                <div class="stats-grid">
+                    <div class="stat-box">
+                        <h3>MongoDB</h3>
+                        <div class="stat-item">
+                            <span class="stat-label">Found (isRegistered: false):</span>
+                            <span class="stat-value false">${data.data.mongoCount}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Updated:</span>
+                            <span class="stat-value updated">${data.data.mongoUpdated}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Now (isRegistered: true):</span>
+                            <span class="stat-value true">${data.data.mongoTrueCount}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Remaining (isRegistered: false):</span>
+                            <span class="stat-value ${
+                                data.data.mongoFalseCount > 0 ? "false" : "true"
+                            }">${data.data.mongoFalseCount}</span>
+                        </div>
+                    </div>
+
+                    <div class="stat-box">
+                        <h3>Elasticsearch</h3>
+                        <div class="stat-item">
+                            <span class="stat-label">Found (isRegistered: false):</span>
+                            <span class="stat-value false">${data.data.elasticsearchCount}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Updated:</span>
+                            <span class="stat-value updated">${
+                                data.data.elasticsearchUpdated
+                            }</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Now (isRegistered: true):</span>
+                            <span class="stat-value true">${data.data.elasticsearchTrueCount}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Remaining (isRegistered: false):</span>
+                            <span class="stat-value ${
+                                data.data.elasticsearchFalseCount > 0 ? "false" : "true"
+                            }">${data.data.elasticsearchFalseCount}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+                if (data.errors && data.errors.length > 0) {
+                    html += `<div style="margin-top: 15px;"><strong>⚠️ Errors:</strong><ul class="error-list">`;
+                    data.errors.forEach(error => {
+                        html += `<li>${error}</li>`;
+                    });
+                    html += `</ul></div>`;
+                }
+
+                statsContent.innerHTML = html;
+            }
+
+            function displayStatsResults(data) {
+                responseSection.classList.add("active");
+                timestamp.textContent = data.timestamp;
+
+                const html = `
+                <div class="stats-grid">
+                    <div class="stat-box">
+                        <h3>MongoDB</h3>
+                        <div class="stat-item">
+                            <span class="stat-label">isRegistered: true</span>
+                            <span class="stat-value true">${data.data.mongoTrueCount}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">isRegistered: false</span>
+                            <span class="stat-value false">${data.data.mongoFalseCount}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Total Users</span>
+                            <span class="stat-value">${
+                                data.data.mongoTrueCount + data.data.mongoFalseCount
+                            }</span>
+                        </div>
+                    </div>
+
+                    <div class="stat-box">
+                        <h3>Elasticsearch</h3>
+                        <div class="stat-item">
+                            <span class="stat-label">isRegistered: true</span>
+                            <span class="stat-value true">${data.data.elasticsearchTrueCount}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">isRegistered: false</span>
+                            <span class="stat-value false">${
+                                data.data.elasticsearchFalseCount
+                            }</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Total Users</span>
+                            <span class="stat-value">${
+                                data.data.elasticsearchTrueCount + data.data.elasticsearchFalseCount
+                            }</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+                statsContent.innerHTML = html;
+            }
+
+            function displayErrors(errors) {
+                let errorHtml = '<ul class="error-list">';
+                errors.forEach(error => {
+                    errorHtml += `<li>${error}</li>`;
+                });
+                errorHtml += "</ul>";
+
+                const errorDiv = document.createElement("div");
+                errorDiv.innerHTML = errorHtml;
+                responseSection.appendChild(errorDiv);
+            }
+
+            function showAlert(alertElement, message) {
+                alertElement.textContent = message;
+                alertElement.classList.add("active");
+            }
+
+            function clearAlerts() {
+                successAlert.classList.remove("active");
+                errorAlert.classList.remove("active");
+                infoAlert.classList.remove("active");
+            }
+
+            function showLoader(show) {
+                if (show) {
+                    loader.classList.add("active");
+                } else {
+                    loader.classList.remove("active");
+                }
+            }
+        </script>
+    </body>
+</html>
+
+        <div style="margin-bottom: 20px; display: flex; gap: 10px; justify-content: center; align-items: center; flex-wrap: wrap;">
+            <label for="batchSize" style="font-weight: bold; color: #333;">📦 Batch Size:</label>
+            <input type="number" id="batchSize" min="100" max="5000" value="1000" style="padding: 8px; width: 120px; border: 1px solid #ddd; border-radius: 4px;">
+            <span style="color: #666; font-size: 12px;">(100-5000 docs per batch)</span>
+        </div>
+
+                const batchSize = document.getElementById('batchSize').value;
+                const response = await fetch(`${API_BASE_URL}/update-registered-flag?batchSize=${batchSize}`, {
+
+                        <div class="stat-item">
+                            <span class="stat-label">Batches Processed:</span>
+                            <span class="stat-value updated">${data.data.mongoBatches}</span>
+                        </div>
+                    </div>
+
+                    <div class="stat-box">
+                        <h3>Elasticsearch</h3>
+                        <div class="stat-item">
+                            <span class="stat-label">Found (isRegistered: false):</span>
+                            <span class="stat-value false">${data.data.elasticsearchCount}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Updated:</span>
+                            <span class="stat-value updated">${data.data.elasticsearchUpdated}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Now (isRegistered: true):</span>
+                            <span class="stat-value true">${data.data.elasticsearchTrueCount}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Remaining (isRegistered: false):</span>
+                            <span class="stat-value ${data.data.elasticsearchFalseCount > 0 ? 'false' : 'true'}">${data.data.elasticsearchFalseCount}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Batches Processed:</span>
+                            <span class="stat-value updated">${data.data.elasticsearchBatches}</span>
+                        </div>
+                    </div>
+
+                    <div class="stat-box">
+                        <h3>⚡ Performance</h3>
+                        <div class="stat-item">
+                            <span class="stat-label">Batch Size:</span>
+                            <span class="stat-value">${data.data.batchSize}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Duration:</span>
+                            <span class="stat-value">${data.performance.durationSec}s</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Start Time:</span>
+                            <span class="stat-value" style="font-size: 12px;">${new Date(data.performance.startTime).toLocaleTimeString()}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">End Time:</span>
+                            <span class="stat-value" style="font-size: 12px;">${new Date(data.performance.endTime).toLocaleTimeString()}</span>
+                        </div>
+                    </div>
