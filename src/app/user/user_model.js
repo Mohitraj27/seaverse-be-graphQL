@@ -54,7 +54,7 @@ const userSchema = new Schema(
         },
         dummyPassword: {
             type: String,
-            default : null,
+            default: null,
         },
         role: {
             type: String,
@@ -139,7 +139,7 @@ const userSchema = new Schema(
         },
         isResetPasswordDialog: {
             type: Boolean,
-            default: false, 
+            default: false,
         },
         reasonForDelete: {
             type: String
@@ -179,7 +179,7 @@ const userSchema = new Schema(
         // country: {
         //     type: String,
         // },
-        isEmailNotification:{
+        isEmailNotification: {
             type: Boolean,
             default: true
         },
@@ -190,6 +190,10 @@ const userSchema = new Schema(
         deletionDate: {
             type: Date,
             default: null
+        },
+        recentlyAddedDummyPass: {
+            type: Boolean,
+            default: false
         },
     },
     { timestamps: true }
