@@ -292,7 +292,7 @@ DbHelper.initDb({ httpsServer, httpServer, apolloServer });
 ExpressServer.use("/api", RestResolver);
 
 ExpressServer.get('/health-check', (req, res) => {
-    res.status(200).send('App is up and running');
+    res.status(200).send('App is up and running test mode');
 });
 
 ExpressServer.get('/api/ci', (req, res) => {
