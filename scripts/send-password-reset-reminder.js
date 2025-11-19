@@ -92,13 +92,20 @@ async function queuePasswordResetReminderEmails() {
         const totalUsers = await User.countDocuments({});
         console.log(`📊 Total users in database: ${totalUsers}`);
 
-        const activeUsers = await User.countDocuments({ isDeleted: false, isActive: true });
+        const activeUsers = await User.countDocuments({
+            isResetPasswordDialog: false,
+            isDeleted: false,
+            
+            isActive: true,
+            isRegistered: true,
+            email: { $exists: true, $ne: null } });
         console.log(`📊 Active users: ${activeUsers}`);
 
         // Fetch users where isResetPasswordDialog is false
         const users = await User.find({
             isResetPasswordDialog: false,
             isDeleted: false,
+            
             isActive: true,
             isRegistered: true,
             email: { $exists: true, $ne: null }
@@ -402,14 +409,23 @@ async function queuePasswordResetReminderEmailsWithProgress(progressCallback) {
         const totalUsers = await User.countDocuments({});
         console.log(`📊 Total users in database: ${totalUsers}`);
 
-        const activeUsers = await User.countDocuments({ isDeleted: false, isActive: true });
+        const activeUsers = await User.countDocuments({
+            isResetPasswordDialog: false,
+            isDeleted: false,
+            
+            isActive: true,
+            isRegistered: true,
+            email: { $exists: true, $ne: null }
+});
         console.log(`📊 Active users: ${activeUsers}`);
 
         // Fetch users where isResetPasswordDialog is false
         const users = await User.find({
             isResetPasswordDialog: false,
             isDeleted: false,
+            
             isActive: true,
+            isRegistered: true,
             email: { $exists: true, $ne: null }
         }).select('_id firstName email dummyPassword').lean();
 

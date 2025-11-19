@@ -211,7 +211,7 @@ const updateCoursesCountAndProgressInElasticSearch = async (userIds, session) =>
                 { term: { userId: userId } },
                 { enrolledCourses, averageCourseProgress }
             );
-            console.log(`Updated user ${userId} with enrolledCourses: ${enrolledCourses}, averageCourseProgress: ${averageCourseProgress}`);
+            //console.log(`Updated user ${userId} with enrolledCourses: ${enrolledCourses}, averageCourseProgress: ${averageCourseProgress}`);
         }
 
         return "Elasticsearch update completed";

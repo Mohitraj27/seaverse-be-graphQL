@@ -155,8 +155,8 @@ module.exports = {
     },
     sendNotifications: async ({ userIds, title, body, content, webLink }) => {
 
-        console.log("came to send notification to firebase----------->")
-        console.log("userIds:", userIds, "title:", title, "body:", body, "content:", content, "webLink:", webLink);
+       // console.log("came to send notification to firebase----------->")
+       // console.log("userIds:", userIds, "title:", title, "body:", body, "content:", content, "webLink:", webLink);
 
         const usersWithTokens = await User.find({ _id: { $in: userIds }, isPushNotification: { $ne: false } }, { firebaseTokens: 1 });
         const tokens = usersWithTokens.reduce((acc, user) => {
