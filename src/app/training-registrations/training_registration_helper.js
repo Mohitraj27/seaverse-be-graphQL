@@ -2548,7 +2548,7 @@ module.exports = {
                         icon: notificationiconEnum.SUCCESS,
                         createdBy: userInfo,
                             additionalInfo: [
-                                
+                                {
                                 infoType: "VIEW_COURSE",
                                 infoData: { filePath: trainingId }
                             }
