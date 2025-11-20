@@ -355,11 +355,11 @@ async function publishEnrollmentInBatches(enrollData, jobId, context) {
     }
 
     const users = enrollData.users;
-    const batchSize = 10; // max for SendMessageBatchCommand
+    const batchSize = 5; // max for SendMessageBatchCommand
     const totalUsers = users.length;
 
     // ✅ ✅ ✅ This is where you add it:
-    const messageBatchSize = 500;
+    const messageBatchSize = 50; // Number of users per SQS message
     const allMessages = [];
 
     for (let i = 0; i < users.length; i += messageBatchSize) {
@@ -393,7 +393,7 @@ async function publishEnrollmentInBatches(enrollData, jobId, context) {
     console.log(`📦 Total SQS batches: ${batches.length}`);
 
     // Process batches in parallel with concurrency limit
-    const CONCURRENCY = 5;
+    const CONCURRENCY = 2;
     const results = [];
 
     async function processBatch(batch) {

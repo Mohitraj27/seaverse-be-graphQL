@@ -731,16 +731,10 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
                 }
             ]).session(session);
 
-            console.log('trainingModuleCounts');
-            console.log(trainingModuleCounts);
-
             trainingIdToModuleCount = trainingModuleCounts.reduce((acc, { _id, count }) => {
                 acc[_id] = count;
                 return acc;
             }, {});
-
-            console.log('trainingIdToModuleCount');
-            console.log(trainingIdToModuleCount);
 
         }
 
@@ -844,8 +838,7 @@ const createTrainingProgressHelper = async (users, trainings, subscriberId, late
         ).filter(entry => entry !== null);
 
         if (newProgressEntries.length > 0) {
-            console.log('newProgressEntries');
-            console.log(JSON.stringify(newProgressEntries, null, 2));
+
             await OverallTrainingProgress.bulkWrite(newProgressEntries, { session });
         }
     } catch (error) {
@@ -980,7 +973,7 @@ const sendCourseMailsWithRetry = async (emailBatch, retryCount = 0) => {
             const { to, subject, html } = email;
             if (to?.trim()?.length) {
                 const result = await sendEmail({ receiverEmail: to, subject: subject, htmlContent: html });
-                console.log('data recived', result);
+
                 return result;
             } else {
                 return Promise.reject(new Error("Invalid email address"));
@@ -1030,7 +1023,7 @@ const sendCourseEmailBulk = async (action = 'ENROLL') => {
                     default:
                         throw new Error('Unknown action');
                 }
-                console.log("-----emailsToSend----- ", email.email);
+
                 return { to: email.email, subject: email.subject, html };
             });
             // Send emails (use sendWithRetry logic from existing code)
@@ -1447,7 +1440,7 @@ module.exports = {
                         }
 
                         const elasticSearchUpdateStatus = await updateCoursesCountAndProgressInElasticSearch(userObjectIds, session);
-                        console.log("ElasticSearch update status:", elasticSearchUpdateStatus);
+
                         return savedTrainingRegistration;
                     }
                 );
