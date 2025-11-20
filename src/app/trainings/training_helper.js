@@ -2041,8 +2041,6 @@ const dataMigrationBackground = async (completedMigrationUsers, trainingId, jobI
 
             };
 
-            console.log('userIds for migration: ', userIds);
-
 
 
             // Course enrollment start
@@ -2109,10 +2107,7 @@ const dataMigrationBackground = async (completedMigrationUsers, trainingId, jobI
                 );
 
             }
-
-            console.log('✅ Courese Migration completed for users count: ', userIds?.length ?? 0);
         } else {
-            console.log('⚠️ No existing users found for migration.');
             return {
                 message: "No existing users found for migration.",
             }
@@ -2121,7 +2116,6 @@ const dataMigrationBackground = async (completedMigrationUsers, trainingId, jobI
         return {
             message: "Course enrollment successful!",
         };
-        // Course enrollment end
     });
 }
 

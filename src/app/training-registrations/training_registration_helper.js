@@ -458,7 +458,6 @@ const createTrainingProgressForMigrationUsersHelper = async (userIds, trainingId
 
         if (missing.length > 0) {
             const msg = `Missing or invalid parameter(s): ${missing.join(', ')}`;
-            console.log(`⚠️ ${msg}`);
             errors.push(msg);
             return msg;
         }
@@ -576,18 +575,13 @@ const createTrainingProgressForMigrationUsersHelper = async (userIds, trainingId
 
             if (existingMap.has(user.toString())) {
                 overallId = existingMap.get(user.toString());
-                console.log("existingId", overallId);
             } else {
                 overallId = new ObjectId();
-                console.log("newId", overallId);
             }
 
 
             overallIds.push(overallId);
-
-            console.log("overallId", overallId);
-            console.log("user", user);
-            console.log("trainingId", trainingId);
+            
             newProgressEntries.push({
                 updateOne: {
                     filter: { user: user, training: trainingId },

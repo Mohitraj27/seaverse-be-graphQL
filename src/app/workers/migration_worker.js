@@ -14,12 +14,10 @@ const sqsClient = new SQSClient({
 });
 
 const QUEUE_URL = process.env.SQS_MIGRATION_QUEUE_URL;
-console.log(`✅ Queue URL: ${QUEUE_URL}`);
 
 let isRunning = true;
 
 async function pollMessages() {
-    console.log('✅ Migration Worker is ready (SQS)');
 
     while (isRunning) {
         try {
@@ -35,7 +33,6 @@ async function pollMessages() {
             if (data.Messages) {
                 await Promise.all(
                     data.Messages.map(async (message) => {
-                        console.log(`📥 Migration Job ${message.MessageId} received`);
 
                         try {
                             await connectDb();
@@ -46,7 +43,6 @@ async function pollMessages() {
                                 trainingId
                             } = message.Body ? JSON.parse(message.Body) : {};
 
-                            console.log(`🔍 Processing Migration Job ${message.MessageId} (${jobId})`);
 
                             if (!jobId) {
                                 throw new Error('Missing jobId in message payload');
@@ -59,8 +55,6 @@ async function pollMessages() {
                             const totalRecords = fetchJob?.totalRecords || 0;
                             const progressCompleted = fetchJob?.progressCompleted;
 
-                            console.log(`\n Migration Job ${jobId} - Processed: ${processedCount}, Total: ${totalRecords}, Progress Completed: ${progressCompleted}`);
-
                             if (processedCount === totalRecords) console.log(`\n🎉 Migration Job ${jobId} completed successfully.`);
                             else console.log(`\n⏳ Migration Job ${jobId} is still in progress...`);
 
@@ -72,7 +66,6 @@ async function pollMessages() {
                                     ReceiptHandle: message.ReceiptHandle,
                                 })
                             );
-                            console.log(`🗑️ Deleted Migration Job ${message.MessageId}`);
                         } catch (err) {
                             console.error(`❌ Migration Job ${message.MessageId} failed:`, err);
                         } finally {
