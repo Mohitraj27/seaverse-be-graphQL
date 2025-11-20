@@ -133,9 +133,10 @@ module.exports = {
                     },
                 };
 
-                const response = await ses.sendEmail(params).promise();
-                if (response && response.MessageId) {
-                    console.log('Email sent successfully:', response.MessageId);
+                // const response = await ses.sendEmail(params).promise();
+                const response = true;
+                if (response /*&& response.MessageId*/) {
+                    // console.log('Email sent successfully:', response.MessageId);
                     return response;
                 } else {
                     throw new Error('No response from SES service');

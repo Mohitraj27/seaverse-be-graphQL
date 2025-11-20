@@ -42,6 +42,7 @@ const { decrypt, encrypt } = require('../../util/encryption_helper');
 const { runQuery, runQueryStream } = require("../../util/mysql_helper");
 const { updateCoursesCountAndProgressInElasticSearch } = require("../training-registrations/overall-course-progress/overall_progress_helper");
 const { isNullableType } = require("graphql");
+const { MigrationJob } = require("./migration_job_model");
 
 const uploadTrainingImages = async ({ coverImage, folderName }) => {
     coverImage._id = coverImage._id ?? ObjectId();
@@ -1972,56 +1973,8 @@ const quizEvaluationBulk = async (evaluationData, userId, overallDocs, session) 
     }
 };
 
-const dataMigrationBackground = async (migrationcourseId, trainingId) => {
+const dataMigrationBackground = async (completedMigrationUsers, trainingId, jobId) => {
 
-    console.log('reached inside dataMigrationBackground');
-
-    // Convert migrationcourseId to ObjectId if it's a string
-    if (typeof migrationcourseId === 'string') {
-        migrationcourseId = ObjectId(migrationcourseId);
-    }
-
-    const migrationCourse = await MigrationCourse.findById(migrationcourseId).select('UID');
-
-    if (!migrationCourse) return;
-
-    const migrationCourseUID = migrationCourse?.UID;
-
-    console.log('migrationCourseUID');
-    console.log(migrationCourseUID);
-
-    const completedMigrationUsers = [];
-
-    try {
-
-        const sql = `SELECT DISTINCT 
-                EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME, ISSUED_AT, EXPIRY_DATE
-            FROM (
-                SELECT EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME, ISSUED_AT, EXPIRY_DATE
-                FROM crew_certificates_synergy_new
-                WHERE EMAIL IS NOT NULL
-                  AND COURSE_ID IN (?)
-
-                UNION
-
-                SELECT EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME, ISSUED_AT, EXPIRY_DATE
-                FROM crew_certificates_denmark_new
-                WHERE EMAIL IS NOT NULL
-                  AND COURSE_ID IN (?)
-            ) AS combined
-            ORDER BY FIRST_NAME, LAST_NAME;
-        `;
-
-        for await (const row of runQueryStream(sql, [migrationCourseUID, migrationCourseUID])) {
-            completedMigrationUsers.push(row);
-        }
-
-    } catch (error) {
-        console.error("❌ SQL query error:", error);
-    }
-
-
-    if (completedMigrationUsers.length === 0) return;
 
     // User creation start
     const savedRegistrations = await DbTransactionHelper.performDbTransaction(async session => {
@@ -2045,100 +1998,131 @@ const dataMigrationBackground = async (migrationcourseId, trainingId) => {
             ]
         }).session(session).lean();
 
-        const subscriber = await Subscriber.findOne().session(session).lean();
-        let subscriberId;
+        const [migrationJob] = await MigrationJob.create([
+            {
+                jobId: jobId,
+                migrationStatus: 'STARTED',
+                batchSize: completedMigrationUsers.length,
+                totalRecords: 0,
+                processedCount: 0,
+                processCompleted: false,
+                training: trainingId,
+            }], { session });
 
-        if (subscriber) subscriberId = subscriber._id;
+        if (existingUsers.length > 0) {
 
-        let userIds = [];
+            const subscriber = await Subscriber.findOne().session(session).lean();
+            let subscriberId;
 
-        // Create dataset to userIds to ISSUED_AT and EXPIRY_DATE mapping
-        const userIssuedExpiryMap = new Map();
+            if (subscriber) subscriberId = subscriber._id;
 
-        completedMigrationUsers.forEach((row, idx) => {
-            const encryptedEmail = emails[idx];
-            if (!encryptedEmail) return;
+            let userIds = [];
 
-            const matchedUser = existingUsers.find(u => u.email === encryptedEmail);
-            if (!matchedUser) return;
+            // Create dataset to userIds to ISSUED_AT and EXPIRY_DATE mapping
+            const userIssuedExpiryMap = new Map();
 
-            userIssuedExpiryMap.set(matchedUser._id.toString(), {
-                issuedAt: row.ISSUED_AT ? new Date(row.ISSUED_AT) : null,
-                expiryDate: row.EXPIRY_DATE ? new Date(row.EXPIRY_DATE) : null,
-            });
-        });
+            for (const [idx, row] of completedMigrationUsers.entries()) {
+                const encryptedEmail = emails[idx];
+                if (!encryptedEmail) {
+                    continue;
+                }
 
-        console.log('userIssuedExpiryMap first, ', userIssuedExpiryMap);
+                const matchedUser = existingUsers.find(u => u.email === encryptedEmail);
+                if (!matchedUser) {
+                    continue;
+                };
 
-        existingUsers.forEach(user => {
-            userIds.push(user._id);
-        });
+                userIssuedExpiryMap.set(matchedUser._id.toString(), {
+                    issuedAt: row.ISSUED_AT ? new Date(row.ISSUED_AT) : null,
+                    expiryDate: row.EXPIRY_DATE ? new Date(row.EXPIRY_DATE) : null,
+                });
 
-        // Course enrollment start
-        let existingTrainingRegistration;
-        let existingTrainingRegId;
-        if (trainingId) {
-            existingTrainingRegistration = await TrainingRegistration.findOne({ training: trainingId });
+                userIds.push(matchedUser._id);
+
+            };
+
+            console.log('userIds for migration: ', userIds);
+
+
+
+            // Course enrollment start
+            let existingTrainingRegistration;
+            let existingTrainingRegId;
+            if (trainingId) {
+                existingTrainingRegistration = await TrainingRegistration.findOne({ training: trainingId })
+                    .session(session)
+                    .lean();
+
+                if (existingTrainingRegistration) {
+                    existingTrainingRegId = existingTrainingRegistration._id;
+                }
+            }
+
+
+            const updateFields = { subscriber: subscriberId, $addToSet: {} };
+            if (userIds?.length) {
+                updateFields.$addToSet.users = { $each: userIds };
+            }
+
+            let savedTrainingRegistration;
+            let trainingRegistrationId;
+            let notEnrolledUsers = [];
 
             if (existingTrainingRegistration) {
-                existingTrainingRegId = existingTrainingRegistration._id;
+
+                savedTrainingRegistration = await TrainingRegistration.updateOne(
+                    { _id: existingTrainingRegId },
+                    updateFields,
+                    { session }
+                );
+
+                const updatedRegistrations = await TrainingRegistration.find({
+                    training: ObjectId(trainingId),
+                }).session(session);
+                trainingRegistrationId = existingTrainingRegId;
+
+            } else {
+
+                savedTrainingRegistration = await TrainingRegistration.create([{ training: trainingId, users: userIds, subscriber: subscriberId }], { session });
+                trainingRegistrationId = savedTrainingRegistration[0]._id;
+
+            }
+
+            let errors = [];
+            if (savedTrainingRegistration) {
+
+                let overallInsertions;
+
+                overallInsertions = await createTrainingProgressForMigrationUsersHelper(userIds, trainingId, subscriberId, trainingRegistrationId, errors, userIssuedExpiryMap, session);
+
+                await MigrationJob.findOneAndUpdate(
+                    { _id: migrationJob._id },
+                    {
+                        $set: {
+                            migrationStatus: 'COMPLETED',
+                            totalRecords: userIds.length,
+                            processedCount: overallInsertions,
+                            processCompleted: true,
+                        }
+                    },
+                    { session }
+                );
+
+            }
+
+            console.log('✅ Courese Migration completed for users count: ', userIds?.length ?? 0);
+        } else {
+            console.log('⚠️ No existing users found for migration.');
+            return {
+                message: "No existing users found for migration.",
             }
         }
 
-
-        const updateFields = { subscriber: subscriberId, $addToSet: {} };
-        if (userIds?.length) {
-            updateFields.$addToSet.users = { $each: userIds };
-        }
-
-        let savedTrainingRegistration;
-        let trainingRegistrationId;
-        let notEnrolledUsers = [];
-
-        if (existingTrainingRegistration) {
-
-            let existingOverallProgresses = await OverallTrainingProgress.find({ training: ObjectId(trainingId), user: { $in: userIds } }).session(session).lean();
-
-            /* userIds = userIds.filter(userId =>
-                !existingOverallProgresses.some(progress => progress.user.toString() === userId.toString())
-            ); */
-
-            savedTrainingRegistration = await TrainingRegistration.updateOne(
-                { _id: existingTrainingRegId },
-                updateFields,
-                { session }
-            );
-
-            const updatedRegistrations = await TrainingRegistration.find({
-                training: ObjectId(trainingId),
-            }).session(session);
-            trainingRegistrationId = existingTrainingRegId;
-
-        } else {
-
-            savedTrainingRegistration = await TrainingRegistration.create([{ training: trainingId, users: userIds, subscriber: subscriberId }], { session });
-            trainingRegistrationId = savedTrainingRegistration[0]._id;
-
-        }
-
-        let errors = [];
-        if (savedTrainingRegistration) {
-
-            let trainingProgressIds;
-
-            let overallIds = [];
-            trainingProgressIds = await createTrainingProgressForMigrationUsersHelper(userIds, trainingId, subscriberId, trainingRegistrationId, errors, userIssuedExpiryMap, session);
-
-        }
-        console.log('✅ Courese Migration completed for users count: ', userIds?.length);
         return {
             message: "Course enrollment successful!",
         };
         // Course enrollment end
-
     });
-
-
 }
 
 module.exports = {

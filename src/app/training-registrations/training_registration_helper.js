@@ -448,9 +448,29 @@ const createTrainingProgressForMigrationUsersHelper = async (userIds, trainingId
 
     try {
 
-        if (userIds.length == 0 || !trainingId || !trainingRegistrationId) {
-            return;
+        const missing = [];
+        if (!userIds || !Array.isArray(userIds) || userIds.length === 0) missing.push('userIds');
+        if (!trainingId) missing.push('trainingId');
+        if (!trainingRegistrationId) missing.push('trainingRegistrationId');
+        if (!subscriberId) missing.push('subscriberId');
+        if (!session) missing.push('session');
+        if (!userIssuedExpiryMap) missing.push('userIssuedExpiryMap');
+
+        if (missing.length > 0) {
+            const msg = `Missing or invalid parameter(s): ${missing.join(', ')}`;
+            console.log(`⚠️ ${msg}`);
+            errors.push(msg);
+            return msg;
         }
+
+        // Make sure trainingId is ObjectId
+        trainingId = typeof trainingId === 'string' ? ObjectId(trainingId) : trainingId;
+
+        // Make sure userIds are ObjectIds
+        userIds = userIds.map(userId => (typeof userId === 'string' ? ObjectId(userId) : userId));
+
+        // Make sure trainingRegistrationId is ObjectId
+        trainingRegistrationId = typeof trainingRegistrationId === 'string' ? ObjectId(trainingRegistrationId) : trainingRegistrationId;
 
         let trainingModuleCount;
 
@@ -468,6 +488,7 @@ const createTrainingProgressForMigrationUsersHelper = async (userIds, trainingId
                 isDeleted: { $ne: true },
             })
                 .sort({ order: 1 })
+                .session(session)
                 .lean();
 
             if (!contents.length) {
@@ -490,6 +511,7 @@ const createTrainingProgressForMigrationUsersHelper = async (userIds, trainingId
 
             const modules = await TrainingModule.find({ _id: { $in: moduleIds } })
                 .select("_id order")
+                .session(session)
                 .lean();
 
             moduleCount = modules.length;
@@ -518,7 +540,7 @@ const createTrainingProgressForMigrationUsersHelper = async (userIds, trainingId
                 training: trainingId,
             },
             { _id: 1, user: 1 }
-        ).lean();
+        ).session(session).lean();
 
         const existingMap = new Map();
         for (const doc of existingProgressDocs) {
@@ -554,17 +576,23 @@ const createTrainingProgressForMigrationUsersHelper = async (userIds, trainingId
 
             if (existingMap.has(user.toString())) {
                 overallId = existingMap.get(user.toString());
+                console.log("existingId", overallId);
             } else {
                 overallId = new ObjectId();
+                console.log("newId", overallId);
             }
 
+
             overallIds.push(overallId);
+
+            console.log("overallId", overallId);
+            console.log("user", user);
+            console.log("trainingId", trainingId);
             newProgressEntries.push({
                 updateOne: {
                     filter: { user: user, training: trainingId },
                     update: {
                         $set: {
-                            directEnrollment: true,
                             status: "COMPLETED",
                             isEnrolled: true,
                             progressPercentage: 100,
@@ -579,6 +607,7 @@ const createTrainingProgressForMigrationUsersHelper = async (userIds, trainingId
                         $setOnInsert: {
                             _id: overallId,
                             training: trainingId,
+                            directEnrollment: true,
                             user: user,
                             trainingRegistration: trainingRegistrationId,
                             subscriberId: subscriberId,
@@ -598,6 +627,23 @@ const createTrainingProgressForMigrationUsersHelper = async (userIds, trainingId
 
         const bulkOps = [];
 
+        if (overallIds.length > 0) {
+            await TrainingProgress.updateMany(
+                { overallTrainingProgress: { $in: overallIds } },
+                {
+                    $set: {
+                        attemptCount: 1,
+                        status: "COMPLETED",
+                        lastAccessedDuration: 0,
+                        progressPercentage: 100,
+                        playerSettings: null,
+                        videoId: null,
+                    }
+                },
+                { session }
+            );
+        }
+
         for (const overallId of overallIds) {
             for (const { moduleId, contentIds } of contentData) {
                 for (const contentId of contentIds) {
@@ -609,7 +655,7 @@ const createTrainingProgressForMigrationUsersHelper = async (userIds, trainingId
                                 trainingModuleContent: contentId,
                             },
                             update: {
-                                $set: {
+                                $setOnInsert: {
                                     attemptCount: 1,
                                     status: "COMPLETED",
                                     lastAccessedDuration: 0,
@@ -627,14 +673,16 @@ const createTrainingProgressForMigrationUsersHelper = async (userIds, trainingId
 
         if (bulkOps.length > 0) {
             await TrainingProgress.bulkWrite(bulkOps, { session });
+            await updateCoursesCountAndProgressInElasticSearch(userIds, session);
+            return overallIds.length;
         }
-        // Newly added
 
 
     } catch (error) {
         throw Error(error.message);
     }
 };
+
 
 const updateTrainingProgressesForMigrationUsersHelper = async (trainingProgressIds, userIds, subscriberId, session) => {
 
@@ -971,8 +1019,8 @@ const sendCourseEmailBulk = async (action = 'ENROLL') => {
                         });
                         break;
                     /*
-                    case 'UNENROLL':
-                        html = courseUnenrollmentEmail({
+                         'UNENROLL':
+                             = courseUnenrollmentEmail({
                             firstName: email.firstName,
                             courseTitle: coursesData.courseTitle,
                             email: email.email,
@@ -1726,8 +1774,8 @@ module.exports = {
                 );
 
                 /* 
-                const notifications = userObjectIds.flatMap(userId =>
-                    input.trainings.map(trainingId => ({
+                    t notifications = userObjectIds.flatMap(userId =>
+                        t.trainings.map(trainingId => ({
                         subscriber: subscriberId,
                         titleValue: `${trainingMap.get(trainingId.toString())} has been unenrolled to you`,
                         messageValue: `You have been successfully unenrolled from the course: ${trainingMap.get(trainingId.toString())}.`,
@@ -1740,8 +1788,8 @@ module.exports = {
                         status: 'SENT',
                         icon: notificationiconEnum.SUCCESS,
                         createdBy: userInfo,
-                        additionalInfo: [
-                            {
+                            tionalInfo: [
+                                
                                 infoType: "VIEW_COURSE",
                                 infoData: { filePath: trainingId }
                             }
@@ -1754,8 +1802,8 @@ module.exports = {
                 /* await Promise.all(notifications.map(n => NotificationHelper.createNotificationhelper(n)));
                 const trainingtitle = await Training.find({ _id: input.trainings }).select('title -_id');
                 if (userObjectIds.length > 1) {
- 
-                    await NotificationHelper.createNotificationhelper({
+                    
+                        t NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
                         titleValue: `Course Unenrollment`,
                         messageValue: `${userInfo?.firstName} ${userInfo?.lastName ?? ''} has unenrolled ${userObjectIds.length} users from Course: ${trainingtitle[0]?.title?.[0]?.value}.`,
@@ -1768,11 +1816,11 @@ module.exports = {
                         icon: notificationiconEnum.SUCCESS,
                         createdBy: userInfo,
                     });
- 
+                
                 } else {
- 
+                    
                     const user = await User.find({ _id: { $in: userObjectIds } }).select('firstName -_id');
-                    await NotificationHelper.createNotificationhelper({
+                        t NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
                         titleValue: `Course Unenrollment`,
                         messageValue: `${userInfo?.firstName} ${userInfo?.lastName ?? ''} has unenrolled ${user[0].firstName} from the Course: ${trainingtitle[0]?.title?.[0]?.value}.`,
@@ -2492,8 +2540,8 @@ module.exports = {
                 );
 
                 /* 
-                const notifications = userObjectIds.flatMap(userId =>
-                    input.trainings.map(trainingId => ({
+                    t notifications = userObjectIds.flatMap(userId =>
+                        t.trainings.map(trainingId => ({
                         subscriber: subscriberId,
                         titleValue: `${trainingMap.get(trainingId.toString())} has been unenrolled to you`,
                         messageValue: `You have been successfully unenrolled from the course: ${trainingMap.get(trainingId.toString())}.`,
@@ -2506,8 +2554,8 @@ module.exports = {
                         status: 'SENT',
                         icon: notificationiconEnum.SUCCESS,
                         createdBy: userInfo,
-                        additionalInfo: [
-                            {
+                            tionalInfo: [
+                                
                                 infoType: "VIEW_COURSE",
                                 infoData: { filePath: trainingId }
                             }
@@ -2520,8 +2568,8 @@ module.exports = {
                 /* await Promise.all(notifications.map(n => NotificationHelper.createNotificationhelper(n)));
                 const trainingtitle = await Training.find({ _id: input.trainings }).select('title -_id');
                 if (userObjectIds.length > 1) {
- 
-                    await NotificationHelper.createNotificationhelper({
+                    
+                        t NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
                         titleValue: `Course Unenrollment`,
                         messageValue: `${userInfo?.firstName} ${userInfo?.lastName ?? ''} has unenrolled ${userObjectIds.length} users from Course: ${trainingtitle[0]?.title?.[0]?.value}.`,
@@ -2534,11 +2582,11 @@ module.exports = {
                         icon: notificationiconEnum.SUCCESS,
                         createdBy: userInfo,
                     });
- 
+                
                 } else {
- 
+                    
                     const user = await User.find({ _id: { $in: userObjectIds } }).select('firstName -_id');
-                    await NotificationHelper.createNotificationhelper({
+                        t NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
                         titleValue: `Course Unenrollment`,
                         messageValue: `${userInfo?.firstName} ${userInfo?.lastName ?? ''} has unenrolled ${user[0].firstName} from the Course: ${trainingtitle[0]?.title?.[0]?.value}.`,
