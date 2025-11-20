@@ -1012,8 +1012,8 @@ const sendCourseEmailBulk = async (action = 'ENROLL') => {
                         });
                         break;
                     /*
-                         'UNENROLL':
-                             = courseUnenrollmentEmail({
+                        case 'UNENROLL':
+                             html = courseUnenrollmentEmail({
                             firstName: email.firstName,
                             courseTitle: coursesData.courseTitle,
                             email: email.email,
@@ -1767,8 +1767,8 @@ module.exports = {
                 );
 
                 /* 
-                    t notifications = userObjectIds.flatMap(userId =>
-                        t.trainings.map(trainingId => ({
+                    const notifications = userObjectIds.flatMap(userId =>
+                        input.trainings.map(trainingId => ({
                         subscriber: subscriberId,
                         titleValue: `${trainingMap.get(trainingId.toString())} has been unenrolled to you`,
                         messageValue: `You have been successfully unenrolled from the course: ${trainingMap.get(trainingId.toString())}.`,
@@ -1781,8 +1781,8 @@ module.exports = {
                         status: 'SENT',
                         icon: notificationiconEnum.SUCCESS,
                         createdBy: userInfo,
-                            tionalInfo: [
-                                
+                            additionalInfo: [
+                                {
                                 infoType: "VIEW_COURSE",
                                 infoData: { filePath: trainingId }
                             }
@@ -1796,7 +1796,7 @@ module.exports = {
                 const trainingtitle = await Training.find({ _id: input.trainings }).select('title -_id');
                 if (userObjectIds.length > 1) {
                     
-                        t NotificationHelper.createNotificationhelper({
+                        await NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
                         titleValue: `Course Unenrollment`,
                         messageValue: `${userInfo?.firstName} ${userInfo?.lastName ?? ''} has unenrolled ${userObjectIds.length} users from Course: ${trainingtitle[0]?.title?.[0]?.value}.`,
@@ -1813,7 +1813,7 @@ module.exports = {
                 } else {
                     
                     const user = await User.find({ _id: { $in: userObjectIds } }).select('firstName -_id');
-                        t NotificationHelper.createNotificationhelper({
+                        await NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
                         titleValue: `Course Unenrollment`,
                         messageValue: `${userInfo?.firstName} ${userInfo?.lastName ?? ''} has unenrolled ${user[0].firstName} from the Course: ${trainingtitle[0]?.title?.[0]?.value}.`,
@@ -2533,8 +2533,8 @@ module.exports = {
                 );
 
                 /* 
-                    t notifications = userObjectIds.flatMap(userId =>
-                        t.trainings.map(trainingId => ({
+                    const notifications = userObjectIds.flatMap(userId =>
+                        input.trainings.map(trainingId => ({
                         subscriber: subscriberId,
                         titleValue: `${trainingMap.get(trainingId.toString())} has been unenrolled to you`,
                         messageValue: `You have been successfully unenrolled from the course: ${trainingMap.get(trainingId.toString())}.`,
@@ -2547,7 +2547,7 @@ module.exports = {
                         status: 'SENT',
                         icon: notificationiconEnum.SUCCESS,
                         createdBy: userInfo,
-                            tionalInfo: [
+                            additionalInfo: [
                                 
                                 infoType: "VIEW_COURSE",
                                 infoData: { filePath: trainingId }
@@ -2562,7 +2562,7 @@ module.exports = {
                 const trainingtitle = await Training.find({ _id: input.trainings }).select('title -_id');
                 if (userObjectIds.length > 1) {
                     
-                        t NotificationHelper.createNotificationhelper({
+                        await NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
                         titleValue: `Course Unenrollment`,
                         messageValue: `${userInfo?.firstName} ${userInfo?.lastName ?? ''} has unenrolled ${userObjectIds.length} users from Course: ${trainingtitle[0]?.title?.[0]?.value}.`,
@@ -2579,7 +2579,7 @@ module.exports = {
                 } else {
                     
                     const user = await User.find({ _id: { $in: userObjectIds } }).select('firstName -_id');
-                        t NotificationHelper.createNotificationhelper({
+                        await NotificationHelper.createNotificationhelper({
                         subscriber: subscriberId,
                         titleValue: `Course Unenrollment`,
                         messageValue: `${userInfo?.firstName} ${userInfo?.lastName ?? ''} has unenrolled ${user[0].firstName} from the Course: ${trainingtitle[0]?.title?.[0]?.value}.`,
