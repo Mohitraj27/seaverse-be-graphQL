@@ -179,4 +179,43 @@ module.exports = {
             });
         }
     },
+    sendEmailWithAttachment: async ({ receiverEmail, ccEmail, subject, text, filename, fileBuffer }) => {
+        if (receiverEmail && subject && fileBuffer) {
+            try {
+                const nodemailer = require("nodemailer");
+                const transporter = nodemailer.createTransport({
+                    SES: new AWS.SES({
+                        accessKeyId: process.env.AWS_ACCESS_KEY,
+                        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+                        region: process.env.AWS_REGION,
+                        apiVersion: '2010-12-01'
+                    })
+                });
+
+                const mailOptions = {
+                    from: `${process.env.SUBSCRIBER_NAME} <${process.env.EMAIL_VERIFIED_SENDER}>`,
+                    to: Array.isArray(receiverEmail) ? receiverEmail.join(',') : receiverEmail,
+                    subject: subject,
+                    text: text || "Please find the attached report.",
+                    attachments: [
+                        {
+                            filename: filename,
+                            content: fileBuffer
+                        }
+                    ]
+                };
+
+                if (ccEmail) {
+                    mailOptions.cc = Array.isArray(ccEmail) ? ccEmail.join(',') : ccEmail;
+                }
+
+                const response = await transporter.sendMail(mailOptions);
+                console.log("Email with attachment sent successfully:", response.messageId);
+                return response;
+            } catch (error) {
+                console.error("Failed to send email with attachment:", error);
+                throw new Error(error.message);
+            }
+        }
+    }
 };
