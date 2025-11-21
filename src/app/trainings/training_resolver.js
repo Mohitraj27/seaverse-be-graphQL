@@ -46,51 +46,64 @@ const { Subscriber } = require("../saas/subscriber/subscriber_model");
 const { fork } = require("child_process");
 const { decrypt } = require("../../util/encryption_helper");
 
+const { SQSClient, SendMessageCommand } = require('@aws-sdk/client-sqs');
+const { MigrationCourse } = require("./migrationcourses/migration_courses_model");
+const { runQueryStream } = require("../../util/mysql_helper");
+const sqsClient = new SQSClient({
+    region: process.env.SQS_AWS_REGION,
+    credentials: {
+        accessKeyId: process.env.SQS_AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.SQS_AWS_SECRET_ACCESS_KEY,
+    },
+});
+
+const { v4: uuidv4 } = require('uuid')
+
 async function calculateTotalDurationCourseLength(trainingModules) {
-  const parseToSeconds = (duration) => {
-    if (typeof duration === 'number') {
-      const durationString = duration.toString();
-      const parts = durationString.split('.');
-      
-      const minutes = parseInt(parts[0], 10) || 0;
-      let seconds = 0;
-      
-      if (parts[1]) {
-        const decimal = parseFloat('0.' + parts[1]);
-        seconds = Math.round(decimal * 100);
-      }
-      
-      return minutes * 60 + seconds;
-    }
-    
-    if (typeof duration === 'string') {
-      const parts = duration.split(':');
-      
-      if (parts.length === 3) {
-        const hours = parseInt(parts[0], 10) || 0;
-        const minutes = parseInt(parts[1], 10) || 0;
-        const seconds = parseInt(parts[2], 10) || 0;
-        
-        return hours * 3600 + minutes * 60 + seconds;
-      }
-    }
-    
-    return 0;
-  };
+    const parseToSeconds = (duration) => {
+        if (typeof duration === 'number') {
+            const durationString = duration.toString();
+            const parts = durationString.split('.');
 
-  const totalSeconds = trainingModules
-    .flatMap(module => module.trainingModuleContents || [])
-    .reduce((sum, content) => sum + parseToSeconds(content?.duration), 0);
+            const minutes = parseInt(parts[0], 10) || 0;
+            let seconds = 0;
 
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
+            if (parts[1]) {
+                const decimal = parseFloat('0.' + parts[1]);
+                seconds = Math.round(decimal * 100);
+            }
 
-  return [
-    hours.toString().padStart(2, '0'),
-    minutes.toString().padStart(2, '0'),
-    seconds.toString().padStart(2, '0')
-  ].join(':');
+            return minutes * 60 + seconds;
+        }
+
+        if (typeof duration === 'string') {
+            const parts = duration.split(':');
+
+            if (parts.length === 3) {
+                const hours = parseInt(parts[0], 10) || 0;
+                const minutes = parseInt(parts[1], 10) || 0;
+                const seconds = parseInt(parts[2], 10) || 0;
+
+                return hours * 3600 + minutes * 60 + seconds;
+            }
+        }
+
+        return 0;
+    };
+
+    const totalSeconds = trainingModules
+        .flatMap(module => module.trainingModuleContents || [])
+        .reduce((sum, content) => sum + parseToSeconds(content?.duration), 0);
+
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    return [
+        hours.toString().padStart(2, '0'),
+        minutes.toString().padStart(2, '0'),
+        seconds.toString().padStart(2, '0')
+    ].join(':');
 }
 module.exports.queries = {
     getTrainings: async ({ pageInput, filterInput }, context) => {
@@ -101,42 +114,42 @@ module.exports.queries = {
         }
 
         try {
-        const skip = pageInput?.skip ?? 0;
-        let limit = pageInput?.limit ?? 50;
+            const skip = pageInput?.skip ?? 0;
+            let limit = pageInput?.limit ?? 50;
 
-        let filterConditions = { subscriber: subscriberId, isDeleted: false };
-        let sortOrder = { updatedAt: -1 };
+            let filterConditions = { subscriber: subscriberId, isDeleted: false };
+            let sortOrder = { updatedAt: -1 };
 
-        if (filterInput) {
-            if (filterInput.search) {
-                const escapedSearch = escapeRegex(filterInput?.search);
-                const searchRegex = {
-                    $regex: ".*" + escapedSearch + ".*",
-                    $options: "i",
-                };
+            if (filterInput) {
+                if (filterInput.search) {
+                    const escapedSearch = escapeRegex(filterInput?.search);
+                    const searchRegex = {
+                        $regex: ".*" + escapedSearch + ".*",
+                        $options: "i",
+                    };
 
-                filterConditions["$or"] = [
-                    { "title.value": searchRegex },
-                    { authorName: searchRegex },
-                ];
-            }
+                    filterConditions["$or"] = [
+                        { "title.value": searchRegex },
+                        { authorName: searchRegex },
+                    ];
+                }
 
-            if (typeof filterInput.isActive === "boolean")
-                filterConditions.isActive = filterInput.isActive;
+                if (typeof filterInput.isActive === "boolean")
+                    filterConditions.isActive = filterInput.isActive;
 
-            if (filterInput.status) filterConditions.status = filterInput.status;
+                if (filterInput.status) filterConditions.status = filterInput.status;
 
-            if (filterInput?.dateFilter) {
-                if (filterInput.dateFilter === -1) {
-                    sortOrder = { updatedAt: -1 };
-                } else {
-                    sortOrder = { updatedAt: 1 };
+                if (filterInput?.dateFilter) {
+                    if (filterInput.dateFilter === -1) {
+                        sortOrder = { updatedAt: -1 };
+                    } else {
+                        sortOrder = { updatedAt: 1 };
+                    }
                 }
             }
-        }
 
-        
-        const totalCount = await Training.countDocuments(filterConditions);
+
+            const totalCount = await Training.countDocuments(filterConditions);
 
         
         const trainings = await Training.aggregate([
@@ -178,20 +191,20 @@ module.exports.queries = {
             },
         ]);
 
-        const decryptedTrainings = trainings?.map((training) => ({
-            ...training,
-            createdBy: {
-                _id: training.createdBy?._id,
-                firstName: decrypt(training?.createdBy?.firstName),
-                lastName: training?.createdBy?.lastName ? decrypt(training?.createdBy?.lastName):'',
-                email: decrypt(training?.createdBy?.email),
-            },
-        }));
+            const decryptedTrainings = trainings?.map((training) => ({
+                ...training,
+                createdBy: {
+                    _id: training.createdBy?._id,
+                    firstName: decrypt(training?.createdBy?.firstName),
+                    lastName: training?.createdBy?.lastName ? decrypt(training?.createdBy?.lastName) : '',
+                    email: decrypt(training?.createdBy?.email),
+                },
+            }));
 
-        return {
-            totalCount: totalCount,
-            trainings: decryptedTrainings,
-        };
+            return {
+                totalCount: totalCount,
+                trainings: decryptedTrainings,
+            };
         } catch (error) {
             console.error("Error in getTrainings:", error);
             throw CustomError(ErrorName.FAILED, error.message);
@@ -341,13 +354,13 @@ module.exports.queries = {
     },
     isCourseEnrolledForCurrentUser: async ({ trainingId }, context) => {
 
-        const {userId} = AuthUser(context);
+        const { userId } = AuthUser(context);
 
-        if(!userId){
+        if (!userId) {
             throw CustomError(ErrorName.NOT_FOUND, "User not found!");
         }
 
-        if(!trainingId){
+        if (!trainingId) {
             throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Training ID is required!");
         }
 
@@ -355,12 +368,12 @@ module.exports.queries = {
             training: trainingId,
             user: userId,
         }).select("isEnrolled -_id").lean();
-        
-        if(!enrollment){
+
+        if (!enrollment) {
             throw CustomError(ErrorName.NOT_FOUND, "Enrollment data not found!");
         }
 
-        return  enrollment ? enrollment.isEnrolled : false;
+        return enrollment ? enrollment.isEnrolled : false;
 
     }
 };
@@ -485,33 +498,123 @@ module.exports.mutations = {
                 input._id = savedTraining._id;
             }
 
+            if (input.migrationcoursesId && input.migrationcoursesId !== null && input._id) {
+
+
+                const migrationcourseId = input.migrationcoursesId;
+                const trainingId = savedTraining._id;
+
+                try {
+
+                    if (typeof migrationcourseId === 'string') {
+                        migrationcourseId = ObjectId(migrationcourseId);
+                    }
+
+                    const migrationCourse = await MigrationCourse.findById(migrationcourseId).select('UID');
+
+                    if (migrationCourse) {
+
+                        const migrationCourseUID = migrationCourse?.UID;
+
+                        console.log('migrationCourseUID');
+                        console.log(migrationCourseUID);
+
+                        const completedMigrationUsers = [];
+
+                        const sql = `SELECT DISTINCT 
+                                            EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME, ISSUED_AT, EXPIRY_DATE
+                                        FROM (
+                                            SELECT EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME, ISSUED_AT, EXPIRY_DATE
+                                            FROM crew_certificates_synergy_new
+                                            WHERE EMAIL IS NOT NULL
+                                              AND COURSE_ID IN (?)
+                            
+                                            UNION
+                            
+                                            SELECT EMPLOYEE_ID, EMAIL, FIRST_NAME, LAST_NAME, ISSUED_AT, EXPIRY_DATE
+                                            FROM crew_certificates_denmark_new
+                                            WHERE EMAIL IS NOT NULL
+                                              AND COURSE_ID IN (?)
+                                        ) AS combined
+                                        ORDER BY FIRST_NAME, LAST_NAME;
+                                    `;
+
+                        for await (const row of runQueryStream(sql, [migrationCourseUID, migrationCourseUID])) {
+                            completedMigrationUsers.push(row);
+                        }
+
+                        async function publishMigrationEnrollmentJob(jobData) {
+                            try {
+                                if (!jobData || !jobData.jobId) {
+                                    throw new Error('Invalid job data: missing jobId');
+                                }
+
+                                const params = {
+                                    QueueUrl: process.env.SQS_MIGRATION_QUEUE_URL,
+                                    MessageBody: JSON.stringify(jobData),
+                                };
+
+                                const data = await sqsClient.send(new SendMessageCommand(params));
+
+                                console.log(`📋 Job sent to SQS: ${data.MessageId}`);
+                                return { id: data.MessageId };
+                            } catch (error) {
+                                console.error('❌ Failed to send job to SQS:', error);
+                                throw error;
+                            }
+                        }
+
+                        if (completedMigrationUsers && completedMigrationUsers.length > 0) {
+
+                            const jobId = uuidv4();
+
+                            const batchSize = 200;
+                            const totalUsers = completedMigrationUsers.length;
+                            const batchCount = Math.ceil(totalUsers / batchSize);
+
+                            console.log(`🚀 Publishing ${totalUsers} users in ${batchCount} batches`);
+
+                            for (let i = 0; i < batchCount; i++) {
+
+                                const start = i * batchSize;
+                                const end = Math.min(start + batchSize, totalUsers);
+
+                                const batchUsers = completedMigrationUsers.slice(start, end);
+
+                                try {
+
+                                    await publishMigrationEnrollmentJob({
+                                        jobId,
+                                        users: batchUsers,
+                                        trainingId: input._id
+                                    });
+
+                                    console.log(`✅ Batch ${i + 1}/${batchCount} sent with ${batchUsers.length} users`);
+                                } catch (err) {
+                                    console.error(`❌ Failed to publish batch ${i + 1}:`, err);
+                                    throw err;
+                                }
+
+                            }
+
+
+                        }
+                    }
+
+                } catch (error) {
+
+                    console.error("Error in migration enrollment process:", error);
+
+                }
+
+            }
+
             return savedTraining;
         });
 
-        if (input.migrationcoursesId && input.migrationcoursesId !== null && input._id) {
 
-            const child = fork("./src/app/trainings/migration_enrollment.js");
 
-            child.send({
-                migrationcourseId: input.migrationcoursesId,
-                trainingId: savedTraining._id,
-            });
 
-            child.on("error", error => {
-                console.error("Error in child process:", error);
-            });
-
-        }
-
-        if (!savedTraining) throw CustomError(ErrorName.FAILED);
-        if (!isUpdate) {
-            TrainingHelper.sendNotificationOnCRUD({
-                subscriber: subscriberId,
-                training: savedTraining,
-                action: isUpdate ? "UPDATED" : "CREATED",
-                createdBy: userInfo,
-            });
-        }
         LogHelper.logActivity({
             subscriber: subscriberId,
             logType: LogType.TRAINING_LOG,
@@ -743,249 +846,249 @@ module.exports.mutations = {
     },
 
     syncOfflineDataAndUpdateProgress: async ({ input }, context) => {
- try {
- 
-        const { role, userId, userInfo, subscriberId: subscriberID } = AuthUser(context);
-        let subscriberId;
-        if (!subscriberID) {
-            const subscriber = await Subscriber.findOne({ isActive: true }).select("_id");
-            subscriberId = subscriber._id;
-        } else {
-            subscriberId = subscriberID;
-        }
+        try {
 
-        // Refactored: process input in batches, move validation and structure extraction outside transaction
-        const mongoose = require('mongoose');
-        const BATCH_SIZE = 1; // Process one document per batch to minimize write conflicts
-        if (!userId) throw CustomError(ErrorName.NOT_FOUND);
-        if (!input) throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
-
-        // Preprocess input: handle offline sync, structure extraction, and validation outside transaction
-        let processedInput = input;
-        const modifiedCourseIds = new Set();
-       const overallIds = input.map(item => item.overallId.toString());
-
-        const notEnrolled = await OverallTrainingProgress.exists({
-            _id: { $in: overallIds },
-            isEnrolled: false,
-        });
-
-        if (notEnrolled) {
-            return {
-                status: 0,
-                message: "User is not enrolled in one or more courses.",
-            };
-        }
-
-        if (input[0]?.isFromOfflineSync) {
-            if (!input[0].overallId) {
-                throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Overall ID is required");
-            }
-            if (!input[0].trainingModules || input[0].trainingModules.length === 0) {
-                throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Training modules are required");
+            const { role, userId, userInfo, subscriberId: subscriberID } = AuthUser(context);
+            let subscriberId;
+            if (!subscriberID) {
+                const subscriber = await Subscriber.findOne({ isActive: true }).select("_id");
+                subscriberId = subscriber._id;
+            } else {
+                subscriberId = subscriberID;
             }
 
-            const existingOverallTrainingProgress = await OverallTrainingProgress.findOne({
-                _id: input[0].overallId,
-            }).select('_id version');
+            // Refactored: process input in batches, move validation and structure extraction outside transaction
+            const mongoose = require('mongoose');
+            const BATCH_SIZE = 1; // Process one document per batch to minimize write conflicts
+            if (!userId) throw CustomError(ErrorName.NOT_FOUND);
+            if (!input) throw CustomError(ErrorName.ARGUMENTS_REQUIRED);
 
-            if (existingOverallTrainingProgress.version !== input[0].version) {
-                const completedCourses = input.filter(item => {
-                    return item.trainingModules.every(module => {
-                        return module.contentDetails.every(content => {
-                            return content.contentStatus === "COMPLETED";
+            // Preprocess input: handle offline sync, structure extraction, and validation outside transaction
+            let processedInput = input;
+            const modifiedCourseIds = new Set();
+            const overallIds = input.map(item => item.overallId.toString());
+
+            const notEnrolled = await OverallTrainingProgress.exists({
+                _id: { $in: overallIds },
+                isEnrolled: false,
+            });
+
+            if (notEnrolled) {
+                return {
+                    status: 0,
+                    message: "User is not enrolled in one or more courses.",
+                };
+            }
+
+            if (input[0]?.isFromOfflineSync) {
+                if (!input[0].overallId) {
+                    throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Overall ID is required");
+                }
+                if (!input[0].trainingModules || input[0].trainingModules.length === 0) {
+                    throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Training modules are required");
+                }
+
+                const existingOverallTrainingProgress = await OverallTrainingProgress.findOne({
+                    _id: input[0].overallId,
+                }).select('_id version');
+
+                if (existingOverallTrainingProgress.version !== input[0].version) {
+                    const completedCourses = input.filter(item => {
+                        return item.trainingModules.every(module => {
+                            return module.contentDetails.every(content => {
+                                return content.contentStatus === "COMPLETED";
+                            });
                         });
                     });
-                });
 
-                if (completedCourses.length > 0) {
-                    const completedCourseIds = completedCourses.map(item => item.overallId);
-                    if (completedCourseIds) {
-                        const onlineCourseData = await OverallTrainingProgress.find({ _id: { $in: completedCourseIds } }).select('_id status');
-                        if (onlineCourseData.length > 0) {
-                            const alreadyCompletedIds = onlineCourseData
-                                .filter(course => course.status === "COMPLETED")
-                                .map(course => course._id.toString());
-                            const newlyCompletedCoursesOnline = completedCourses.filter(item =>
-                                !alreadyCompletedIds.includes(item.overallId.toString())
-                            );
-                            const matchedCourses = [];
-                            if (newlyCompletedCoursesOnline.length > 0) {
-                                const newlyCompletedIds = newlyCompletedCoursesOnline.map(item => item.overallId);
-                                const coursesWithDownloadData = await OverallTrainingProgress.find(
-                                    { _id: { $in: newlyCompletedIds } },
-                                    { _id: 1, contentFromDownload: 1 }
+                    if (completedCourses.length > 0) {
+                        const completedCourseIds = completedCourses.map(item => item.overallId);
+                        if (completedCourseIds) {
+                            const onlineCourseData = await OverallTrainingProgress.find({ _id: { $in: completedCourseIds } }).select('_id status');
+                            if (onlineCourseData.length > 0) {
+                                const alreadyCompletedIds = onlineCourseData
+                                    .filter(course => course.status === "COMPLETED")
+                                    .map(course => course._id.toString());
+                                const newlyCompletedCoursesOnline = completedCourses.filter(item =>
+                                    !alreadyCompletedIds.includes(item.overallId.toString())
                                 );
-                                for (const completedCourse of newlyCompletedCoursesOnline) {
-                                    const dbCourse = coursesWithDownloadData.find(
-                                        course => course._id.toString() === completedCourse.overallId.toString()
+                                const matchedCourses = [];
+                                if (newlyCompletedCoursesOnline.length > 0) {
+                                    const newlyCompletedIds = newlyCompletedCoursesOnline.map(item => item.overallId);
+                                    const coursesWithDownloadData = await OverallTrainingProgress.find(
+                                        { _id: { $in: newlyCompletedIds } },
+                                        { _id: 1, contentFromDownload: 1 }
                                     );
-                                    if (!dbCourse || !dbCourse.contentFromDownload || dbCourse.contentFromDownload.length === 0) {
-                                        continue;
-                                    }
-                                    const currentCourseStructure = TrainingHelper.extractCourseStructure(completedCourse.trainingModules);
-                                    let matchFound = false;
-                                    let matchedVersion = null;
-                                    for (const downloadVersion of dbCourse.contentFromDownload) {
-                                        const downloadStructure = TrainingHelper.extractCourseStructure(downloadVersion.courseDetails);
-                                        if (TrainingHelper.areCourseStructuresEqual(currentCourseStructure, downloadStructure)) {
-                                            matchFound = true;
-                                            matchedVersion = downloadVersion?.courseDetails;
-                                            matchedCourses.push({
-                                                courseId: completedCourse.overallId,
-                                                matchedVersion: matchedVersion,
-                                                version: downloadVersion.version,
-                                                totalTrainingModules: matchedVersion.length,
-                                                downloadedCertificateLayoutId: downloadVersion.downloadedCertificateLayoutId 
-                                            });
-                                            modifiedCourseIds.add(completedCourse.overallId.toString());
-                                            break;
+                                    for (const completedCourse of newlyCompletedCoursesOnline) {
+                                        const dbCourse = coursesWithDownloadData.find(
+                                            course => course._id.toString() === completedCourse.overallId.toString()
+                                        );
+                                        if (!dbCourse || !dbCourse.contentFromDownload || dbCourse.contentFromDownload.length === 0) {
+                                            continue;
+                                        }
+                                        const currentCourseStructure = TrainingHelper.extractCourseStructure(completedCourse.trainingModules);
+                                        let matchFound = false;
+                                        let matchedVersion = null;
+                                        for (const downloadVersion of dbCourse.contentFromDownload) {
+                                            const downloadStructure = TrainingHelper.extractCourseStructure(downloadVersion.courseDetails);
+                                            if (TrainingHelper.areCourseStructuresEqual(currentCourseStructure, downloadStructure)) {
+                                                matchFound = true;
+                                                matchedVersion = downloadVersion?.courseDetails;
+                                                matchedCourses.push({
+                                                    courseId: completedCourse.overallId,
+                                                    matchedVersion: matchedVersion,
+                                                    version: downloadVersion.version,
+                                                    totalTrainingModules: matchedVersion.length,
+                                                    downloadedCertificateLayoutId: downloadVersion.downloadedCertificateLayoutId
+                                                });
+                                                modifiedCourseIds.add(completedCourse.overallId.toString());
+                                                break;
+                                            }
                                         }
                                     }
-                                }
-                                if (matchedCourses.length > 0) {
-                                    const courseIds = matchedCourses.map(course => course.courseId);
-                                    const contentDataBulkOps = matchedCourses.map(matchedCourse => ({
-                                        updateOne: {
-                                            filter: { _id: matchedCourse.courseId },
-                                            update: {
-                                                $set: {
-                                                    contentData: matchedCourse.matchedVersion,
-                                                    status: "IN_PROGRESS",
-                                                    progressPercentage: 0,
-                                                    version: matchedCourse.version,
-                                                    totalTrainingModules: matchedCourse.totalTrainingModules,
-                                                    lastConsumedContent: null,
-                                                    assignedCertificateLayoutId: matchedCourse.downloadedCertificateLayoutId ?? null,
-                                                    isCertificatePresent: !!matchedCourse.downloadedCertificateLayoutId,
+                                    if (matchedCourses.length > 0) {
+                                        const courseIds = matchedCourses.map(course => course.courseId);
+                                        const contentDataBulkOps = matchedCourses.map(matchedCourse => ({
+                                            updateOne: {
+                                                filter: { _id: matchedCourse.courseId },
+                                                update: {
+                                                    $set: {
+                                                        contentData: matchedCourse.matchedVersion,
+                                                        status: "IN_PROGRESS",
+                                                        progressPercentage: 0,
+                                                        version: matchedCourse.version,
+                                                        totalTrainingModules: matchedCourse.totalTrainingModules,
+                                                        lastConsumedContent: null,
+                                                        assignedCertificateLayoutId: matchedCourse.downloadedCertificateLayoutId ?? null,
+                                                        isCertificatePresent: !!matchedCourse.downloadedCertificateLayoutId,
+                                                    }
                                                 }
                                             }
+                                        }));
+                                        if (contentDataBulkOps.length > 0) {
+                                            await OverallTrainingProgress.bulkWrite(contentDataBulkOps);
                                         }
-                                    }));
-                                    if (contentDataBulkOps.length > 0) {
-                                        await OverallTrainingProgress.bulkWrite(contentDataBulkOps);
-                                    }
-                                    await TrainingProgress.deleteMany(
-                                        { overallTrainingProgress: { $in: courseIds } }
-                                    );
-                                    processedInput = input.map(course => {
-                                        if (modifiedCourseIds.has(course.overallId.toString())) {
-                                            const matchedCourse = matchedCourses.find(mc => mc.courseId.toString() === course.overallId.toString());
-                                            if (matchedCourse) {
-                                                const updatedCourse = {
-                                                    ...course,
-                                                    trainingModules: matchedCourse.matchedVersion.map(module => ({
-                                                        moduleId: module.moduleId,
-                                                        contentDetails: module.contentIds.map(contentId => {
-                                                            const existingContent = course.trainingModules
-                                                                .flatMap(m => m.contentDetails || [])
-                                                                .find(c => c.contentId === contentId);
-                                                            return existingContent || {
-                                                                contentId: contentId,
-                                                                contentStatus: "COMPLETED",
-                                                                duration: 0,
-                                                                progressPercentage: 100
-                                                            };
-                                                        })
-                                                    })),
-                                                    processedByOfflineSync: true,
-                                                    assignedCertificateLayoutId: matchedCourse.downloadedCertificateLayoutId,
-                                                    isCertificatePresent: !!matchedCourse.downloadedCertificateLayoutId,
-                                                };
-                                                return updatedCourse;
+                                        await TrainingProgress.deleteMany(
+                                            { overallTrainingProgress: { $in: courseIds } }
+                                        );
+                                        processedInput = input.map(course => {
+                                            if (modifiedCourseIds.has(course.overallId.toString())) {
+                                                const matchedCourse = matchedCourses.find(mc => mc.courseId.toString() === course.overallId.toString());
+                                                if (matchedCourse) {
+                                                    const updatedCourse = {
+                                                        ...course,
+                                                        trainingModules: matchedCourse.matchedVersion.map(module => ({
+                                                            moduleId: module.moduleId,
+                                                            contentDetails: module.contentIds.map(contentId => {
+                                                                const existingContent = course.trainingModules
+                                                                    .flatMap(m => m.contentDetails || [])
+                                                                    .find(c => c.contentId === contentId);
+                                                                return existingContent || {
+                                                                    contentId: contentId,
+                                                                    contentStatus: "COMPLETED",
+                                                                    duration: 0,
+                                                                    progressPercentage: 100
+                                                                };
+                                                            })
+                                                        })),
+                                                        processedByOfflineSync: true,
+                                                        assignedCertificateLayoutId: matchedCourse.downloadedCertificateLayoutId,
+                                                        isCertificatePresent: !!matchedCourse.downloadedCertificateLayoutId,
+                                                    };
+                                                    return updatedCourse;
+                                                }
                                             }
-                                        }
-                                        return course;
-                                    });
+                                            return course;
+                                        });
+                                    }
                                 }
                             }
                         }
                     }
                 }
             }
-        }
 
-        const validateErrors = await TrainingHelper.validateSyncOfflineData(processedInput);
-        if (validateErrors && validateErrors.length > 0) {
-            throw CustomError(ErrorName.FAILED, validateErrors[0]);
-        }
-        processedInput.forEach((entry) => {
-            entry.trainingModules?.forEach((module) => {
-                module.contentDetails?.forEach((content) => {
-                    if (content.progressPercentage == 100) {
-                        content.contentStatus = 'COMPLETED';
-                    } else if (content.progressPercentage == 0) {
-                        content.contentStatus = 'NOT_STARTED';
-                    } else if (content.progressPercentage > 0 && content.progressPercentage < 100) {
-                        content.contentStatus = 'IN_PROGRESS';
-                    }
+            const validateErrors = await TrainingHelper.validateSyncOfflineData(processedInput);
+            if (validateErrors && validateErrors.length > 0) {
+                throw CustomError(ErrorName.FAILED, validateErrors[0]);
+            }
+            processedInput.forEach((entry) => {
+                entry.trainingModules?.forEach((module) => {
+                    module.contentDetails?.forEach((content) => {
+                        if (content.progressPercentage == 100) {
+                            content.contentStatus = 'COMPLETED';
+                        } else if (content.progressPercentage == 0) {
+                            content.contentStatus = 'NOT_STARTED';
+                        } else if (content.progressPercentage > 0 && content.progressPercentage < 100) {
+                            content.contentStatus = 'IN_PROGRESS';
+                        }
+                    })
                 })
             })
-        })
 
-        // Process in batches of 1 to reduce transaction time and write conflicts
-        const batches = [];
-        for (let i = 0; i < processedInput.length; i += BATCH_SIZE) {
-            batches.push(processedInput.slice(i, i + BATCH_SIZE));
-        }
+            // Process in batches of 1 to reduce transaction time and write conflicts
+            const batches = [];
+            for (let i = 0; i < processedInput.length; i += BATCH_SIZE) {
+                batches.push(processedInput.slice(i, i + BATCH_SIZE));
+            }
 
-        for (const batch of batches) {
-            let attempt = 0;
-            let success = false;
-            let lastError;
-            // If batch size is 1, avoid using a transaction for single-document update
-            while (attempt < 5 && !success) {
-                let session = null;
-                try {
-                    let syncContentErrors = [];
-                    if (batch.length === 1) {
-                        // No transaction for single document
-                        await TrainingHelper.addDataToOverallTrainingProgress(batch, syncContentErrors, null);
-                        await TrainingHelper.updateTrainingProgress(batch, userId, subscriberId, null);
-                        if (syncContentErrors.length > 0) {
-                            throw CustomError(ErrorName.FAILED, syncContentErrors[0]);
-                        }
-                        success = true;
-                    } else {
-                        session = await mongoose.startSession();
-                        await session.withTransaction(async () => {
-                            if (batch.length > 0) {
-                                await TrainingHelper.addDataToOverallTrainingProgress(batch, syncContentErrors, session);
-                                await TrainingHelper.updateTrainingProgress(batch, userId, subscriberId, session);
-                                if (syncContentErrors.length > 0) {
-                                    throw CustomError(ErrorName.FAILED, syncContentErrors[0]);
-                                }
+            for (const batch of batches) {
+                let attempt = 0;
+                let success = false;
+                let lastError;
+                // If batch size is 1, avoid using a transaction for single-document update
+                while (attempt < 5 && !success) {
+                    let session = null;
+                    try {
+                        let syncContentErrors = [];
+                        if (batch.length === 1) {
+                            // No transaction for single document
+                            await TrainingHelper.addDataToOverallTrainingProgress(batch, syncContentErrors, null);
+                            await TrainingHelper.updateTrainingProgress(batch, userId, subscriberId, null);
+                            if (syncContentErrors.length > 0) {
+                                throw CustomError(ErrorName.FAILED, syncContentErrors[0]);
                             }
-                        });
-                        success = true;
-                    }
-                } catch (err) {
-                    lastError = err;
-                    console.error('syncOfflineDataAndUpdateProgress batch error:', err, err.stack, err.errorLabels);
-                    if (session && session.inTransaction()) {
-                        await session.abortTransaction();
-                    }
-                    if (err.hasErrorLabel && err.hasErrorLabel('TransientTransactionError')) {
-                        attempt++;
-                        await new Promise(res => setTimeout(res, 100 * Math.pow(2, attempt)));
-                    } else {
-                        break;
-                    }
-                } finally {
-                    if (session && session.endSession) {
-                        await session.endSession();
+                            success = true;
+                        } else {
+                            session = await mongoose.startSession();
+                            await session.withTransaction(async () => {
+                                if (batch.length > 0) {
+                                    await TrainingHelper.addDataToOverallTrainingProgress(batch, syncContentErrors, session);
+                                    await TrainingHelper.updateTrainingProgress(batch, userId, subscriberId, session);
+                                    if (syncContentErrors.length > 0) {
+                                        throw CustomError(ErrorName.FAILED, syncContentErrors[0]);
+                                    }
+                                }
+                            });
+                            success = true;
+                        }
+                    } catch (err) {
+                        lastError = err;
+                        console.error('syncOfflineDataAndUpdateProgress batch error:', err, err.stack, err.errorLabels);
+                        if (session && session.inTransaction()) {
+                            await session.abortTransaction();
+                        }
+                        if (err.hasErrorLabel && err.hasErrorLabel('TransientTransactionError')) {
+                            attempt++;
+                            await new Promise(res => setTimeout(res, 100 * Math.pow(2, attempt)));
+                        } else {
+                            break;
+                        }
+                    } finally {
+                        if (session && session.endSession) {
+                            await session.endSession();
+                        }
                     }
                 }
+                if (!success) { throw Error(lastError && lastError.message ? lastError.message : String(lastError)) }
+                else {
+                    console.log(`Batch processed successfully: ${JSON.stringify(batch)}`);
+                }
             }
-            if (!success) {throw Error(lastError && lastError.message ? lastError.message : String(lastError))}
-            else {
-                console.log(`Batch processed successfully: ${JSON.stringify(batch)}`);
+            return {
+                status: 1,
+                message: "Progress updated successfully!"
             }
-        }
-        return {
-            status: 1,
-            message: "Progress updated successfully!"
-        }
         } catch (error) {
             console.error("Error syncing offline data:", error);
             throw CustomError(ErrorName.FAILED, error.message || "Failed to sync offline data");

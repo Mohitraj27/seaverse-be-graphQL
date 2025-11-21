@@ -21,6 +21,7 @@ const EmployeeHelper = require("./src/app/user/employee/employee_helper");
 const { client } = require("./src/util/elastic_helper");
 const { connectToMongo } = require("./src/util/mongodb_helper");
 const { toUpperCaseFirstLetter } = require("./src/util/string_helper");
+const SystemStatsScheduler = require("./src/app/reports/system_stats_scheduler");
 const { RELEASE_VERSION, BUILD_DATE, VERSION_HISTORY } = require("./src/config/version");
 if (process.env.NODE_ENV === "production" || process.env.NODE_ENV === "development-production") {
     process.env.PORT = process.env.PORT_LIVE;
@@ -337,4 +338,7 @@ TrainingRegistrationRemainder.trainingRegistrationRemainder();
 TrainingCertificateRemainder.trainingCertificateRemainder();
 BatchRemainder.batchCompletionRemainder();
 EmployeeHelper.scheduledForEveryDayMidnight();
+if (process.env.NODE_ENV?.toLowerCase() === 'production') {
+    SystemStatsScheduler.scheduleSystemStatsReport();
+}
 

@@ -322,6 +322,21 @@ module.exports = {
             usersStartedCourses: Int!
             usersWithNoEnrollment: Int!
         }
+
+        type SystemStatsEmailConfig {
+            _id: ID
+            to: [String]
+            cc: [String]
+            type: String
+            updatedAt: String
+            updatedBy: User
+        }
+
+        input SystemStatsEmailConfigInput {
+            to: [String]
+            cc: [String]
+            type: String!
+        }
     `,
     queries: `
         getRevenueReports(pageInput: PageInput, filterInput: RevenueReportFilterInput): RevenueReportsList!
@@ -337,7 +352,11 @@ module.exports = {
         generateCustomReport(input: customReportInput!): customReportGenerated
         getCustomReportLogs(pageInput : PageInput,searchQuery:String):[customReportLogOutput]
         getS3FilePath(filePath:String!): s3PathOutput
-        getSystemStatsPerVessel: [SystemStatsPerVesselOutput]
-        exportActiveVesselsToExcel : mainVesselReportOutput
+        getSystemStatsPerVessel: customReportGenerated
+        getSystemStatsEmailConfig(type: String): SystemStatsEmailConfig
     `,
+    mutations: `
+        updateSystemStatsEmailConfig(input: SystemStatsEmailConfigInput): SystemStatsEmailConfig
+        deleteSystemStatsEmailConfig(type: String!): Boolean
+    `
 };

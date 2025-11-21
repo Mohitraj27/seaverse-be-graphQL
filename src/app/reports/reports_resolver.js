@@ -13,6 +13,7 @@ const { Vessel } = require("../vessle/vessel_model")
 const {
     TrainingRegistrationInvoice,
 } = require("../training-registrations/training-registration-invoices/training_registration_invoice_model");
+const { SystemStatsEmailConfig } = require("./system_stats_email_config_model");
 
 const SubRoleHelper = require("../user/sub-roles/sub_role_helper");
 const NotificationType = require("../notifications/notification_type.json");
@@ -1632,221 +1633,65 @@ const getS3FilePath = async ({ filePath }, context) => {
     }
 };
 
-const getSystemStatsPerVessel = async () => {
+const getSystemStatsPerVessel = async (args, context) => {
+    const { subscriberId, userId, userInfo } = AuthUser(context);
+    if (!subscriberId) {
+        throw CustomError(ErrorName.FORBIDDEN);
+    }
+
     try {
-        // 0️⃣ Fetch all vessels with company info
-        const vessels = await Vessel.aggregate([
-            {
-                $match: { isDeleted: false, isActive: true },
-            },
-            {
-                $lookup: {
-                    from: "companies",
-                    localField: "companyName",
-                    foreignField: "name",
-                    as: "company",
-                },
-            },
-            {
-                $unwind: { path: "$company", preserveNullAndEmptyArrays: true },
-            },
-            {
-                $project: {
-                    _id: 1,
-                    vesselName: "$name",
-                    companyName: "$companyName",
-                },
-            },
-        ]);
+        console.log("Forking child process for system stats...");
+        const child = fork(path.resolve(__dirname, 'system_stats_generator.js'), [], { execArgv: ["--expose-gc"] });
 
-        // 1️⃣ Fetch all users with vessel and minimal info
-        const users = await User.aggregate([
-            {
-                $match: { isDeleted: false, isActive: true },
-            },
-            {
-                $lookup: {
-                    from: "vessels",
-                    localField: "currentVessel",
-                    foreignField: "_id",
-                    as: "vessel",
-                },
-            },
-            { $unwind: { path: "$vessel", preserveNullAndEmptyArrays: true } },
-            {
-                $project: {
-                    _id: 1,
-                    email: 1,
-                    isResetPasswordDialog: 1,
-                    vesselId: "$vessel._id",
-                    vesselName: "$vessel.name",
-                    companyName: "$vessel.companyName",
-                },
-            },
-        ]);
-        const totalUsersInSystem = users.length;
-        console.log("Total active users in system:", totalUsersInSystem);
-        // 2️⃣ Fetch all overall training progress docs once (lightweight projection)
-        const progresses = await OverallTrainingProgress.aggregate([
-            {
-                $match: { isDeleted: { $ne: true } },
-            },
-            {
-                $project: {
-                    user: 1,
-                    status: 1,
-                },
-            },
-        ]);
-
-        // Build a fast lookup map for userId → progress status
-        const userProgressMap = new Map();
-
-        for (const p of progresses) {
-            if (!userProgressMap.has(String(p.user))) {
-                userProgressMap.set(String(p.user), []);
-            }
-            userProgressMap.get(String(p.user)).push(p.status);
-        }
-
-        // 3️⃣ Compute per company → vessel grouping
-        const stats = {};
-
-        for (const v of vessels) {
-            const key = `${v.companyName || "No Company"}||${v.vesselName || "No Vessel"}`;
-            stats[key] = {
-                companyName: v.companyName || "No Company",
-                vesselName: v.vesselName || "No Vessel",
-                totalUsers: 0,
-                isPasswordResetTrue: 0,
-                isPasswordResetFalse: 0,
-                totalEnrolledUsers: 0,
-                usersStartedCourses: 0,
-                usersWithNoEnrollment: 0,
-            };
-        }
-
-        for (const user of users) {
-            const company = user.companyName || "No Company";
-            const vessel = user.vesselName || "No Vessel";
-            const key = `${company}||${vessel}`;
-
-            if (!stats[key]) {
-                stats[key] = {
-                    companyName: company,
-                    vesselName: vessel,
-                    totalUsers: 0,
-                    isPasswordResetTrue: 0,
-                    isPasswordResetFalse: 0,
-                    totalEnrolledUsers: 0,
-                    usersStartedCourses: 0,
-                    usersWithNoEnrollment: 0,
-                };
-            }
-
-            const s = stats[key];
-            s.totalUsers++;
-
-            if (user.isResetPasswordDialog) s.isPasswordResetTrue++;
-            else s.isPasswordResetFalse++;
-
-            const progress = userProgressMap.get(String(user._id));
-
-            if (progress && progress.length > 0) {
-                s.totalEnrolledUsers++;
-                if (progress.some(st => ["IN_PROGRESS", "COMPLETED"].includes(st))) {
-                    s.usersStartedCourses++;
-                }
-            }
-        }
-
-        // Include vessels that might not have appeared in user loop
-        for (const key in stats) {
-            const s = stats[key];
-            s.usersWithNoEnrollment = s.totalUsers - s.totalEnrolledUsers;
-        }
-
-        // 4️⃣ Sort by company name and vessel name
-        const orderedStats = Object.values(stats).sort((a, b) => {
-            if (a.companyName === b.companyName) {
-                return a.vesselName.localeCompare(b.vesselName);
-            }
-            return a.companyName.localeCompare(b.companyName);
+        child.on('error', (err) => {
+            console.error('Failed to start child process.', err);
         });
 
-        return orderedStats;
+        child.on('exit', (code) => {
+            console.log(`Child process exited with code ${code}`);
+        });
+
+        child.on("message", async msg => {
+            if (msg.type === "REPORT_EXPORT_SUCCESS") {
+                // Log to console as requested
+                console.log("Parent received success.");
+            } else if (msg.type === "REPORT_EXPORT_FAILED") {
+                console.error("Parent received failure:", msg.payload.messageValue);
+            }
+        });
+
+        const payload = {
+            subscriberId: subscriberId.toString(),
+            userId: userId.toString(),
+            userInfo
+        };
+
+        child.send({ payload });
+
+        return {
+            status: true,
+            message: "System stats report generation has started. Please check the server console for the download link.",
+            fileName: '',
+            filePath: '',
+        };
+
     } catch (err) {
-        console.error("Error fetching system stats per vessel:", err);
+        console.error("Error initiating system stats generation:", err);
         throw err;
     }
 };
 
-const exportActiveVesselsToExcel = async () => {
-  try {
-    // 1️⃣ Fetch and populate data
-    const vessels = await Vessel.find({ isActive: true, isDeleted: false })
-      .populate('typeOfVessel', 'name')
-      .populate('ownerId', 'firstName lastName')
-      .lean();
-
-    if (!vessels.length) {
-      throw new Error('No active vessels found.');
-    }
-    // 2️⃣ Transform to Excel-friendly format
-    const formattedData = vessels.map(v => ({
-      'Vessel Name': v.name || '',
-      'IMO Number': v.imoNumber || '',
-      'Type of Vessel': v.typeOfVessel?.name || ' ',
-      'Company Name': v.companyName || '',
-      'Owner Name': v.ownerId? decrypt(v.ownerId.firstName,true) : " " + v.ownerId?.lastName ? decrypt(v.ownerId?.lastName,true) : " ",
-      'Status': v.isActive ? 'Active' : 'Inactive',
-    }));
-    // 3️⃣ Create workbook
-    const workbook = XLSX.utils.book_new();
-    let worksheet;
-
-    if (formattedData.length === 0) {
-      // fallback when no records
-      worksheet = XLSX.utils.aoa_to_sheet([
-        ['NO ACTIVE VESSELS AVAILABLE'],
-      ]);
-    } else {
-      worksheet = XLSX.utils.json_to_sheet(formattedData);
-    }
-
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Active Vessels');
-
-    // 4️⃣ Generate Excel buffer
-    const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
-
-    // 5️⃣ Upload to S3 via your existing helper
-    const fileName = `Active_Vessels_Report-${await ReportsHelper.generateFileNameTimestamp()}.xlsx`;
-    const excelFilePath = await UploadHelper.uploadExcel({
-      data: excelBuffer,
-      folderName: 'Vessel_Reports',
-      fileName,
-      uploadType: UploadHelper.uploadType.exportLearnersCoursesReportAsExcel,
-    });
-
-    // 6️⃣ Fetch signed URL
-    const s3PresignedUrl = await aws_helper.fetchFile(excelFilePath);
-
-    // 8️⃣ Return result
-    return {
-      filePath: s3PresignedUrl,
-      fileName: path.basename(excelFilePath),
-      totalRecords: [],
-    };
-  } catch (error) {
-    console.error('❌ Failed to export vessels:', error.message);
-    throw error;
-  }
-}
-
-
 module.exports.queries = {
     exportActiveVesselsToExcel,
     getSystemStatsPerVessel,
+    getSystemStatsEmailConfig: async (parent, { type }, context) => {
+        const { subscriberId } = AuthUser(context);
+        if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
+
+        const queryType = type || "SYSTEM_STATS";
+        const config = await SystemStatsEmailConfig.findOne({ subscriber: subscriberId, type: queryType }).populate('updatedBy');
+        return config;
+    },
     getMainLearnersReport,
     getSingleLearnerReport,
     getMainCoursesReport,
@@ -2700,5 +2545,33 @@ module.exports.queries = {
     },
 };
 
+module.exports.mutations = {
+    updateSystemStatsEmailConfig: async ({ input }, context) => {
+        const { subscriberId, userInfo } = AuthUser(context);
+        if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
 
+        const { to, cc, type } = input;
 
+        const config = await SystemStatsEmailConfig.findOneAndUpdate(
+            { subscriber: subscriberId, type },
+            {
+                $set: {
+                    to,
+                    cc,
+                    type,
+                    updatedBy: userInfo._id
+                }
+            },
+            { new: true, upsert: true, setDefaultsOnInsert: true }
+        ).populate('updatedBy');
+
+        return config;
+    },
+    deleteSystemStatsEmailConfig: async ({ type }, context) => {
+        const { subscriberId } = AuthUser(context);
+        if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
+
+        const result = await SystemStatsEmailConfig.deleteOne({ subscriber: subscriberId, type });
+        return result.deletedCount > 0;
+    }
+};
