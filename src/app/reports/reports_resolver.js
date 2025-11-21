@@ -1682,7 +1682,6 @@ const getSystemStatsPerVessel = async (args, context) => {
 };
 
 module.exports.queries = {
-    exportActiveVesselsToExcel,
     getSystemStatsPerVessel,
     getSystemStatsEmailConfig: async (parent, { type }, context) => {
         const { subscriberId } = AuthUser(context);
