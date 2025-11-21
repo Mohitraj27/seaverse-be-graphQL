@@ -568,7 +568,7 @@ module.exports.mutations = {
 
                             const jobId = uuidv4();
 
-                            const batchSize = 200;
+                            const batchSize = 50;
                             const totalUsers = completedMigrationUsers.length;
                             const batchCount = Math.ceil(totalUsers / batchSize);
 
