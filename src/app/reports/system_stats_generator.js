@@ -53,7 +53,8 @@ const performSystemStatsGeneration = async ({ subscriberId, userId, userInfo }) 
                             $match: {
                                 $expr: { $eq: ["$currentVessel", "$$vesselId"] },
                                 isDeleted: false,
-                                isActive: true
+                                isActive: true,
+                                vesselStatus: "ONBOARDED"
                             }
                         },
                         {
@@ -192,7 +193,8 @@ const performSystemStatsGeneration = async ({ subscriberId, userId, userInfo }) 
                 $match: {
                     $or: [{ currentVessel: null }, { currentVessel: { $exists: false } }],
                     isDeleted: false,
-                    isActive: true
+                    isActive: true,
+                    vesselStatus: "ONBOARDED"
                 }
             },
             {
