@@ -203,6 +203,9 @@ module.exports = {
             training: ID!
             isEnrolled: Boolean!
             search: String
+            skip: Int
+            limit: Int
+            isLearningPlan: Boolean
         }
         input myCourseFilterInput {
             search: String

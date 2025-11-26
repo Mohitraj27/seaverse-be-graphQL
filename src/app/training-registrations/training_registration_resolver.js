@@ -56,7 +56,7 @@ module.exports.queries = {
         if (input?.search) {
             input.search = encrypt(input?.search);
         }
-        console.log(input?.search, "input.search");
+
         const { subscriberId } = AuthUser(context);
         if (!input.training) throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Training ID is required");
 
@@ -67,55 +67,13 @@ module.exports.queries = {
             sanitizedSearch = input.search.trim().replace(/\s+/g, " ");
         }
 
-        const totalUsersResult = await OverallTrainingProgress.aggregate([
-            {
-                $match: {
-                    training: input.training,
-                    isEnrolled: input.isEnrolled
-                }
-            },
-            {
-                $lookup: {
-                    from: "users",
-                    localField: "user",
-                    foreignField: "_id",
-                    as: "userInfo",
-                    /*  pipeline: [
-                         {
-                             $match: {
-                                 isDeleted: false,
-                                 isSignupAdminAprroved: { $ne: false },
-                             }
-                         }
-                     ] */
-                }
-            },
-            {
-                $unwind: {
-                    path: "$userInfo",
-                    preserveNullAndEmptyArrays: false
-                }
-            },
-            {
-                $group: {
-                    _id: null,
-                    uniqueUsers: { $addToSet: '$user' }
-                }
-            },
-            {
-                $addFields: {
-                    countOfUsers: { $size: '$uniqueUsers' }
-                }
-            },
-            {
-                $project: {
-                    _id: 0,
-                    countOfUsers: 1
-                }
-            }
-        ]);
-        const totalUsersCount = totalUsersResult[0]?.countOfUsers || 0;
-        const results = await OverallTrainingProgress.aggregate([
+        // Pagination parameters
+        console.log("Input", input);
+        const skip = input?.skip ?? 0;
+        const limit = input?.limit ?? 20; // 0 means no limit
+
+        // Base pipeline for matching and filtering
+        const basePipeline = [
             {
                 $match: {
                     training: input.training,
@@ -160,7 +118,55 @@ module.exports.queries = {
                         ]
                     }
                     : {}
-            },
+            }
+        ];
+
+        // Add learning plan filter if specified
+        if (input.isLearningPlan !== undefined && input.isLearningPlan !== null) {
+            if (input.isLearningPlan === true) {
+                // Filter for records where learningPlan array exists and is not empty
+                basePipeline.push({
+                    $match: {
+                        learningPlan: { $exists: true, $ne: null, $not: { $size: 0 } }
+                    }
+                });
+            } else {
+                // Filter for records where learningPlan is empty or doesn't exist
+                basePipeline.push({
+                    $match: {
+                        $or: [
+                            { learningPlan: { $exists: false } },
+                            { learningPlan: null },
+                            { learningPlan: { $size: 0 } }
+                        ]
+                    }
+                });
+            }
+        }
+
+        // Get total count before pagination
+        const countPipeline = [
+            ...basePipeline,
+            {
+                $count: 'total'
+            }
+        ];
+
+        const countResult = await OverallTrainingProgress.aggregate(countPipeline);
+        const totalCount = countResult.length > 0 ? countResult[0].total : 0;
+
+        // Get paginated results
+        const paginationStages = [];
+        if (skip > 0) {
+            paginationStages.push({ $skip: skip });
+        }
+        if (limit > 0) {
+            paginationStages.push({ $limit: limit });
+        }
+
+        const results = await OverallTrainingProgress.aggregate([
+            ...basePipeline,
+            ...paginationStages,
             {
                 $project: {
                     _id: 0,
@@ -197,7 +203,7 @@ module.exports.queries = {
             adminMarkedAsCompleted: user.adminMarkedAsCompleted,
         }));
         return {
-            countOfUsers: formattedResults.length || 0,
+            countOfUsers: totalCount,
             users: decryptedFormattedResults,
         };
     },
@@ -288,11 +294,11 @@ module.exports.queries = {
             }
         );
     },
-    myCourses: async ({ filterInput = {} , pageInput ={} }, context) => {
+    myCourses: async ({ filterInput = {}, pageInput = {} }, context) => {
         const { userId, subscriberId } = AuthUser(context);
 
         try {
-            const pageLimit =[];
+            const pageLimit = [];
             let filterConditions = {
                 user: filterInput?.employeeId ? ObjectId(filterInput.employeeId) : ObjectId(userId),
                 $or: [
@@ -302,7 +308,7 @@ module.exports.queries = {
                 isDeleted: { $ne: true },
             }
 
-            if (filterInput?.search) { 
+            if (filterInput?.search) {
                 filterConditions = {
                     ...filterConditions,
                     $or: [
@@ -323,10 +329,10 @@ module.exports.queries = {
                 };
             }
 
-            if(pageInput?.limit){
+            if (pageInput?.limit) {
                 pageLimit.push({ $limit: pageInput?.limit });
             }
-            if(pageInput?.skip){
+            if (pageInput?.skip) {
                 pageLimit.push({ $skip: pageInput?.skip });
             }
 
@@ -1502,8 +1508,8 @@ module.exports.queries = {
                                             videos: (detail.videos || []).map(video => ({
                                                 ...video,
                                                 originalUrl: normalizeVideoUrl(video.url),
-                                                originals3Path:"",
-                                               
+                                                originals3Path: "",
+
                                             }))
                                         };
                                     }),
