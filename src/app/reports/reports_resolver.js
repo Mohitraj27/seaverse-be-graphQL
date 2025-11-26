@@ -1683,7 +1683,7 @@ const getSystemStatsPerVessel = async (args, context) => {
 
 module.exports.queries = {
     getSystemStatsPerVessel,
-    getSystemStatsEmailConfig: async (parent, { type }, context) => {
+    getSystemStatsEmailConfig: async ({ type }, context) => {
         const { subscriberId } = AuthUser(context);
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
 

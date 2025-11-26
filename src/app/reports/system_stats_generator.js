@@ -53,7 +53,8 @@ const performSystemStatsGeneration = async ({ subscriberId, userId, userInfo }) 
                             $match: {
                                 $expr: { $eq: ["$currentVessel", "$$vesselId"] },
                                 isDeleted: false,
-                                isActive: true
+                                isActive: true,
+                                vesselStatus: "ONBOARDED"
                             }
                         },
                         {
@@ -192,7 +193,8 @@ const performSystemStatsGeneration = async ({ subscriberId, userId, userInfo }) 
                 $match: {
                     $or: [{ currentVessel: null }, { currentVessel: { $exists: false } }],
                     isDeleted: false,
-                    isActive: true
+                    isActive: true,
+                    vesselStatus: "ONBOARDED"
                 }
             },
             {
@@ -435,7 +437,7 @@ Seaverse LMS – Automated Reporting System`,
                 payload: {
                     subscriber: subscriberId,
                     titleValue: `Main Vessel Report Exported Successfully`,
-                    messageValue: `The main vessel report has been successfully generated and exported by ${decrypt(userInfo?.firstName)} ${userInfo?.lastName ? decrypt(userInfo?.lastName) : ''}.`,
+                    messageValue: `The main vessel report has been successfully generated and exported by ${userInfo._id === "SYSTEM" ? userInfo.firstName : decrypt(userInfo?.firstName)} ${userInfo._id === "SYSTEM" ? (userInfo.lastName || '') : (userInfo?.lastName ? decrypt(userInfo?.lastName) : '')}.`,
                     notificationType: NotificationType.REPORT_EXPORT_SUCCESS,
                     notifyAllAdmin: false,
                     isNotificatonForAdmin: true,
