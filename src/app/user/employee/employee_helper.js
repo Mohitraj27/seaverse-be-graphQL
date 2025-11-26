@@ -1204,8 +1204,8 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
                     });
                 }
                 */
-               //  only push removeUsersData after verifying with LearningPlanAssignment.find()
-               if (usersToRemove.length > 0) {
+                //  only push removeUsersData after verifying with LearningPlanAssignment.find()
+                if (usersToRemove.length > 0) {
                     const existingAssignments = await LearningPlanAssignment.find({
                         learningPlanId: plan._id,
                         assignedLearnerId: { $in: usersToRemove },
@@ -1219,7 +1219,7 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
                     if (existingOverallProgress) {
                         removeUsersData.push({ usersToRemove, planId: plan._id });
                     }
-                   if (existingAssignments.length > 0 || existingOverallProgress) {
+                    if (existingAssignments.length > 0 || existingOverallProgress) {
                         removeUsersData.push({ usersToRemove, planId: plan._id });
                     }
                 }
@@ -1314,8 +1314,8 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
         userToLearningPlansObject[userId] = Array.from(planIds);
     });
     const nonNotificationRecievers = await OverallTrainingProgress.find({ training: { $in: uniqueTrainingIds }, user: { $in: uniqueUserIds } }).select("training user");
-    
-    if(enrollmentData?.length > 0){
+
+    if (enrollmentData?.length > 0) {
         console.time('enrollUsersInFilterLP')
         await enrollUsers(enrollmentData, context);
         console.timeEnd('enrollUsersInFilterLP')
@@ -3379,53 +3379,48 @@ module.exports = {
 
 
 
+        // Offload only filterLearningPlans to background child process (time-consuming operation)
+        try {
+            const { fork } = require('child_process');
+            const path = require('path');
 
-        const userIds = await User.find({ _id: id }).select('_id').lean();
-        const learningPlans = await LearningPlan.find({ isDeleted: false, status: 'ACTIVE' });
-        const userConditions = await Employee.find({
-            'user': { $in: userIds },
-            'isDeleted': false
-        })
-            .populate({
-                path: 'empDesignation',
-                select: '_id',
-            })
-            .populate({
-                path: 'user',
-                select: '_id email currentVessel vesselStatus vesselType isDeleted',
-                match: { 'isDeleted': false },
-                populate: {
-                    path: 'currentVessel',
-                    select: '_id vesselStatus ownerName typeOfVessel isDeleted',
-                    match: { 'isDeleted': false }
-                }
-            })
-            .then((employees) => {
-                const result = employees.map(employee => ({
-                    designationID: employee.empDesignation ? employee.empDesignation._id : null,
-                    vesselID: employee.user && employee.user.currentVessel ? employee.user.currentVessel._id : null,
-                    vesselTypeID: employee.user && employee.user.currentVessel ? employee.user.currentVessel.typeOfVessel : null,
-                    currentStatus: employee.user && employee.user.vesselStatus ? employee.user.vesselStatus : null,
-                    owner: employee.user && employee.user.currentVessel ? employee.user.currentVessel.ownerName : null,
-                    email: employee.user ? employee.user.email : null,
-                    _id: employee?.user?._id
-                }));
+            const backgroundProcessPath = path.join(__dirname, 'employee_update_background_process.js');
+            const child = fork(backgroundProcessPath);
 
-                return result;
-            })
-            .catch((error) => {
-                console.error(error);
+            // Send data to child process
+            child.send({
+                userId: id,
+                subscriberId: subscriberId,
+                context: context,
+                session: session
             });
-            try{
-                const result = await filterLearningPlans(learningPlans, userConditions, context, session);
-                console.log(result,'response from filterLearningPlans helper');
-            }catch(error){
-                console.log(error);
-            };
 
+            // Handle child process messages (optional - for logging)
+            child.on('message', (message) => {
+                if (message.success) {
+                    console.log(`✅ Background learning plan update completed for user ${id}`);
+                } else {
+                    console.error(`⚠️ Background learning plan update failed for user ${id}:`, message.error);
+                }
+            });
+
+            // Handle child process errors
+            child.on('error', (error) => {
+                console.error(`❌ Background process error for user ${id}:`, error);
+            });
+
+            // Detach child process so it doesn't block the main process
+            child.unref();
+
+            console.log(`🚀 Background learning plan update process started for user ${id}`);
+        } catch (error) {
+            console.error('Failed to start background process:', error);
+            // Don't throw - the main update was successful
+        }
+
+        // Update ElasticSearch in the main API (synchronous for immediate search consistency)
         try {
             const userVesselsDetails = await Vessel.find({ _id: savedEmployee.user?.currentVessel, isDeleted: false, isActive: true }).populate('typeOfVessel', '_id name');
-            // console.log('this is userVesselsDetails', userVesselsDetails);
 
             const document = {
                 employeeId: savedEmployee._id?.toString(),
@@ -3474,6 +3469,7 @@ module.exports = {
         } catch (err) {
             console.error("Error updating document in Elastic:", err);
         }
+
         return savedEmployee;
 
     },
