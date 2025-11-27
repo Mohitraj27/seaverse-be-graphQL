@@ -51,6 +51,7 @@ module.exports = {
             isPushNotification: Boolean
             country: String
             lastUnregisteredAt: String
+            isShipAdmin: Boolean
         }
         type TermsAndConditions {
             _id: ID
