@@ -1,7 +1,7 @@
 const { CryptoHelper, JwtHelper, Validator } = require("../../tools");
 const { CustomError, ErrorName, Role, UploadHelper, VesselStatus } = require("../../util");
 
-const { User  } = require("./user_model");
+const { User } = require("./user_model");
 
 const SubscriptionHelper = require("../saas/subscriber/subscription/subscription_helper");
 const NotificationHelper = require("../notifications/notification_helper");
@@ -15,6 +15,7 @@ module.exports = {
             role: user.role,
             userId: user._id,
             subscriberId: user.subscriber?._id ?? user.subscriber,
+            isShipAdmin: user.isShipAdmin,
         };
 
         const accessToken = JwtHelper.sign(tokenPayload, process.env.APP_SECRET, { expiresIn: "1m" });
@@ -48,6 +49,7 @@ module.exports = {
                 permissions: [...new Set(user.subRoles?.map(x => x.permissions).flat(1))],
                 subscriberId: user.subscriber?._id ?? user.subscriber,
                 employeeId: user.employee?._id ?? user.employee,
+                isShipAdmin: user.isShipAdmin,
             };
             const newAccessToken = JwtHelper.sign(tokenPayload, process.env.APP_SECRET, { expiresIn: "1m" });
             const newRefreshToken = JwtHelper.sign({ userId: user._id }, process.env.REFRESH_SECRET, { expiresIn: "7d" });
@@ -148,16 +150,16 @@ module.exports = {
 
                 existingUser.email = encrypt(input.email.trim().toLowerCase());
             }
-            if (input?.consents?.length > 0 ) {
+            if (input?.consents?.length > 0) {
                 const validConsents = input.consents.every(consent =>
                     typeof consent.title === 'string' &&
                     typeof consent.message === 'string' &&
                     typeof consent.status === 'boolean'
                 );
                 if (!validConsents) {
-                     throw CustomError(ErrorName.INVALID_CONSENT_FORMAT, 'Invalid consent format');
+                    throw CustomError(ErrorName.INVALID_CONSENT_FORMAT, 'Invalid consent format');
                 }
-               await User.findByIdAndUpdate(
+                await User.findByIdAndUpdate(
                     input?._id,
                     { $set: { consents: input.consents } },
                     { new: true }
@@ -218,7 +220,7 @@ module.exports = {
 
             try {
                 await updateByQueryToElasticSearch(
-                    "users", 
+                    "users",
                     `
                         ctx._source.firstName = params.firstName;
                         ctx._source.lastName = params.lastName;
@@ -259,7 +261,7 @@ module.exports = {
             } catch (error) {
                 throw CustomError(ErrorName.NOT_FOUND);
             }
-            
+
             return savedUser;
         }
 
@@ -296,7 +298,7 @@ module.exports = {
                     infoData: {
                         _id: notificationData.user._id,
                         firstName: decrypt(notificationData.user?.firstName),
-                        lastName: notificationData.user?.lastName ? decrypt(notificationData.user?.lastName):'',
+                        lastName: notificationData.user?.lastName ? decrypt(notificationData.user?.lastName) : '',
                     },
                 },
             ],
