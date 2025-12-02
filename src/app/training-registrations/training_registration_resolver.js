@@ -1461,56 +1461,57 @@ module.exports.queries = {
                 allTrainingDetails.push(...trainingDetailsWithoutContent);
             }
 
+            // Uncomment only if required
             // Process all training details
-            const processedCourses = allTrainingDetails.map(trainingDetail => {
-                const moduleCount = trainingDetail.trainingModules.length;
+            // const processedCourses = allTrainingDetails.map(trainingDetail => {
+            //     const moduleCount = trainingDetail.trainingModules.length;
 
-                const totalDuration = trainingDetail.trainingModules.reduce((acc, module) => {
-                    const moduleDurationInSeconds = module.trainingModuleContents.reduce((moduleAcc, content) => {
-                        if (content.trainingModuleContentDetails && content.trainingModuleContentDetails.length > 0) {
-                            content.trainingModuleContentDetails.forEach(detail => {
-                                if (detail.duration && typeof detail.duration == "number") {
-                                    moduleAcc += detail.duration;
-                                }
-                            });
-                        }
-                        return moduleAcc;
-                    }, 0);
+            //     const totalDuration = trainingDetail.trainingModules.reduce((acc, module) => {
+            //         const moduleDurationInSeconds = module.trainingModuleContents.reduce((moduleAcc, content) => {
+            //             if (content.trainingModuleContentDetails && content.trainingModuleContentDetails.length > 0) {
+            //                 content.trainingModuleContentDetails.forEach(detail => {
+            //                     if (detail.duration && typeof detail.duration == "number") {
+            //                         moduleAcc += detail.duration;
+            //                     }
+            //                 });
+            //             }
+            //             return moduleAcc;
+            //         }, 0);
 
-                    acc += moduleDurationInSeconds;
+            //         acc += moduleDurationInSeconds;
 
-                    const trainingModuleContentDetails = module.trainingModuleContents.flatMap(content => content.trainingModuleContentDetails || []);
+            //         const trainingModuleContentDetails = module.trainingModuleContents.flatMap(content => content.trainingModuleContentDetails || []);
 
-                    if (trainingModuleContentDetails.length > 0) {
-                        const progressPercentages = trainingModuleContentDetails.map(content => content.progressPercentage || 0);
-                        const totalProgress = progressPercentages.reduce((sum, p) => sum + p, 0);
-                        const averageProgress = progressPercentages.length ? totalProgress / progressPercentages.length : 0;
-                        module.progressPercentage = averageProgress.toFixed(2);
-                    }
+            //         if (trainingModuleContentDetails.length > 0) {
+            //             const progressPercentages = trainingModuleContentDetails.map(content => content.progressPercentage || 0);
+            //             const totalProgress = progressPercentages.reduce((sum, p) => sum + p, 0);
+            //             const averageProgress = progressPercentages.length ? totalProgress / progressPercentages.length : 0;
+            //             module.progressPercentage = averageProgress.toFixed(2);
+            //         }
 
-                    const statuses = module.trainingModuleContents.map(content => content.status);
-                    if (statuses.every(status => status === "COMPLETED")) {
-                        module.status = "COMPLETED";
-                    } else if (statuses.every(status => status === "NOT_STARTED")) {
-                        module.status = "NOT_STARTED";
-                    } else {
-                        module.status = "IN_PROGRESS";
-                    }
+            //         const statuses = module.trainingModuleContents.map(content => content.status);
+            //         if (statuses.every(status => status === "COMPLETED")) {
+            //             module.status = "COMPLETED";
+            //         } else if (statuses.every(status => status === "NOT_STARTED")) {
+            //             module.status = "NOT_STARTED";
+            //         } else {
+            //             module.status = "IN_PROGRESS";
+            //         }
 
-                    return acc;
-                }, 0);
+            //         return acc;
+            //     }, 0);
 
-                return {
-                    ...trainingDetail,
-                    totalDuration,
-                    moduleCount
-                };
-            });
+            //     return {
+            //         ...trainingDetail,
+            //         totalDuration,
+            //         moduleCount
+            //     };
+            // });
 
             return {
                 status: true,
                 message: "All user courses details fetched successfully",
-                courses: processedCourses
+                courses: allTrainingDetails
             };
 
         } catch (error) {
