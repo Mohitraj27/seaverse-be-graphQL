@@ -280,21 +280,6 @@ const performSystemStatsGeneration = async ({ subscriberId, userId, userInfo }) 
                     totalUsers: { $sum: 1 },
                     usersLoggedIn: { $sum: { $cond: ["$hasLoggedIn", 1, 0] } },
                     usersNotLoggedIn: { $sum: { $cond: [{ $not: "$hasLoggedIn" }, 1, 0] } },
-                    totalEnrolledUsers: {
-                        $first: {
-                            $size: {
-                                $setUnion: {
-                                    $reduce: {
-                                        input: { $push: "$enrolledTrainingIds" }, // This might be tricky in group, need to accumulate arrays first
-                                        initialValue: [],
-                                        in: { $concatArrays: ["$$value", "$$this"] }
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    // Wait, $push in group accumulates all arrays. 
-                    // Let's adjust the group stage logic for totalEnrolledUsers below.
                     allEnrolledTrainingIds: { $push: "$enrolledTrainingIds" },
 
                     usersStartedCourses: { $sum: { $cond: ["$hasStarted", 1, 0] } },
