@@ -54,7 +54,8 @@ const performSystemStatsGeneration = async ({ subscriberId, userId, userInfo }) 
                                 $expr: { $eq: ["$currentVessel", "$$vesselId"] },
                                 isDeleted: false,
                                 isActive: true,
-                                vesselStatus: "ONBOARDED"
+                                vesselStatus: { $in: ["ONBOARDED", "ASSIGNED"] },
+                                isSignupAdminAprroved: true
                             }
                         },
                         {
@@ -72,7 +73,7 @@ const performSystemStatsGeneration = async ({ subscriberId, userId, userInfo }) 
                                 foreignField: "user",
                                 pipeline: [
                                     { $match: { isDeleted: { $ne: true } } },
-                                    { $project: { status: 1 } }
+                                    { $project: { status: 1, isFromMigration: 1, training: 1 } }
                                 ],
                                 as: "progress"
                             }
@@ -81,18 +82,34 @@ const performSystemStatsGeneration = async ({ subscriberId, userId, userInfo }) 
                         {
                             $addFields: {
                                 hasEnrollment: { $gt: [{ $size: "$progress" }, 0] },
+                                enrolledTrainingIds: {
+                                    $map: { input: "$progress", as: "p", in: "$$p.training" }
+                                },
                                 hasStarted: {
                                     $gt: [
                                         {
                                             $size: {
                                                 $filter: {
                                                     input: "$progress",
-                                                    cond: { $in: ["$$this.status", ["IN_PROGRESS", "COMPLETED"]] }
+                                                    cond: {
+                                                        $and: [
+                                                            { $in: ["$$this.status", ["IN_PROGRESS", "COMPLETED"]] },
+                                                            { $ne: ["$$this.isFromMigration", true] }
+                                                        ]
+                                                    }
                                                 }
                                             }
                                         },
                                         0
                                     ]
+                                },
+                                completedCoursesCount: {
+                                    $size: {
+                                        $filter: {
+                                            input: "$progress",
+                                            cond: { $eq: ["$$this.status", "COMPLETED"] }
+                                        }
+                                    }
                                 },
                                 // Logic: Logged In if isResetPasswordDialog is true
                                 hasLoggedIn: { $eq: ["$isResetPasswordDialog", true] },
@@ -129,9 +146,12 @@ const performSystemStatsGeneration = async ({ subscriberId, userId, userInfo }) 
                     },
                     totalEnrolledUsers: {
                         $size: {
-                            $filter: {
-                                input: "$vesselUsers",
-                                cond: { $eq: ["$$this.hasEnrollment", true] }
+                            $setUnion: {
+                                $reduce: {
+                                    input: "$vesselUsers.enrolledTrainingIds",
+                                    initialValue: [],
+                                    in: { $concatArrays: ["$$value", "$$this"] }
+                                }
                             }
                         }
                     },
@@ -143,6 +163,7 @@ const performSystemStatsGeneration = async ({ subscriberId, userId, userInfo }) 
                             }
                         }
                     },
+                    totalCoursesCompleted: { $sum: "$vesselUsers.completedCoursesCount" },
                     usersWithNoEnrollment: {
                         $size: {
                             $filter: {
@@ -194,7 +215,8 @@ const performSystemStatsGeneration = async ({ subscriberId, userId, userInfo }) 
                     $or: [{ currentVessel: null }, { currentVessel: { $exists: false } }],
                     isDeleted: false,
                     isActive: true,
-                    vesselStatus: "ONBOARDED"
+                    vesselStatus: { $in: ["ONBOARDED", "ASSIGNED"] },
+                    isSignupAdminAprroved: true
                 }
             },
             {
@@ -211,7 +233,7 @@ const performSystemStatsGeneration = async ({ subscriberId, userId, userInfo }) 
                     foreignField: "user",
                     pipeline: [
                         { $match: { isDeleted: { $ne: true } } },
-                        { $project: { status: 1 } }
+                        { $project: { status: 1, isFromMigration: 1, training: 1 } }
                     ],
                     as: "progress"
                 }
@@ -219,18 +241,34 @@ const performSystemStatsGeneration = async ({ subscriberId, userId, userInfo }) 
             {
                 $addFields: {
                     hasEnrollment: { $gt: [{ $size: "$progress" }, 0] },
+                    enrolledTrainingIds: {
+                        $map: { input: "$progress", as: "p", in: "$$p.training" }
+                    },
                     hasStarted: {
                         $gt: [
                             {
                                 $size: {
                                     $filter: {
                                         input: "$progress",
-                                        cond: { $in: ["$$this.status", ["IN_PROGRESS", "COMPLETED"]] }
+                                        cond: {
+                                            $and: [
+                                                { $in: ["$$this.status", ["IN_PROGRESS", "COMPLETED"]] },
+                                                { $ne: ["$$this.isFromMigration", true] }
+                                            ]
+                                        }
                                     }
                                 }
                             },
                             0
                         ]
+                    },
+                    completedCoursesCount: {
+                        $size: {
+                            $filter: {
+                                input: "$progress",
+                                cond: { $eq: ["$$this.status", "COMPLETED"] }
+                            }
+                        }
                     },
                     hasLoggedIn: { $eq: ["$isResetPasswordDialog", true] },
                     isMobile: { $gt: [{ $size: { $ifNull: ["$firebaseTokens", []] } }, 0] }
@@ -242,11 +280,51 @@ const performSystemStatsGeneration = async ({ subscriberId, userId, userInfo }) 
                     totalUsers: { $sum: 1 },
                     usersLoggedIn: { $sum: { $cond: ["$hasLoggedIn", 1, 0] } },
                     usersNotLoggedIn: { $sum: { $cond: [{ $not: "$hasLoggedIn" }, 1, 0] } },
-                    totalEnrolledUsers: { $sum: { $cond: ["$hasEnrollment", 1, 0] } },
+                    totalEnrolledUsers: {
+                        $first: {
+                            $size: {
+                                $setUnion: {
+                                    $reduce: {
+                                        input: { $push: "$enrolledTrainingIds" }, // This might be tricky in group, need to accumulate arrays first
+                                        initialValue: [],
+                                        in: { $concatArrays: ["$$value", "$$this"] }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    // Wait, $push in group accumulates all arrays. 
+                    // Let's adjust the group stage logic for totalEnrolledUsers below.
+                    allEnrolledTrainingIds: { $push: "$enrolledTrainingIds" },
+
                     usersStartedCourses: { $sum: { $cond: ["$hasStarted", 1, 0] } },
+                    totalCoursesCompleted: { $sum: "$completedCoursesCount" },
                     usersWithNoEnrollment: { $sum: { $cond: [{ $not: "$hasEnrollment" }, 1, 0] } },
                     usersMobileApp: { $sum: { $cond: [{ $and: ["$hasLoggedIn", "$isMobile"] }, 1, 0] } },
                     usersWebOnly: { $sum: { $cond: [{ $and: ["$hasLoggedIn", { $not: "$isMobile" }] }, 1, 0] } }
+                }
+            },
+            {
+                $project: {
+                    totalUsers: 1,
+                    usersLoggedIn: 1,
+                    usersNotLoggedIn: 1,
+                    totalEnrolledUsers: {
+                        $size: {
+                            $setUnion: {
+                                $reduce: {
+                                    input: "$allEnrolledTrainingIds",
+                                    initialValue: [],
+                                    in: { $concatArrays: ["$$value", "$$this"] }
+                                }
+                            }
+                        }
+                    },
+                    usersStartedCourses: 1,
+                    totalCoursesCompleted: 1,
+                    usersWithNoEnrollment: 1,
+                    usersMobileApp: 1,
+                    usersWebOnly: 1
                 }
             }
         ];
@@ -265,13 +343,14 @@ const performSystemStatsGeneration = async ({ subscriberId, userId, userInfo }) 
             { header: 'Company Name', key: 'companyName', width: 30 },
             { header: 'Vessel Name', key: 'vesselName', width: 30 },
             { header: 'Total Users', key: 'totalUsers', width: 15 },
-            { header: 'Users Logged In(atleast once)', key: 'usersLoggedIn', width: 25 },
-            { header: 'Users Not Logged In at all', key: 'usersNotLoggedIn', width: 25 },
-            { header: 'Total Users Enrolled to Courses', key: 'totalEnrolledUsers', width: 25 },
-            { header: 'Users Started atleast one Course', key: 'usersStartedCourses', width: 25 },
-            { header: 'Users enrolled to 0 Courses', key: 'usersWithNoEnrollment', width: 25 },
-            { header: 'Users logged in on Web Only', key: 'usersWebOnly', width: 25 },
-            { header: 'Users logged in on Mobile App', key: 'usersMobileApp', width: 25 }
+            { header: 'Users Accepted the Invite', key: 'usersLoggedIn', width: 25 },
+            { header: 'Users Not Accepted the Invite', key: 'usersNotLoggedIn', width: 25 },
+            { header: 'Total Courses Enrolled', key: 'totalEnrolledUsers', width: 25 },
+            { header: 'Total Courses Completed', key: 'totalCoursesCompleted', width: 25 },
+            { header: 'Users Started At Least One Course', key: 'usersStartedCourses', width: 25 },
+            { header: 'Users Enrolled to Zero Courses', key: 'usersWithNoEnrollment', width: 25 },
+            { header: 'Users Logged In on Web Only', key: 'usersWebOnly', width: 25 },
+            { header: 'Users Logged In on Mobile App', key: 'usersMobileApp', width: 25 }
         ];
 
         // Initialize Grand Totals
@@ -280,6 +359,7 @@ const performSystemStatsGeneration = async ({ subscriberId, userId, userInfo }) 
             usersLoggedIn: 0,
             usersNotLoggedIn: 0,
             totalEnrolledUsers: 0,
+            totalCoursesCompleted: 0,
             usersStartedCourses: 0,
             usersWithNoEnrollment: 0,
             usersWebOnly: 0,
@@ -291,6 +371,7 @@ const performSystemStatsGeneration = async ({ subscriberId, userId, userInfo }) 
             grandTotal.usersLoggedIn += doc.usersLoggedIn || 0;
             grandTotal.usersNotLoggedIn += doc.usersNotLoggedIn || 0;
             grandTotal.totalEnrolledUsers += doc.totalEnrolledUsers || 0;
+            grandTotal.totalCoursesCompleted += doc.totalCoursesCompleted || 0;
             grandTotal.usersStartedCourses += doc.usersStartedCourses || 0;
             grandTotal.usersWithNoEnrollment += doc.usersWithNoEnrollment || 0;
             grandTotal.usersWebOnly += doc.usersWebOnly || 0;
@@ -305,14 +386,15 @@ const performSystemStatsGeneration = async ({ subscriberId, userId, userInfo }) 
             worksheet.addRow({
                 companyName: doc.companyName || "No Company",
                 vesselName: doc.vesselName || "No Vessel",
-                totalUsers: doc.totalUsers,
-                usersLoggedIn: doc.usersLoggedIn,
-                usersNotLoggedIn: doc.usersNotLoggedIn,
-                totalEnrolledUsers: doc.totalEnrolledUsers,
-                usersStartedCourses: doc.usersStartedCourses,
-                usersWithNoEnrollment: doc.usersWithNoEnrollment,
-                usersWebOnly: doc.usersWebOnly,
-                usersMobileApp: doc.usersMobileApp
+                totalUsers: doc.totalUsers || 0,
+                usersLoggedIn: doc.usersLoggedIn || 0,
+                usersNotLoggedIn: doc.usersNotLoggedIn || 0,
+                totalEnrolledUsers: doc.totalEnrolledUsers || 0,
+                usersStartedCourses: doc.usersStartedCourses || 0,
+                totalCoursesCompleted: doc.totalCoursesCompleted || 0,
+                usersWithNoEnrollment: doc.usersWithNoEnrollment || 0,
+                usersWebOnly: doc.usersWebOnly || 0,
+                usersMobileApp: doc.usersMobileApp || 0
             }).commit();
 
             addToTotal(doc);
@@ -327,14 +409,15 @@ const performSystemStatsGeneration = async ({ subscriberId, userId, userInfo }) 
             worksheet.addRow({
                 companyName: "N/A",
                 vesselName: "Users without Vessel",
-                totalUsers: doc.totalUsers,
-                usersLoggedIn: doc.usersLoggedIn,
-                usersNotLoggedIn: doc.usersNotLoggedIn,
-                totalEnrolledUsers: doc.totalEnrolledUsers,
-                usersStartedCourses: doc.usersStartedCourses,
-                usersWithNoEnrollment: doc.usersWithNoEnrollment,
-                usersWebOnly: doc.usersWebOnly,
-                usersMobileApp: doc.usersMobileApp
+                totalUsers: doc.totalUsers || 0,
+                usersLoggedIn: doc.usersLoggedIn || 0,
+                usersNotLoggedIn: doc.usersNotLoggedIn || 0,
+                totalEnrolledUsers: doc.totalEnrolledUsers || 0,
+                usersStartedCourses: doc.usersStartedCourses || 0,
+                totalCoursesCompleted: doc.totalCoursesCompleted || 0,
+                usersWithNoEnrollment: doc.usersWithNoEnrollment || 0,
+                usersWebOnly: doc.usersWebOnly || 0,
+                usersMobileApp: doc.usersMobileApp || 0
             }).commit();
 
             addToTotal(doc);
@@ -349,6 +432,7 @@ const performSystemStatsGeneration = async ({ subscriberId, userId, userInfo }) 
             usersLoggedIn: grandTotal.usersLoggedIn,
             usersNotLoggedIn: grandTotal.usersNotLoggedIn,
             totalEnrolledUsers: grandTotal.totalEnrolledUsers,
+            totalCoursesCompleted: grandTotal.totalCoursesCompleted,
             usersStartedCourses: grandTotal.usersStartedCourses,
             usersWithNoEnrollment: grandTotal.usersWithNoEnrollment,
             usersWebOnly: grandTotal.usersWebOnly,
@@ -404,10 +488,11 @@ const performSystemStatsGeneration = async ({ subscriberId, userId, userInfo }) 
 Please find attached the Vessel-wise User Activity Report for today.
 
 The report includes the following metrics:
-- Total Users
-- Users Logged In (at least once)
-- Users Not Logged In at all
-- Total Users Enrolled to Courses
+- Total Users (Onboard + Assigned)
+- Users Accepted the Invite
+- Users Not Accepted the invite
+- Total Courses Enrolled
+- Total courses completed
 - Users Started at least one Course
 - Users Enrolled to 0 Courses
 - Users Logged in on Web Only
