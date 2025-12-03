@@ -2,11 +2,26 @@ const { CronHelper } = require("../../tools");
 const { fork } = require("child_process");
 const path = require("path");
 const { Subscriber } = require("../saas/subscriber/subscriber_model");
+const aws_helper = require("../../util/aws_helper");
 
 const scheduleSystemStatsReport = () => {
     // Schedule to run every day at 10:30 AM
     CronHelper.schedule("30 10 * * *", async () => {
         console.log("Starting scheduled system stats report generation...");
+
+        if (process.env.NODE_ENV !== 'production') {
+            const envValue = process.env.NODE_ENV || "undefined";
+            console.log(`Skipping report generation. Environment is not production (Current: ${envValue}). Sending alert email...`);
+
+            aws_helper.sendEmail({
+                receiverEmail: "ashwin@squadramedia.com",
+                subject: "Automated Email Not Working - Environment Alert",
+                htmlContent: `<p>The automated email scheduler is not running because the environment is not production.</p>
+                              <p>Current NODE_ENV: <strong>${envValue}</strong></p>`
+            }).catch(err => console.error("Failed to send alert email:", err));
+
+            return;
+        }
 
         try {
             // Fetch a valid subscriber ID (e.g., the first active one)
