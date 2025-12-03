@@ -309,15 +309,5 @@ TrainingRegistrationRemainder.trainingRegistrationRemainder();
 TrainingCertificateRemainder.trainingCertificateRemainder();
 BatchRemainder.batchCompletionRemainder();
 EmployeeHelper.scheduledForEveryDayMidnight();
-if (process.env.NODE_ENV === "production" || process.env.NODE_ENV === "development-production") {
-    SystemStatsScheduler.scheduleSystemStatsReport();
-} else {
-    const envValue = process.env.NODE_ENV || "undefined";
-    aws_helper.sendEmail({
-        receiverEmail: "ashwin@squadramedia.com",
-        subject: "Automated Email Not Working - Environment Alert",
-        htmlContent: `<p>The automated email scheduler is not running because the environment is not production.</p>
-                      <p>Current NODE_ENV: <strong>${envValue}</strong></p>`
-    }).catch(err => console.error("Failed to send alert email:", err));
-}
+SystemStatsScheduler.scheduleSystemStatsReport();
 
