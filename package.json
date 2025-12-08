@@ -10,7 +10,14 @@
 		"dev2": "SET NODE_ENV=development&&nodemon app.js",
 		"stage": "export NODE_ENV=stage&&node app.js",
 		"live": "export NODE_ENV=production&&node app.js",
-		"devlive": "SET NODE_ENV=development-production&&nodemon app.js"
+		"devlive": "SET NODE_ENV=development-production&&nodemon app.js",
+		"sync": "node scripts/quick-sync.js full",
+		"sync:quick": "node scripts/quick-sync.js quick",
+		"sync:check": "node scripts/quick-sync.js check",
+		"sync:samples": "node scripts/quick-sync.js samples",
+		"sync:opensearch": "node scripts/quick-sync.js opensearch",
+		"sync:verify": "node scripts/quick-sync.js verify",
+		"sync:help": "node scripts/quick-sync.js help"
 	},
 	"author": "Armino",
 	"license": "ISC",
