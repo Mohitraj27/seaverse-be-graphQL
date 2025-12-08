@@ -4,6 +4,8 @@ const { User } = require("../src/app/user/user_model");
 const { Employee } = require("../src/app/user/employee/employee_model");
 const { Designation } = require("../src/app/designations/designation_model");
 const { Vessel } = require("../src/app/vessle/vessel_model");
+const SignupRequest = require("../src/app/signup-request/signup-request-model");
+const signupStatus = require("../src/app/signup-request/signup-status.json");
 const { client, bulkIndexDocumentsToElasticSearch } = require("../src/util/elastic_helper");
 const { encrypt } = require("../src/util/encryption_helper");
 const mongoose = require("mongoose");
@@ -376,6 +378,25 @@ class OpenSearchMongoDBSync {
                         const user = new User(userData);
                         await user.save();
 
+                        // Create SignupRequest document if isSignupAdminAprroved is false
+                        if (osData.isSignupAdminAprroved === false) {
+                            const signupRequestData = {
+                                firstName: osData.firstName || null,
+                                lastName: osData.lastName || null,
+                                email: osData.email || osData.companyEmail || null,
+                                requestDate: osData.createdAt || new Date(),
+                                signupStatus: signupStatus.PENDING,
+                                userId: osData.userId,
+                                isDeleted: false,
+                                createdAt: osData.createdAt || new Date(),
+                                updatedAt: osData.updatedAt || new Date(),
+                            };
+
+                            const signupRequest = new SignupRequest(signupRequestData);
+                            await signupRequest.save();
+                            console.log(`   ✅ Created signup request for user ${osData.userId}`);
+                        }
+
                         // Create Employee document if employee data exists
                         if (osData.empDesignation || osData.regType || osData.employeeId) {
                             const employeeData = {
@@ -416,6 +437,285 @@ class OpenSearchMongoDBSync {
         console.log(`\n✅ Total synced to MongoDB: ${syncedCount} users`);
         if (errorCount > 0) {
             console.log(`⚠️  Errors encountered: ${errorCount} users failed to sync`);
+        }
+    }
+
+    /**
+     * Find duplicate user records in OpenSearch using Composite Aggregation
+     * This method supports unlimited duplicates through pagination (no 10K limit)
+     * Returns a map of userId -> array of document IDs
+     */
+    async findDuplicatesInOpenSearch() {
+        try {
+            console.log('\n' + '='.repeat(60));
+            console.log('🔍 FINDING DUPLICATES IN OPENSEARCH');
+            console.log('='.repeat(60));
+
+            await this.connectToOpenSearch();
+
+            console.log('\n📊 Scanning OpenSearch for duplicate email entries...');
+            console.log('   Using Composite Aggregation (supports unlimited duplicates)');
+
+            // Step 1: Use composite aggregation to find ALL duplicate emails (with pagination)
+            const duplicateEmails = new Map(); // email -> count
+            let afterKey = null;
+            let batchNum = 0;
+
+            do {
+                batchNum++;
+                console.log(`\n   📦 Fetching batch ${batchNum}...`);
+
+                const aggBody = {
+                    size: 0,
+                    aggs: {
+                        user_groups: {
+                            composite: {
+                                size: 1000, // Batch size for pagination
+                                sources: [
+                                    {
+                                        email: {
+                                            terms: {
+                                                field: 'email.keyword'
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                };
+
+                // Add after_key for pagination
+                if (afterKey) {
+                    aggBody.aggs.user_groups.composite.after = afterKey;
+                }
+
+                const response = await client.search({
+                    index: this.OPENSEARCH_INDEX,
+                    body: aggBody
+                });
+
+                const buckets = response.body.aggregations.user_groups.buckets;
+
+                // Filter only duplicates (count > 1)
+                let duplicatesInBatch = 0;
+                for (const bucket of buckets) {
+                    const email = bucket.key.email;
+                    const count = bucket.doc_count;
+
+                    if (count > 1) {
+                        duplicateEmails.set(email, count);
+                        duplicatesInBatch++;
+                    }
+                }
+
+                console.log(`      Found ${duplicatesInBatch} duplicates in this batch`);
+                console.log(`      Total duplicates found so far: ${duplicateEmails.size}`);
+
+                afterKey = response.body.aggregations.user_groups.after_key;
+
+            } while (afterKey);
+
+            console.log(`\n✅ Aggregation complete: Found ${duplicateEmails.size} emails with duplicates`);
+
+            if (duplicateEmails.size === 0) {
+                console.log('\n✅ No duplicates found in OpenSearch!');
+                return { duplicates: {}, totalDuplicateUsers: 0, totalDuplicateDocuments: 0 };
+            }
+
+            // Step 2: Fetch all documents for each duplicate email
+            console.log('\n🔄 Fetching duplicate documents...');
+            const duplicates = {};
+            let totalDuplicateDocuments = 0;
+            const emailsArray = Array.from(duplicateEmails.keys());
+
+            for (let i = 0; i < emailsArray.length; i++) {
+                const email = emailsArray[i];
+                const count = duplicateEmails.get(email);
+
+                // Show progress every 10 emails or for the first 5
+                if (i < 5 || i % 10 === 0 || i === emailsArray.length - 1) {
+                    console.log(`   Processing email ${i + 1}/${emailsArray.length}: ${email} (${count} documents)`);
+                }
+
+                // Fetch all documents for this email
+                const docsResponse = await client.search({
+                    index: this.OPENSEARCH_INDEX,
+                    body: {
+                        query: {
+                            term: {
+                                'email.keyword': email
+                            }
+                        },
+                        size: count,
+                        sort: [
+                            { updatedAt: { order: 'desc' } }
+                        ]
+                    }
+                });
+
+                const docs = docsResponse.body.hits.hits.map(hit => ({
+                    documentId: hit._id,
+                    userId: hit._source.userId,
+                    updatedAt: hit._source.updatedAt,
+                    createdAt: hit._source.createdAt,
+                    email: hit._source.email,
+                    firstName: hit._source.firstName,
+                    lastName: hit._source.lastName,
+                    isSignupAdminAprroved: hit._source.isSignupAdminAprroved
+                }));
+
+                duplicates[email] = docs;
+                totalDuplicateDocuments += count;
+            }
+
+            console.log(`\n✅ Finished fetching all duplicate documents`);
+
+            // Display summary
+            console.log('\n📋 Duplicate Summary:');
+            console.log(`   Total emails with duplicates: ${duplicateEmails.size}`);
+            console.log(`   Total duplicate documents: ${totalDuplicateDocuments}`);
+            console.log(`   Documents to remove: ${totalDuplicateDocuments - duplicateEmails.size}`);
+
+            // Show sample duplicates
+            console.log('\n📄 Sample Duplicates (showing first 10):');
+            const sampleEmails = Object.keys(duplicates).slice(0, 10);
+
+            sampleEmails.forEach((email, index) => {
+                const docs = duplicates[email];
+                console.log(`\n   ${index + 1}. Email: ${email} (${docs.length} documents)`);
+                docs.forEach((doc, docIndex) => {
+                    console.log(`      ${docIndex === 0 ? '✅ KEEP' : '❌ DELETE'} - Doc ID: ${doc.documentId}`);
+                    console.log(`         Updated: ${doc.updatedAt || 'N/A'}`);
+                    console.log(`         Created: ${doc.createdAt || 'N/A'}`);
+                });
+            });
+
+            if (Object.keys(duplicates).length > 10) {
+                console.log(`\n   ... and ${Object.keys(duplicates).length - 10} more duplicate emails`);
+            }
+
+            console.log('\n' + '='.repeat(60));
+            console.log('✅ Duplicate scan completed!');
+            console.log('='.repeat(60) + '\n');
+
+            return {
+                duplicates,
+                totalDuplicateUsers: duplicateEmails.size,
+                totalDuplicateDocuments
+            };
+
+        } catch (error) {
+            console.error('\n❌ Error finding duplicates:', error.message);
+            console.error('Stack trace:', error.stack);
+            throw error;
+        }
+    }
+
+    /**
+     * Remove duplicate user records from OpenSearch
+     * Keeps the most recently updated document for each email
+     */
+    async removeDuplicatesFromOpenSearch(dryRun = true) {
+        try {
+            console.log('\n' + '='.repeat(60));
+            console.log(`🗑️  REMOVING DUPLICATES FROM OPENSEARCH ${dryRun ? '(DRY RUN)' : '(LIVE)'}`);
+            console.log('='.repeat(60));
+
+            // First, find all duplicates
+            const { duplicates, totalDuplicateUsers, totalDuplicateDocuments } = await this.findDuplicatesInOpenSearch();
+
+            if (totalDuplicateUsers === 0) {
+                console.log('\n✅ No duplicates to remove!');
+                return { removed: 0, kept: 0 };
+            }
+
+            console.log(`\n🔄 Processing ${totalDuplicateUsers} emails with duplicates...`);
+
+            let removedCount = 0;
+            let keptCount = 0;
+            const errors = [];
+
+            for (const [email, docs] of Object.entries(duplicates)) {
+                try {
+                    // Sort documents: prioritize keeping approved users (isSignupAdminAprroved !== false)
+                    // Then by most recently updated
+                    const sortedDocs = [...docs].sort((a, b) => {
+                        // First priority: approved status (keep approved, delete unapproved)
+                        const aApproved = a.isSignupAdminAprroved !== false;
+                        const bApproved = b.isSignupAdminAprroved !== false;
+
+                        if (aApproved !== bApproved) {
+                            return bApproved ? 1 : -1; // Keep approved ones
+                        }
+
+                        // Second priority: most recently updated
+                        const aTime = new Date(a.updatedAt || a.createdAt || 0).getTime();
+                        const bTime = new Date(b.updatedAt || b.createdAt || 0).getTime();
+                        return bTime - aTime;
+                    });
+
+                    const [keepDoc, ...removeDocs] = sortedDocs;
+
+                    keptCount++;
+                    console.log(`\n✅ Keeping document ${keepDoc.documentId} for email ${email}`);
+                    console.log(`   isSignupAdminAprroved: ${keepDoc.isSignupAdminAprroved}`);
+                    console.log(`   Updated: ${keepDoc.updatedAt || 'N/A'}`);
+
+                    // Remove the rest
+                    for (const doc of removeDocs) {
+                        if (dryRun) {
+                            console.log(`   🔍 [DRY RUN] Would delete document ${doc.documentId}`);
+                            console.log(`      isSignupAdminAprroved: ${doc.isSignupAdminAprroved}`);
+                            console.log(`      Updated: ${doc.updatedAt || 'N/A'}`);
+                        } else {
+                            await client.delete({
+                                index: this.OPENSEARCH_INDEX,
+                                id: doc.documentId
+                            });
+                            console.log(`   ❌ Deleted document ${doc.documentId}`);
+                            console.log(`      isSignupAdminAprroved: ${doc.isSignupAdminAprroved}`);
+                            console.log(`      Updated: ${doc.updatedAt || 'N/A'}`);
+                        }
+                        removedCount++;
+                    }
+
+                } catch (error) {
+                    console.error(`   ❌ Error processing email ${email}:`, error.message);
+                    errors.push(`Email ${email}: ${error.message}`);
+                }
+            }
+
+            console.log('\n' + '='.repeat(60));
+            console.log('📊 REMOVAL SUMMARY');
+            console.log('='.repeat(60));
+            console.log(`Mode: ${dryRun ? 'DRY RUN (no changes made)' : 'LIVE (changes applied)'}`);
+            console.log(`Emails processed: ${totalDuplicateUsers}`);
+            console.log(`Documents kept: ${keptCount}`);
+            console.log(`Documents ${dryRun ? 'to be removed' : 'removed'}: ${removedCount}`);
+
+            if (errors.length > 0) {
+                console.log(`\n❌ Errors encountered: ${errors.length}`);
+                errors.forEach((error, index) => {
+                    console.log(`   ${index + 1}. ${error}`);
+                });
+            }
+
+            if (dryRun) {
+                console.log('\n💡 This was a DRY RUN. To actually remove duplicates, run with dryRun=false');
+            }
+
+            console.log('='.repeat(60) + '\n');
+
+            return {
+                removed: removedCount,
+                kept: keptCount,
+                errors
+            };
+
+        } catch (error) {
+            console.error('\n❌ Error removing duplicates:', error.message);
+            throw error;
         }
     }
 
@@ -671,21 +971,49 @@ if (require.main === module) {
 
     // Parse command line arguments
     const args = process.argv.slice(2);
-    const options = {
-        syncToOpenSearch: !args.includes('--skip-opensearch'),
-        syncToMongoDB: !args.includes('--skip-mongodb'),
-        verify: !args.includes('--skip-verify')
-    };
 
-    sync.sync(options)
-        .then(() => {
-            console.log('✅ Script completed successfully');
-            process.exit(0);
-        })
-        .catch((error) => {
-            console.error('❌ Script failed:', error.message);
-            process.exit(1);
-        });
+    // Check for duplicate operations
+    if (args.includes('--find-duplicates')) {
+        // Find duplicates only
+        sync.findDuplicatesInOpenSearch()
+            .then(() => {
+                console.log('✅ Duplicate scan completed successfully');
+                process.exit(0);
+            })
+            .catch((error) => {
+                console.error('❌ Duplicate scan failed:', error.message);
+                process.exit(1);
+            });
+    } else if (args.includes('--remove-duplicates')) {
+        // Remove duplicates (dry run by default, use --live to actually delete)
+        const dryRun = !args.includes('--live');
+        sync.removeDuplicatesFromOpenSearch(dryRun)
+            .then(() => {
+                console.log('✅ Duplicate removal completed successfully');
+                process.exit(0);
+            })
+            .catch((error) => {
+                console.error('❌ Duplicate removal failed:', error.message);
+                process.exit(1);
+            });
+    } else {
+        // Normal sync operation
+        const options = {
+            syncToOpenSearch: !args.includes('--skip-opensearch'),
+            syncToMongoDB: !args.includes('--skip-mongodb'),
+            verify: !args.includes('--skip-verify')
+        };
+
+        sync.sync(options)
+            .then(() => {
+                console.log('✅ Script completed successfully');
+                process.exit(0);
+            })
+            .catch((error) => {
+                console.error('❌ Script failed:', error.message);
+                process.exit(1);
+            });
+    }
 }
 
 module.exports = OpenSearchMongoDBSync;

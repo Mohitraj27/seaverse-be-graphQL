@@ -33,10 +33,21 @@ router.post('/start', (req, res) => {
     const { operation, sampleSize } = req.body;
     const operationId = Date.now().toString();
 
-    // Build command arguments
-    const args = [path.join(__dirname, 'quick-sync.js'), operation];
-    if (operation === 'samples' && sampleSize) {
-        args.push(sampleSize.toString());
+    // Build command arguments based on operation type
+    let args;
+
+    if (operation === 'find-duplicates') {
+        args = [path.join(__dirname, 'sync-opensearch-mongodb.js'), '--find-duplicates'];
+    } else if (operation === 'remove-duplicates-dry') {
+        args = [path.join(__dirname, 'sync-opensearch-mongodb.js'), '--remove-duplicates'];
+    } else if (operation === 'remove-duplicates-live') {
+        args = [path.join(__dirname, 'sync-opensearch-mongodb.js'), '--remove-duplicates', '--live'];
+    } else {
+        // Original sync operations
+        args = [path.join(__dirname, 'quick-sync.js'), operation];
+        if (operation === 'samples' && sampleSize) {
+            args.push(sampleSize.toString());
+        }
     }
 
     console.log('Starting operation:', operationId, args);
@@ -76,16 +87,28 @@ router.post('/start', (req, res) => {
 
             operationData.logs.push({ type: 'log', message: line, timestamp: new Date() });
 
-            // Extract statistics
+            // Extract statistics for sync operations
             const mongoMatch = line.match(/Total MongoDB Users:\s*(\d+)/);
             const osMatch = line.match(/Total OpenSearch Users:\s*(\d+)/);
             const missingOSMatch = line.match(/Users in MongoDB only:\s*(\d+)/);
             const orphanedMatch = line.match(/Users in OpenSearch only.*?:\s*(\d+)/);
 
+            // Extract statistics for duplicate operations
+            const duplicateUsersMatch = line.match(/Total users with duplicates:\s*(\d+)/);
+            const duplicateDocsMatch = line.match(/Total duplicate documents:\s*(\d+)/);
+            const docsToRemoveMatch = line.match(/Documents to remove:\s*(\d+)/);
+            const docsRemovedMatch = line.match(/Documents (?:to be removed|removed):\s*(\d+)/);
+
             if (mongoMatch) operationData.stats.mongoTotal = parseInt(mongoMatch[1]);
             if (osMatch) operationData.stats.openSearchTotal = parseInt(osMatch[1]);
             if (missingOSMatch) operationData.stats.missingInOpenSearch = parseInt(missingOSMatch[1]);
             if (orphanedMatch) operationData.stats.missingInMongoDB = parseInt(orphanedMatch[1]);
+
+            // Store duplicate stats
+            if (duplicateUsersMatch) operationData.stats.duplicateUsers = parseInt(duplicateUsersMatch[1]);
+            if (duplicateDocsMatch) operationData.stats.duplicateDocs = parseInt(duplicateDocsMatch[1]);
+            if (docsToRemoveMatch) operationData.stats.docsToRemove = parseInt(docsToRemoveMatch[1]);
+            if (docsRemovedMatch) operationData.stats.docsRemoved = parseInt(docsRemovedMatch[1]);
         });
     });
 

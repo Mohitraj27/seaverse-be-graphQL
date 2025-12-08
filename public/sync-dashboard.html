@@ -38,6 +38,7 @@
         .header h1 {
             font-size: 2.5em;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background-clip: text;
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             margin-bottom: 10px;
@@ -143,6 +144,11 @@
 
         .btn-warning {
             background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+            color: white;
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
             color: white;
         }
 
@@ -425,6 +431,27 @@
                     </button>
                 </div>
 
+                <!-- Duplicate Management Section -->
+                <h2 style="margin-top: 40px;">Duplicate Management</h2>
+
+                <div class="button-group">
+                    <button class="btn btn-info" onclick="runOperation('find-duplicates')" id="btn-find-duplicates">
+                        <span>🔍 Find Duplicates</span>
+                        <span class="btn-icon">→</span>
+                    </button>
+
+                    <button class="btn btn-warning" onclick="runOperation('remove-duplicates-dry')"
+                        id="btn-remove-duplicates-dry">
+                        <span>🧪 Remove Duplicates (Dry Run)</span>
+                        <span class="btn-icon">→</span>
+                    </button>
+
+                    <button class="btn btn-danger" onclick="confirmRemoveDuplicates()" id="btn-remove-duplicates-live">
+                        <span>🗑️ Remove Duplicates (LIVE)</span>
+                        <span class="btn-icon">⚠️</span>
+                    </button>
+                </div>
+
                 <div class="stats-grid" style="margin-top: 30px;">
                     <div class="stat-card">
                         <div class="stat-label">MongoDB Users</div>
@@ -441,6 +468,26 @@
                     <div class="stat-card">
                         <div class="stat-label">Orphaned in OS</div>
                         <div class="stat-value" id="stat-orphaned">-</div>
+                    </div>
+                </div>
+
+                <!-- Duplicate Statistics -->
+                <div class="stats-grid" style="margin-top: 20px;" id="duplicate-stats" hidden>
+                    <div class="stat-card">
+                        <div class="stat-label">Users with Duplicates</div>
+                        <div class="stat-value" id="stat-duplicate-users">-</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Total Duplicate Docs</div>
+                        <div class="stat-value" id="stat-duplicate-docs">-</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Docs to Remove</div>
+                        <div class="stat-value" id="stat-docs-remove">-</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Docs Removed</div>
+                        <div class="stat-value" id="stat-docs-removed">-</div>
                     </div>
                 </div>
             </div>
@@ -512,6 +559,24 @@
             }
         }
 
+        function confirmRemoveDuplicates() {
+            const confirmed = confirm(
+                '⚠️ WARNING: This will PERMANENTLY DELETE duplicate records from OpenSearch!\n\n' +
+                'This action cannot be undone.\n\n' +
+                'Make sure you have:\n' +
+                '1. Run "Find Duplicates" first\n' +
+                '2. Run "Remove Duplicates (Dry Run)" to preview\n' +
+                '3. Backed up your data\n\n' +
+                'Are you absolutely sure you want to proceed?'
+            );
+
+            if (confirmed) {
+                runOperation('remove-duplicates-live');
+            } else {
+                addConsoleLog('Live duplicate removal cancelled by user', 'warning');
+            }
+        }
+
         async function runOperation(operation) {
             if (isRunning) {
                 addConsoleLog('Another operation is already running. Please wait...', 'warning');
@@ -528,7 +593,10 @@
                 'check': 'Check Differences',
                 'opensearch': 'Sync to OpenSearch',
                 'full': 'Full Sync',
-                'verify': 'Verify Consistency'
+                'verify': 'Verify Consistency',
+                'find-duplicates': 'Find Duplicates in OpenSearch',
+                'remove-duplicates-dry': 'Remove Duplicates (Dry Run)',
+                'remove-duplicates-live': 'Remove Duplicates (LIVE)'
             };
 
             addConsoleLog(`Starting operation: ${operationNames[operation]}`, 'info');
