@@ -617,63 +617,6 @@
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
-
-                //     const reader = response.body.getReader();
-                //     const decoder = new TextDecoder();
-
-                //     while (true) {
-                //         const { value, done } = await reader.read();
-                //         if (done) break;
-
-                //         const chunk = decoder.decode(value);
-                //         const lines = chunk.split('\n');
-
-                //         for (const line of lines) {
-                //             if (!line.trim()) continue;
-
-                //             try {
-                //                 const data = JSON.parse(line);
-
-                //                 if (data.type === 'log') {
-                //                     let logType = 'default';
-                //                     if (data.message.includes('✅') || data.message.includes('Success')) {
-                //                         logType = 'success';
-                //                     } else if (data.message.includes('❌') || data.message.includes('Error')) {
-                //                         logType = 'error';
-                //                     } else if (data.message.includes('⚠️') || data.message.includes('Warning')) {
-                //                         logType = 'warning';
-                //                     } else if (data.message.includes('📊') || data.message.includes('🔍') || data.message.includes('📋')) {
-                //                         logType = 'info';
-                //                     }
-                //                     addConsoleLog(data.message, logType);
-                //                 } else if (data.type === 'stats') {
-                //                     updateStats(data.data);
-                //                 } else if (data.type === 'complete') {
-                //                     addConsoleLog('═'.repeat(60), 'default');
-                //                     addConsoleLog('Operation completed successfully!', 'success');
-                //                     setStatus('idle');
-                //                 } else if (data.type === 'error') {
-                //                     addConsoleLog(`Error: ${data.message}`, 'error');
-                //                     setStatus('error');
-                //                 }
-                //             } catch (e) {
-                //                 // Not JSON, treat as plain text
-                //                 if (line.trim()) {
-                //                     addConsoleLog(line, 'default');
-                //                 }
-                //             }
-                //         }
-                //     }
-                // } catch (error) {
-                //     addConsoleLog(`Error: ${error.message}`, 'error');
-                //     setStatus('error');
-                // } finally {
-                //     isRunning = false;
-                //     disableButtons(false);
-                //     if (document.getElementById('status-indicator').classList.contains('status-running')) {
-                //         setStatus('idle');
-                //     }
-                // }
                 const result = await response.json();
                 const operationId = result.operationId;
                 addConsoleLog('Monitoring progress...', 'info');
