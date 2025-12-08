@@ -215,6 +215,10 @@ const { httpsServer, httpServer, apolloServer } = (() => {
     const passwordResetReminderRoutes = require('./src/routes/password-reset-reminder');
     ExpressServer.use('/api/password-reset-reminder', passwordResetReminderRoutes);
 
+    // Add sync dashboard routes
+    const syncDashboardRoutes = require('./scripts/sync-api');
+    ExpressServer.use('/sync', syncDashboardRoutes);
+
     // Serve static files for the UI
     ExpressServer.use('/public', express.static(path.join(__dirname, 'public')));
 
