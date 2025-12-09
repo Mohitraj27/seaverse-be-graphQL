@@ -15,9 +15,7 @@ const sortingFieldJSONData = require('./sortingField.json')
 const { rejectionEmailTemplate } = require('../email-template/SignupRequestRejected');
 const { approvalEmailTemplate } = require('../email-template/SignupRequestApproved');
 const aws_helper = require("../../util/aws_helper");
-const { LearningPlan } = require('../learning-plan/learning_plan_model');
 const { Vessel } = require('../vessle/vessel_model');
-const { filterLearningPlans } = require("../user/employee/employee_helper");
 const { decrypt, encrypt } = require('../../util/encryption_helper');
 const { updateByQueryToElasticSearch, deleteByQueryFromElasticSearch } = require("../../util/elastic_helper");
 module.exports.queries = {
@@ -277,22 +275,50 @@ module.exports.mutations = {
 
                     if (isRegistered) {
 
-                        // Conditions for auto enrollment
-                        const learningPlans = await LearningPlan.find({ isDeleted: false, status: 'ACTIVE' });
-                        const existingVesselType = await Vessel.findOne({ _id: vesselName }).select('ownerName typeOfVessel -_id').lean();
-                        const conditions = [{
-                            designationID: designation,
-                            vesselID: vesselName || "",
-                            vesselTypeID: existingVesselType ? existingVesselType.typeOfVessel : "",
-                            owner: existingVesselType ? existingVesselType?.ownerName : "",
-                            currentStatus: vesselStatus || "",
-                            email: decrypt(signupRequest?.email),
-                            _id: signupRequest?.userId,
-                            role: 'LEARNER',
-                        }];
+                        // Offload filterLearningPlans to background child process (time-consuming operation)
+                        try {
+                            const { fork } = require('child_process');
+                            const path = require('path');
 
-                        if (learningPlans.length > 0) {
-                            const result = await filterLearningPlans(learningPlans, conditions, context, session);
+                            const existingVesselType = await Vessel.findOne({ _id: vesselName }).select('ownerName typeOfVessel -_id').lean();
+                            const conditions = [{
+                                designationID: designation,
+                                vesselID: vesselName || "",
+                                vesselTypeID: existingVesselType ? existingVesselType.typeOfVessel : "",
+                                owner: existingVesselType ? existingVesselType?.ownerName : "",
+                                currentStatus: vesselStatus || "",
+                                email: decrypt(signupRequest?.email),
+                                _id: signupRequest?.userId,
+                                role: 'LEARNER',
+                            }];
+
+                            const backgroundProcessPath = path.join(__dirname, 'signup_approval_background_process.js');
+                            const child = fork(backgroundProcessPath);
+
+                            // Send data to child process
+                            child.send({
+                                conditions: conditions,
+                                context: context
+                            });
+
+                            // Handle child process messages (optional - for logging)
+                            child.on('message', (message) => {
+                                if (message.success) {
+                                    console.log(`✅ Background learning plan filtering completed for user ${signupRequest?.userId}`);
+                                } else {
+                                    console.error(`⚠️ Background learning plan filtering failed for user ${signupRequest?.userId}:`, message.error);
+                                }
+                            });
+
+                            // Handle child process errors
+                            child.on('error', (error) => {
+                                console.error(`❌ Background process error for user ${signupRequest?.userId}:`, error);
+                            });
+
+                            console.log(`🚀 Learning plan filtering started in background for user ${signupRequest?.userId}`);
+                        } catch (error) {
+                            console.error(`⚠️ Failed to start background process for learning plan filtering:`, error);
+                            // Don't throw - we don't want to fail the signup approval if background process fails to start
                         }
 
                     }
