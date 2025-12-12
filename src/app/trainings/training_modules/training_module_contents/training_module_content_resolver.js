@@ -283,6 +283,7 @@ module.exports.queries = {
                     ...content,
                     createdBy: decryptedCreatedBy,
                     updatedBy: decryptedUpdatedBy,
+                    needsCompression: content.contentType === 'VIDEO' && content.videos && content.videos.length > 0 ? content.videos.some(video => !video.url.includes('_compressed')) : false,
                 };
             });
 
@@ -2206,6 +2207,82 @@ module.exports.mutations = {
             throw CustomError(ErrorName.FAILED_TO_PUSH_LATEST_CONTENT, error.message);
         }
 
+    },
+
+    retryVideoCompression: async ({ contentId }, context) => {
+        const { subscriberId } = AuthUser(context);
+
+        try {
+            if (!contentId) {
+                throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Content ID is required");
+            }
+
+            // Find the content
+            const content = await TrainingModuleContent.findOne({
+                _id: contentId,
+                subscriber: subscriberId,
+                contentType: 'VIDEO',
+                isDeleted: false
+            });
+
+            if (!content) {
+                throw CustomError(ErrorName.NOT_FOUND, "Video content not found");
+            }
+
+            // Check if any video needs compression
+            const videosNeedingCompression = content.videos.filter(video => !video.url.includes('_compressed'));
+
+            if (videosNeedingCompression.length === 0) {
+                return {
+                    status: 0,
+                    message: "All videos are already compressed"
+                };
+            }
+
+            // Set compressing flag
+            content.compressing = true;
+            await content.save();
+
+            // Send to SQS queue for compression
+            const jobId = uuidv4();
+            
+            async function compressVideoJob(jobData) {
+                try {
+                    if (!jobData || !jobData.jobId) {
+                        throw new Error('Invalid job data: missing jobId');
+                    }
+
+                    const params = {
+                        QueueUrl: process.env.SQS_VIDEO_COMPRESSION_QUEUE_URL,
+                        MessageBody: JSON.stringify(jobData),
+                    };
+
+                    const data = await sqsClient.send(new SendMessageCommand(params));
+
+                    console.log(`📋 Retry compression job sent to SQS: ${data.MessageId}`);
+                    return { id: data.MessageId };
+                } catch (error) {
+                    console.error('❌ Failed to send retry job to SQS:', error);
+                    throw error;
+                }
+            }
+
+            await compressVideoJob({
+                jobId,
+                savedContent: { _id: content._id }
+            });
+
+            console.log(`✅ Video compression retry initiated for content ${contentId}`);
+
+            return {
+                status: 1,
+                message: `Video compression retry initiated successfully. ${videosNeedingCompression.length} video(s) will be compressed.`
+            };
+
+        } catch (error) {
+            console.error("Error in retryVideoCompression:", error);
+            throw CustomError(ErrorName.FAILED, error.message);
+        }
     },
 
 };
