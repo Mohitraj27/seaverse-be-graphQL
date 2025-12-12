@@ -137,7 +137,8 @@ module.exports = {
                 const response = true;
                 if (response /* && response.MessageId*/) {
                    // console.log('Email sent successfully:', response.MessageId);
-                    return response;
+                   console.log('Mock Email sent successfully');
+                    // return response;
                 } else {
                     throw new Error('No response from SES service');
                 }
