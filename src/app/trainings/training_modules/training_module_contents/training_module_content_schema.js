@@ -85,6 +85,7 @@ module.exports = {
             quizAttempts: [String]
             status: String
             compressing: Boolean
+            needsCompression: Boolean
             trainingModuleContentDetails: [TrainingModuleContent]
         }
         type TrainingModuleContentList {
@@ -200,6 +201,11 @@ module.exports = {
             key: String!
         }
 
+        type GenericResponse {
+            status: Int!
+            message: String!
+        }
+
     `,
     queries: `
         getTrainingModuleContents(pageInput: PageInput, search: String, contentStatus: TrainingModuleContentStatus,recentlyModified: Boolean, contentType: [TrainingModuleContentType], useStatus: useStatusInput): TrainingModuleContentList
@@ -221,5 +227,7 @@ module.exports = {
         updateTrainingModuleContent(input: TrainingModuleContentInput!, thumbnail: Upload, scorm: Upload, image: Upload, videos: [String],subtitles: [Upload], videoMetas: [VideoMetaInput],deletedVideos: [ID],deletedSubtitles: [ID], audio: Upload, file: String): UpdateContentResponse!
         updateTrainingModuleContentQuiz(input: TrainingModuleContentQuizInput!): UpdateContentQuizResponse!
         pushLatestContent(ids: [ID!]): creationRes!
+        retryVideoCompression(contentId: ID!): GenericResponse
+
          `,
 };
