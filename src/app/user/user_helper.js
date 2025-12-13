@@ -1,14 +1,9 @@
 const { CryptoHelper, JwtHelper, Validator } = require("../../tools");
-const { CustomError, ErrorName, Role, UploadHelper, VesselStatus } = require("../../util");
+const { CustomError, ErrorName, Role, UploadHelper } = require("../../util");
 
 const { User } = require("./user_model");
 
-const SubscriptionHelper = require("../saas/subscriber/subscription/subscription_helper");
-const NotificationHelper = require("../notifications/notification_helper");
-
-const NotificationType = require("../notifications/notification_type.json");
 const { decrypt, encrypt } = require('../../util/encryption_helper');
-const { updateByQueryToElasticSearch } = require("../../util/elastic_helper");
 module.exports = {
     makeAuthUser: async user => {
         const tokenPayload = {
@@ -217,50 +212,6 @@ module.exports = {
 
             const savedUser = await existingUser.save();
             if (!savedUser) throw CustomError(ErrorName.FAILED);
-
-            try {
-                await updateByQueryToElasticSearch(
-                    "users",
-                    `
-                        ctx._source.firstName = params.firstName;
-                        ctx._source.lastName = params.lastName;
-                        ctx._source.email = params.email;
-                        ctx._source.civilIdOrPassport = params.civilIdOrPassport;
-                        ctx._source.isRegistered = params.isRegistered;
-                        ctx._source.vesselStatus = params.vesselStatus;
-                        ctx._source.currentVessel = params.currentVessel;
-                        ctx._source.subRoles = params.subRoles;
-                        ctx._source.role = params.role;
-                        ctx._source.isActive = params.isActive;
-                        ctx._source.isVerified = params.isVerified;
-                        ctx._source.avatar = params.avatar;
-                    `,
-                    {
-                        term: { userId: savedUser._id.toString() }
-                    },
-                    {
-                        firstName: savedUser.firstName,
-                        lastName: savedUser.lastName,
-                        email: savedUser.email,
-                        phone: savedUser.phone,
-                        civilIdOrPassport: savedUser.civilIdOrPassport,
-                        avatar: savedUser.avatar,
-                        languagePreference: savedUser.languagePreference,
-                        isRegistered: savedUser.isRegistered,
-                        vesselStatus: savedUser.vesselStatus,
-                        currentVessel: savedUser.currentVessel,
-                        subRoles: savedUser.subRoles,
-                        role: savedUser.role,
-                        isActive: savedUser.isActive,
-                        isVerified: savedUser.isVerified,
-                        isOrganizationManager: savedUser.isOrganizationManager,
-                        managingOrganization: savedUser.managingOrganization,
-                        avatar: savedUser.avatar,
-                    }
-                );
-            } catch (error) {
-                throw CustomError(ErrorName.NOT_FOUND);
-            }
 
             return savedUser;
         }

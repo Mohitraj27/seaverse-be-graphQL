@@ -3422,7 +3422,49 @@ module.exports = {
         try {
             const userVesselsDetails = await Vessel.find({ _id: savedEmployee.user?.currentVessel, isDeleted: false, isActive: true }).populate('typeOfVessel', '_id name');
 
-            const document = {
+            const scriptSource = `
+                ctx._source.employeeId = params.employeeId;
+                ctx._source.UID = params.UID;
+                ctx._source.designation = params.designation;
+                ctx._source.empDesignation = params.empDesignation;
+                ctx._source.bulkId = params.bulkId;
+                ctx._source.regType = params.regType;
+                ctx._source.isActive = params.isActive;
+                ctx._source.isDeleted = params.isDeleted;
+                ctx._source.subscriber = params.subscriber;
+                ctx._source.createdAt = params.createdAt;
+                ctx._source.updatedAt = params.updatedAt;
+                ctx._source.firstName = params.firstName;
+                ctx._source.lastName = params.lastName;
+                ctx._source.email = params.email;
+                ctx._source.civilIdOrPassport = params.civilIdOrPassport;
+                ctx._source.languagePreference = params.languagePreference;
+                ctx._source.role = params.role;
+                ctx._source.subRoles = params.subRoles;
+                ctx._source.isVerified = params.isVerified;
+                ctx._source.isRegistered = params.isRegistered;
+                ctx._source.superAdmin = params.superAdmin;
+                ctx._source.deleteRequest = params.deleteRequest;
+                ctx._source.isDeleted_user = params.isDeleted_user;
+                ctx._source.directSignup = params.directSignup;
+                ctx._source.contentlanguages = params.contentlanguages;
+                ctx._source.currentVessel = params.currentVessel;
+                ctx._source.vesselStatus = params.vesselStatus;
+                ctx._source.isEmailNotification = params.isEmailNotification;
+                ctx._source.isPushNotification = params.isPushNotification;
+                ctx._source.lastLoginAt = params.lastLoginAt;
+                ctx._source.isSignupAdminAprroved = params.isSignupAdminAprroved;
+                ctx._source.vesselName = params.vesselName;
+                ctx._source.vesselIsActive = params.vesselIsActive;
+                ctx._source.vesselId = params.vesselId;
+                ctx._source.vesselIsDeleted = params.vesselIsDeleted;
+                ctx._source.typeOfVesselName = params.typeOfVesselName;
+                ctx._source.tyepOfVesselId = params.tyepOfVesselId;
+                ctx._source.userCreatedAt = params.userCreatedAt;
+                ctx._source.userUpdatedAt = params.userUpdatedAt;
+            `;
+
+            const params = {
                 employeeId: savedEmployee._id?.toString(),
                 UID: savedEmployee.UID,
                 designation: savedEmployee.designation,
@@ -3434,8 +3476,6 @@ module.exports = {
                 subscriber: savedEmployee.subscriber?.toString(),
                 createdAt: savedEmployee.createdAt,
                 updatedAt: savedEmployee.updatedAt,
-
-                userId: savedEmployee.user?._id?.toString(),
                 firstName: savedEmployee.user?.firstName,
                 lastName: savedEmployee.user?.lastName,
                 email: savedEmployee.user?.email,
@@ -3465,7 +3505,13 @@ module.exports = {
                 userCreatedAt: savedEmployee.user?.createdAt,
                 userUpdatedAt: savedEmployee.user?.updatedAt,
             };
-            await updateDocumenttoElasticSearch("users", savedEmployee._id, document);
+
+            await updateByQueryToElasticSearch(
+                "users",
+                scriptSource,
+                { term: { userId: savedEmployee.user?._id?.toString() } },
+                params
+            );
         } catch (err) {
             console.error("Error updating document in Elastic:", err);
         }
