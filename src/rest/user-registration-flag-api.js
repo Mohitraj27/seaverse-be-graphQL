@@ -8,18 +8,71 @@ const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
 
 const mongoose = require('mongoose');
-const { Client } = require('@opensearch-project/opensearch');
+// Replaced Elasticsearch with MongoDB UserSearchCache
+// const { Client } = require('@opensearch-project/opensearch');
+const { UserSearchCache } = require('../app/user/user_search_cache/user_search_cache_model');
 
 const router = express.Router();
 
-// Initialize Elasticsearch/OpenSearch client
-const esClient = new Client({
-    node: process.env.OPENSEARCH_URL,
-    auth: {
-        username: process.env.OPENSEARCH_USERNAME,
-        password: process.env.OPENSEARCH_PASSWORD,
+// MongoDB UserSearchCache (no separate client needed)
+const esClient = {
+    count: async ({ index, body }) => {
+        const query = body?.query?.term || {};
+        const count = await UserSearchCache.countDocuments(query);
+        return { body: { count } };
     },
-});
+    search: async ({ index, body }) => {
+        const query = body?.query?.term || {};
+        const size = body?.size || 1000;
+        const sort = body?.sort || [];
+        const searchAfter = body?.search_after;
+
+        let mongoQuery = UserSearchCache.find(query).limit(size);
+
+        if (sort.length > 0) {
+            const sortObj = {};
+            sort.forEach(s => {
+                const field = Object.keys(s)[0];
+                sortObj[field] = s[field] === 'asc' ? 1 : -1;
+            });
+            mongoQuery = mongoQuery.sort(sortObj);
+        }
+
+        if (searchAfter) {
+            mongoQuery = mongoQuery.skip(searchAfter[0] || 0);
+        }
+
+        const docs = await mongoQuery.lean();
+        return {
+            body: {
+                hits: {
+                    hits: docs.map(doc => ({
+                        _id: doc.userId,
+                        _source: doc,
+                        sort: [doc._id]
+                    }))
+                }
+            }
+        };
+    },
+    updateByQuery: async ({ index, body, refresh, conflicts }) => {
+        const query = body?.query?.ids?.values
+            ? { userId: { $in: body.query.ids.values } }
+            : body?.query?.term || {};
+
+        const update = {};
+        if (body?.script?.params) {
+            update.$set = body.script.params;
+            update.$set.updatedAt = new Date();
+        }
+
+        const result = await UserSearchCache.updateMany(query, update);
+        return { body: { updated: result.modifiedCount } };
+    },
+    indices: {
+        refresh: async () => ({ acknowledged: true })
+    }
+};
 
 const MONGODB_INDEX = 'users';
 const ELASTICSEARCH_INDEX = 'users';

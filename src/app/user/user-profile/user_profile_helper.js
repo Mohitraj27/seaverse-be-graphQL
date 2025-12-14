@@ -7,7 +7,9 @@ const { sendEmailToLearner } = require('../../email-template/sendWelcomeEmail');
 const AwsHelper = require("../../../util/aws_helper");
 const { SqliteEmailHelper } = require('../../../util');
 const { decrypt } = require('../../../util/encryption_helper');
-const { updateByQueryToElasticSearch } = require('../../../util/elastic_helper');
+// Replaced Elasticsearch with MongoDB UserSearchCache
+// const { updateByQueryToElasticSearch } = require('../../../util/elastic_helper');
+const { updateByQueryToElasticSearch } = require('../../../util/user_search_helper');
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -92,24 +94,24 @@ const deleteProfilePictureHelper = async (url, userId) => {
                 throw CustomError(ErrorName.NOT_FOUND, "User not found");
             }
             existingUser.avatar = null;
-           const result = await AwsHelper.deleteFile(url);
+            const result = await AwsHelper.deleteFile(url);
             await existingUser.save();
             try {
                 await updateByQueryToElasticSearch(
-                "users", 
-                `
+                    "users",
+                    `
                     ctx._source.avatar = params.avatar;
                 `,
-                {
-                    term: { userId: existingUser._id.toString() }
-                },
-                {
-                    avatar: null,
-                }
+                    {
+                        term: { userId: existingUser._id.toString() }
+                    },
+                    {
+                        avatar: null,
+                    }
                 );
-                } catch (error) {
-                    throw CustomError(ErrorName.NOT_FOUND);
-                }
+            } catch (error) {
+                throw CustomError(ErrorName.NOT_FOUND);
+            }
             return result;
 
         } catch (error) {

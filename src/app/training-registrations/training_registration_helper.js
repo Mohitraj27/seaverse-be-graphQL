@@ -41,7 +41,9 @@ const mongoose = require("mongoose");
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 const { decrypt, encrypt } = require('../../util/encryption_helper');
 const { updateCoursesCountAndProgressInElasticSearch } = require("./overall-course-progress/overall_progress_helper");
-const { bulkUpdateDocumentsInElastic } = require("../../util/elastic_helper");
+// Replaced Elasticsearch with MongoDB UserSearchCache
+// const { bulkUpdateDocumentsInElastic } = require("../../util/elastic_helper");
+const { bulkUpdateDocumentsInElastic } = require("../../util/user_search_helper");
 const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
 
     try {
@@ -581,7 +583,7 @@ const createTrainingProgressForMigrationUsersHelper = async (userIds, trainingId
 
 
             overallIds.push(overallId);
-            
+
             newProgressEntries.push({
                 updateOne: {
                     filter: { user: user, training: trainingId },

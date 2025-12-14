@@ -62,6 +62,7 @@ const { sendNotifications } = require("../../../util/firebase_helper");
 const Roles = require("../../../util/role.json");
 const { sendWelcomeEmailsToLearner, sendEmailToLearner } = require("../../email-template/sendWelcomeEmail");
 const { filterLearningPlans } = require("../employee/employee_helper");
+const { processLearningPlansInBackground } = require("./learning_plan_helper");
 const createNewEmployeeEmailTemplate = require("../../email-template/createEmployee");
 const mongoose = require("mongoose");
 const { DynamicData } = require("./employee_dynamicData_model");
@@ -87,7 +88,9 @@ const { processFilters } = require('./user_exportCSV_filter');
 const { ImportJob } = require("./import_job_model");
 
 const { decrypt, encrypt } = require("../../../util/encryption_helper");
-const { client, indexDocumenttoElasticSearch, getDocumentfromElasticSearch, updateByQueryToElasticSearch, searchEmployeesFromElastic } = require('../../../util/elastic_helper');
+// Replaced Elasticsearch with MongoDB UserSearchCache
+// const { client, indexDocumenttoElasticSearch, getDocumentfromElasticSearch, updateByQueryToElasticSearch, searchEmployeesFromElastic } = require('../../../util/elastic_helper');
+const { client, indexDocumenttoElasticSearch, getDocumentfromElasticSearch, updateByQueryToElasticSearch, searchEmployeesFromElastic } = require('../../../util/user_search_helper');
 const { toUpperCaseFirstLetter } = require("../../../util/string_helper");
 // const csvImportQueue = require("../../queues/csv_import_queue");
 // const { JOB_NAMES } = require("../../queues/queue.enum");
@@ -2237,20 +2240,27 @@ const changeRegisterEmployees = async ({ input }, context) => {
                 throw CustomError(ErrorName.EMPLOYEE_ALREADY_REGISTERED);
             }
 
-            updateUsers = await User.updateMany(
-                { _id: { $in: input.users } },
-                { isRegistered: true }
-            );
+            // Use DbTransactionHelper for atomic update
+            const { DbTransactionHelper } = require('../../../util');
+            const { UserSearchCache } = require('../../user/user_search_cache/user_search_cache_model');
+            const userIdStrings = input.users.map(id => id.toString());
 
-            try {
-                await updateByQueryToElasticSearch('users', "ctx._source.isRegistered = true", {
-                    terms: {
-                        userId: input.users  // input.users is an array of IDs
-                    }
-                });
-            } catch (error) {
-                throw error;
-            }
+            updateUsers = await DbTransactionHelper.performDbTransaction(async (session) => {
+                const result = await User.updateMany(
+                    { _id: { $in: input.users } },
+                    { isRegistered: true },
+                    { session }
+                );
+
+                // Update cache within transaction
+                await UserSearchCache.updateMany(
+                    { userId: { $in: userIdStrings } },
+                    { $set: { isRegistered: true } },
+                    { session }
+                );
+
+                return result;
+            });
             /* const emailContentforAdmin = registered_statusforAdmin(
                 {
                     adminfirstName: userInfo.firstName,
@@ -2263,7 +2273,8 @@ const changeRegisterEmployees = async ({ input }, context) => {
                 htmlContent: emailContentforAdmin,
             }); */
             if (learningPlans?.length > 0) {
-                const filteredPlans = await filterLearningPlans(learningPlans, conditions, context);
+                // Offload learning plan filtering to background process
+                processLearningPlansInBackground(input.users, 'register', context);
             }
             /* 
                         await NotificationHelper.createNotificationhelper({
@@ -2286,22 +2297,30 @@ const changeRegisterEmployees = async ({ input }, context) => {
             }
 
             const subRoleAdminId = await SubRole.findOne({ name: Roles.ADMIN, primaryRole: Roles.ADMIN }).select("_id");
-            updateUsers = await User.updateMany(
-                { _id: { $in: input.users } },
-                {
-                    $set: { isRegistered: false, lastUnregisteredAt: new Date() },
-                }
-            );
 
-            try {
-                await updateByQueryToElasticSearch('users', "ctx._source.isRegistered = false", {
-                    terms: {
-                        userId: input.users  // input.users is an array of IDs
-                    }
-                });
-            } catch (error) {
-                throw error;
-            }
+            // Use DbTransactionHelper for atomic update
+            const { DbTransactionHelper } = require('../../../util');
+            const { UserSearchCache } = require('../../user/user_search_cache/user_search_cache_model');
+            const userIdStrings = input.users.map(id => id.toString());
+
+            updateUsers = await DbTransactionHelper.performDbTransaction(async (session) => {
+                const result = await User.updateMany(
+                    { _id: { $in: input.users } },
+                    {
+                        $set: { isRegistered: false, lastUnregisteredAt: new Date() },
+                    },
+                    { session }
+                );
+
+                // Update cache within transaction
+                await UserSearchCache.updateMany(
+                    { userId: { $in: userIdStrings } },
+                    { $set: { isRegistered: false, lastUnregisteredAt: new Date() } },
+                    { session }
+                );
+
+                return result;
+            });
             /* Removed Unregistered User Autoenerollment
             if(learningPlans?.length > 0){
                 const filteredPlans = await filterLearningPlans(learningPlans, conditions, context);
@@ -2372,10 +2391,28 @@ const manageRole = async ({ input }, context) => {
     if (input.change === "Assign") {
         if (!input.assignType) throw CustomError(ErrorName.ASSIGNTYPE_ERROR);
 
-        updateUserRole = await User.updateMany(
-            { _id: { $in: input.users }, superAdmin: false },
-            { $set: { role: input.assignType } }
-        );
+        // Use DbTransactionHelper for atomic update
+        const { DbTransactionHelper } = require('../../../util');
+        const { UserSearchCache } = require('../../user/user_search_cache/user_search_cache_model');
+        const userIdStrings = input.users.map(id => id.toString());
+
+        updateUserRole = await DbTransactionHelper.performDbTransaction(async (session) => {
+            const result = await User.updateMany(
+                { _id: { $in: input.users }, superAdmin: false },
+                { $set: { role: input.assignType } },
+                { session }
+            );
+
+            // Update cache within transaction
+            await UserSearchCache.updateMany(
+                { userId: { $in: userIdStrings } },
+                { $set: { role: input.assignType } },
+                { session }
+            );
+
+            return result;
+        });
+
         operationType = `Assigned role ${input.assignType}`;
         notificationMessage = `Your role has been updated to ${input.assignType} by ${decrypt(userInfo?.firstName)} ${userInfo?.lastName ? decrypt(userInfo?.lastName) : ''}.`;
     } else if (input.change === "Remove") {
@@ -2394,32 +2431,33 @@ const manageRole = async ({ input }, context) => {
         // }
 
         if (input.removeType === operationTypeRoleEnum.REMOVE_AS_ADMIN) {
-            updateUserRole = await User.updateMany(
-                { _id: { $in: input.users }, superAdmin: false, role: "LEARNER" },
-                { $set: { subRoles: [], roleAssignmentDate: null } }
-            );
+            // Use DbTransactionHelper for atomic update
+            const { DbTransactionHelper } = require('../../../util');
+            const { UserSearchCache } = require('../../user/user_search_cache/user_search_cache_model');
+            const userIdStrings = input.users.map(id => id.toString());
 
             console.log("input.users", input.users);
-            try {
-                await updateByQueryToElasticSearch(
-                    'users',
-                    `
-                    ctx._source.subRoles = [];
-                    ctx._source.roleAssignmentDate = null;
-                `,
-                    {
-                        bool: {
-                            must: [
-                                { terms: { userId: input.users } },
-                                { term: { superAdmin: false } },
-                                { term: { "role.keyword": "LEARNER" } }
-                            ]
-                        }
-                    }
+
+            updateUserRole = await DbTransactionHelper.performDbTransaction(async (session) => {
+                const result = await User.updateMany(
+                    { _id: { $in: input.users }, superAdmin: false, role: "LEARNER" },
+                    { $set: { subRoles: [], roleAssignmentDate: null } },
+                    { session }
                 );
-            } catch (error) {
-                throw error;
-            }
+
+                // Update cache within transaction
+                await UserSearchCache.updateMany(
+                    {
+                        userId: { $in: userIdStrings },
+                        superAdmin: false,
+                        role: "LEARNER"
+                    },
+                    { $set: { subRoles: [], roleAssignmentDate: null } },
+                    { session }
+                );
+
+                return result;
+            });
 
             const registeredUsers = await User.find({ _id: { $in: input.users }, isRegistered: true });
             if (updateUserRole?.nModified > 0 && registeredUsers?.length > 0) {
@@ -2474,7 +2512,8 @@ const manageRole = async ({ input }, context) => {
 
                 console.log(userConditions, "userConditions");
 
-                await filterLearningPlans(learningPlans, userConditions, context);
+                // Offload learning plan filtering to background process
+                processLearningPlansInBackground(input.users, 'remove_role', context);
                 // const dta = await autoenrollRoleBasedLP(learningPlans, registeredUsers.map(user => user._id), Roles.ADMIN, operationTypeRoleEnum.REMOVE_AS_ADMIN, userInfo, context);
             }
             operationType = "Removed Roles for LEARNER";
@@ -2596,37 +2635,39 @@ const respondToDeleteRequest = async ({ input }, context) => {
                 isRegistered: user?.isRegistered
             }));
 
-            const rejectDeleteRequest = await User.updateMany(
-                { _id: { $in: input.users } },
-                {
-                    $set: {
-                        deleteRequest: false,
-                        deleteRequestDate: null,
-                        reasonForDelete: null,
-                    },
-                }
-            );
+            // Use DbTransactionHelper for atomic update
+            const { DbTransactionHelper } = require('../../../util');
+            const { UserSearchCache } = require('../../user/user_search_cache/user_search_cache_model');
+            const userIdStrings = input.users.map(id => id.toString());
 
-            try {
-                await updateByQueryToElasticSearch(
-                    "users",
-                    `
-                        ctx._source.deleteRequest = false;
-                        ctx._source.deleteRequestDate = null;
-                        ctx._source.reasonForDelete = null;
-                    `,
+            const rejectDeleteRequest = await DbTransactionHelper.performDbTransaction(async (session) => {
+                const result = await User.updateMany(
+                    { _id: { $in: input.users } },
                     {
-                        terms: {
-                            userId: input.users,
+                        $set: {
+                            deleteRequest: false,
+                            deleteRequestDate: null,
+                            reasonForDelete: null,
                         },
-                    }
+                    },
+                    { session }
                 );
 
-            } catch (error) {
-                console.error("Error updating delete request in Elasticsearch:", error);
-                throw CustomError(ErrorName.FAILED, "Failed to update delete request in Elasticsearch");
+                // Update cache within transaction
+                await UserSearchCache.updateMany(
+                    { userId: { $in: userIdStrings } },
+                    {
+                        $set: {
+                            deleteRequest: false,
+                            deleteRequestDate: null,
+                            reasonForDelete: null,
+                        },
+                    },
+                    { session }
+                );
 
-            }
+                return result;
+            });
 
             if (rejectDeleteRequest.nModified > 0) {
 
@@ -3726,39 +3767,30 @@ module.exports.mutations = {
                 throw new Error("Invalid subrole");
             }
 
-            try {
+            // Use DbTransactionHelper for atomic update
+            const { DbTransactionHelper } = require('../../../util');
+            const { UserSearchCache } = require('../../user/user_search_cache/user_search_cache_model');
+            const userIdStrings = users.map(id => id.toString());
+
+            await DbTransactionHelper.performDbTransaction(async (session) => {
                 await User.updateMany(
                     { _id: { $in: users } },
                     { $addToSet: { subRoles: subrole }, $set: { roleAssignmentDate: new Date() } },
+                    { session }
                 );
 
                 console.log("Users updated with subrole:", users, subrole);
-            } catch (error) {
-                throw error
-            }
 
-            try {
-                await updateByQueryToElasticSearch(
-                    'users',
-                    `
-                    if (!ctx._source.subRoles.contains(params.subrole)) {
-                    ctx._source.subRoles.add(params.subrole);
-                    }
-                    ctx._source.roleAssignmentDate = params.currentDate;
-                `,
+                // Update cache within transaction
+                await UserSearchCache.updateMany(
+                    { userId: { $in: userIdStrings } },
                     {
-                        terms: {
-                            userId: users
-                        }
+                        $addToSet: { subRoles: subrole },
+                        $set: { roleAssignmentDate: new Date() }
                     },
-                    {
-                        subrole,
-                        currentDate: new Date().toISOString()
-                    }
+                    { session }
                 );
-            } catch (error) {
-                throw error
-            }
+            });
 
             const usersToUpdate = await User.find({ _id: { $in: users } });
 
@@ -3894,7 +3926,8 @@ module.exports.mutations = {
                         console.error(error);
                     });
 
-                await filterLearningPlans(learningPlans, userConditions, context);
+                // Offload learning plan filtering to background process
+                processLearningPlansInBackground(users, 'assign_role', context);
                 // await autoenrollRoleBasedLP(learningPlans, sendOnlyRegisteredUsers?.map(user => user._id), Roles.ADMIN, operationTypeRoleEnum.ASSIGN_ROLE_AS_ADMIN, userInfo,context);
             }
 
@@ -4001,8 +4034,8 @@ module.exports.mutations = {
                         localField: '_id',
                         foreignField: 'user',
                         as: 'employeeDetails',
-                        pipeline:[
-                            { $match: { isDeleted: false} }
+                        pipeline: [
+                            { $match: { isDeleted: false } }
                         ]
                     },
                 },

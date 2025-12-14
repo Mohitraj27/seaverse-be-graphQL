@@ -17,7 +17,9 @@ const { approvalEmailTemplate } = require('../email-template/SignupRequestApprov
 const aws_helper = require("../../util/aws_helper");
 const { Vessel } = require('../vessle/vessel_model');
 const { decrypt, encrypt } = require('../../util/encryption_helper');
-const { updateByQueryToElasticSearch, deleteByQueryFromElasticSearch } = require("../../util/elastic_helper");
+// Replaced Elasticsearch with MongoDB UserSearchCache
+// const { updateByQueryToElasticSearch, deleteByQueryFromElasticSearch } = require("../../util/elastic_helper");
+const { updateByQueryToElasticSearch, deleteByQueryFromElasticSearch } = require("../../util/user_search_helper");
 module.exports.queries = {
     getSignupRequest: async ({ id, search, pageInput }, context) => {
         const { subscriberId } = AuthUser(context);
