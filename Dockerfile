@@ -1,5 +1,5 @@
-#node:18.20.2
-FROM 983911888104.dkr.ecr.eu-west-1.amazonaws.com/seaverse-backend:base-image
+node:18.20.2
+#FROM 983911888104.dkr.ecr.eu-west-1.amazonaws.com/seaverse-backend:base-image
 
 WORKDIR /usr/src/app
 # Install LibreOffice and ffmpeg
