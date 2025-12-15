@@ -3,30 +3,63 @@ var path = require("path");
 var fs = require('fs');
 
 module.exports = {
-    
-   fetchFile: async (filePath) => {
-        if (filePath) { 
+
+    fetchFile: async (filePath) => {
+        if (filePath) {
             function encodeFilePath(filePath) {
                 if (!filePath || typeof filePath !== "string") return filePath;
                 return filePath.replace(/ /g, "%20");
             }
 
-            // Read PEM file - 2 directories up from current file
-            const privateKeyPath = path.join(__dirname, '..', '..', 'cloudfront-private-key.pem');
-            const privateKey = fs.readFileSync(privateKeyPath, 'utf8');
+            // Only use CloudFront in production environment
+            if (process.env.NODE_ENV === 'production') {
+                try {
+                    // Read PEM file - 2 directories up from current file
+                    const privateKeyPath = path.join(__dirname, '..', '..', 'cloudfront-private-key.pem');
+                    const privateKey = fs.readFileSync(privateKeyPath, 'utf8');
 
-            const cloudfront = new AWS.CloudFront.Signer(
-                'K3SQ2SES575KAS',
-                privateKey
-            );
-            const withoutSpaces=encodeFilePath(filePath);
-            
-            const cloudfrontDomain = 'd1hlcsotuwlxxk.cloudfront.net';
-            const url = `https://${cloudfrontDomain}/${withoutSpaces?.trim()}`;
+                    const cloudfront = new AWS.CloudFront.Signer(
+                        'K3SQ2SES575KAS',
+                        privateKey
+                    );
+                    const withoutSpaces = encodeFilePath(filePath);
 
-            const signedUrl = cloudfront.getSignedUrl({
-                url: url,
-                expires: Math.floor(Date.now() / 1000) + (60 * 60 * 5) // 5 hours from now
+                    const cloudfrontDomain = 'd1hlcsotuwlxxk.cloudfront.net';
+                    const url = `https://${cloudfrontDomain}/${withoutSpaces?.trim()}`;
+
+                    const signedUrl = cloudfront.getSignedUrl({
+                        url: url,
+                        expires: Math.floor(Date.now() / 1000) + (60 * 60 * 5) // 5 hours from now
+                    });
+
+                    return signedUrl;
+                } catch (error) {
+                    console.error('CloudFront signing error:', error.message);
+                    // Fall through to S3 direct URL
+                }
+            }
+
+            // For development or if CloudFront fails, use S3 signed URL
+            const s3 = new AWS.S3({
+                accessKeyId: process.env.AWS_ACCESS_KEY?.trim(),
+                secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY?.trim(),
+                region: process.env.AWS_REGION?.trim(),
+            });
+
+            const signedUrl = await new Promise((resolve, reject) => {
+                const params = {
+                    Bucket: process.env.S3_BUCKET?.trim(),
+                    Key: filePath?.trim(),
+                    Expires: 60 * 60 * 5 // 5 hours
+                };
+
+                s3.getSignedUrl('getObject', params, (error, url) => {
+                    if (error) {
+                        reject(error);
+                    } else {
+                        resolve(url);
+                    }
+                });
             });
 
             return signedUrl;
@@ -101,7 +134,7 @@ module.exports = {
             subject?.trim()?.length &&
             htmlContent?.trim()?.length
         ) {
-            const allowedEmails = ['chaitrali@squadramedia.com', 'saurabh@squadramedia.com', 'danish@squadramedia.com', 'saurabhubale372@gmail.com', 'aantika@squadramedia.com', 'chaitrali929200@gmail.com','anjima@squadramedia.com'];
+            const allowedEmails = ['chaitrali@squadramedia.com', 'saurabh@squadramedia.com', 'danish@squadramedia.com', 'saurabhubale372@gmail.com', 'aantika@squadramedia.com', 'chaitrali929200@gmail.com', 'anjima@squadramedia.com'];
 
             // Check if receiver email is in allowed list
             if (!allowedEmails.includes(receiverEmail?.trim())) {
