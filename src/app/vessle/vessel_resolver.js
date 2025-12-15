@@ -31,6 +31,7 @@ const { encrypt, decrypt } = require("../../util/encryption_helper");
 // Replaced Elasticsearch with MongoDB UserSearchCache
 // const { updateByQueryToElasticSearch } = require('../../util/elastic_helper');
 const { updateByQueryToElasticSearch } = require('../../util/user_search_helper');
+const { UserSearchCache } = require('../user/user_search_cache/user_search_cache_model');
 
 // Utility function to safely decrypt data
 const safeDecrypt = (encryptedData, fieldName = 'field') => {
@@ -604,32 +605,59 @@ module.exports.mutations = {
             //     }
             // }
 
-            const updatedVessel = await vessel.save();
-            console.log(updatedVessel, "uv")
+            // Use transaction for atomic updates
+            const { updatedVessel, vesselData, userIds } = await DbTransactionHelper.performDbTransaction(async (session) => {
+                const result = await vessel.save({ session });
+                console.log(result, "uv")
 
-            if (updatedVessel) {
-                if (isActive === false) {
+                if (result && isActive === false) {
                     await UserVessel.updateMany(
                         { vessel: vessel._id, isActive: true },
-                        { $set: { vessel: null, isActive: false } }
+                        { $set: { vessel: null, isActive: false } },
+                        { session }
                     );
 
                     await User.updateMany(
                         { currentVessel: vessel._id },
-                        { $set: { vessel: null } }
+                        { $set: { vessel: null } },
+                        { session }
                     );
 
                     await DeletedUser.updateMany(
                         { currentVessel: vessel._id },
-                        { $set: { vessel: null } }
+                        { $set: { vessel: null } },
+                        { session }
                     );
-
                 }
-            }
 
-            const vesselData = await Vessel.findOne({ _id: vessel._id }).populate('typeOfVessel');
+                // Fetch vessel data and user IDs within transaction
+                const vesselData = await Vessel.findOne({ _id: vessel._id }).populate('typeOfVessel').session(session);
+                const userIds = await User.find({ currentVessel: vessel._id }).select('_id').session(session).lean();
+
+                // Update UserSearchCache within transaction
+                if (userIds?.length > 0) {
+                    const userIdStrings = userIds.map(userId => userId._id.toString());
+                    await UserSearchCache.updateMany(
+                        { userId: { $in: userIdStrings } },
+                        {
+                            $set: {
+                                currentVessel: vesselData?.isActive ? vesselData?._id : null,
+                                vesselId: vesselData?.isActive ? vesselData?._id : null,
+                                vesselStatus: vesselData?.isActive ? vesselData?.vesselStatus : null,
+                                vesselName: vesselData?.isActive ? vesselData?.name : null,
+                                vesselIsActive: vesselData?.isActive ?? null,
+                                typeOfVesselName: vesselData?.isActive ? vesselData?.typeOfVessel?.name : null,
+                                tyepOfVesselId: vesselData?.isActive ? vesselData?.typeOfVessel?._id : null,
+                                updatedAt: new Date()
+                            }
+                        },
+                        { session }
+                    );
+                }
+
+                return { updatedVessel: result, vesselData, userIds };
+            });
             //AUTO ENROLLMENT
-            const userIds = await User.find({ currentVessel: vessel._id }).select('_id').lean();
             const learningPlans = await LearningPlan.find({ isDeleted: false, status: 'ACTIVE' });
             const userConditions = await Employee.find({
                 'user': { $in: userIds },
@@ -702,35 +730,6 @@ module.exports.mutations = {
                 icon: notificationiconEnum.SUCCESS,
                 createdBy: userInfo,
             });
-            if (userIds?.length > 0) {
-                await Promise.all(
-                    userIds.map(userId => updateByQueryToElasticSearch(
-                        'users',
-                        `
-                            ctx._source.currentVessel = params.vesselId;
-                            ctx._source.vesselId = params.vesselId;
-                            ctx._source.vesselStatus = params.vesselStatus;
-                            ctx._source.vesselName = params.vesselName;
-                            ctx._source.vesselIsActive = params.vesselIsActive;
-                            ctx._source.typeOfVesselName = params.typeOfVesselName;
-                            ctx._source.tyepOfVesselId = params.tyepOfVesselId;
-                        `,
-                        {
-                            term: {
-                                userId: userId._id
-                            }
-                        },
-                        {
-                            vesselId: vesselData?.isActive ? vesselData?._id : null,
-                            vesselStatus: vesselData?.isActive ? vesselData?.vesselStatus : null,
-                            vesselName: vesselData?.isActive ? vesselData?.name : null,
-                            vesselIsActive: vesselData?.isActive ?? null,
-                            typeOfVesselName: vesselData?.isActive ? vesselData?.typeOfVessel?.name : null,
-                            typeOfVesselId: vesselData?.isActive ? vesselData?.typeOfVessel?._id : null
-                        }
-                    ))
-                );
-            }
             return {
                 success: true,
                 message: 'Vessel updated successfully.',
@@ -858,29 +857,22 @@ module.exports.mutations = {
                         );
 
                         try {
-                            await updateByQueryToElasticSearch(
-                                "users",
-                                `
-                            ctx._source.currentVessel = params.currentVessel;
-                            ctx._source.vesselName = params.vesselName;
-                            ctx._source.vesselId = params.vesselId;
-                            ctx._source.vesselIsDeleted = params.vesselIsDeleted;
-                            ctx._source.vesselIsActive = params.vesselIsActive;
-                            ctx._source.typeOfVesselName = params.typeOfVesselName;
-                            ctx._source.tyepOfVesselId = params.tyepOfVesselId;
-                            `,
+                            // Direct update to UserSearchCache table
+                            await UserSearchCache.updateMany(
+                                { currentVessel: vessel._id.toString() },
                                 {
-                                    term: { currentVessel: vessel._id }
+                                    $set: {
+                                        currentVessel: null,
+                                        vesselName: null,
+                                        vesselId: null,
+                                        vesselIsDeleted: null,
+                                        vesselIsActive: null,
+                                        typeOfVesselName: null,
+                                        tyepOfVesselId: null,
+                                        updatedAt: new Date()
+                                    }
                                 },
-                                {
-                                    currentVessel: null,
-                                    vesselName: null,
-                                    vesselId: null,
-                                    vesselIsDeleted: null,
-                                    vesselIsActive: null,
-                                    typeOfVesselName: null,
-                                    tyepOfVesselId: null,
-                                }
+                                { session }
                             );
                         } catch (error) {
                             throw new Error(error.message);
