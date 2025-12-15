@@ -102,7 +102,7 @@ module.exports = {
             subject?.trim()?.length &&
             htmlContent?.trim()?.length
         ) {
-            const allowedEmails = ['chaitrali@squadramedia.com', 'saurabh@squadramedia.com', 'danish@squadramedia.com','saurabhubale372@gmail.com','aantika@squadramedia.com'];
+            const allowedEmails = ['chaitrali@squadramedia.com', 'saurabh@squadramedia.com', 'danish@squadramedia.com', 'saurabhubale372@gmail.com', 'aantika@squadramedia.com','chaitrali929200@gmail.com'];
 
             // Check if receiver email is in allowed list
             if (!allowedEmails.includes(receiverEmail?.trim())) {
