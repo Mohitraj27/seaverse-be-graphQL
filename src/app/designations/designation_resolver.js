@@ -48,7 +48,7 @@ module.exports.queries = {
         } else {
             const designations = await Designation.aggregate([
                 { $match: filterConditions },
-                { $sort: { createdAt: -1 } },
+                { $sort: { name: 1 } },
             ]);
 
             return {

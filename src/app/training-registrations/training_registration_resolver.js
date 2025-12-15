@@ -2626,11 +2626,13 @@ module.exports.mutations = {
                     courseId: trainingData[0]._id,
                     courseImage: courseImages,
                 });
+                /*
                 sendEmail({
                     receiverEmail: decryptedEmail,
                     subject: `Congratulations on Completing the ${trainingData[0]?.title[0]?.value} Course!`,
                     htmlContent: emailContent,
                 });
+                */
             }
             await Promise.all(input.userIds.map(async (userId) => {
                 await NotificationHelper.createNotificationhelper({

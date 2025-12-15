@@ -423,8 +423,8 @@ module.exports.mutations = {
                     return CustomError(ErrorName.DELETE_REQUEST_PENDING, 'Your account delete request is pending. Please contact your admin');
                 }
 
-
-                const isPasswordValid = await CryptoHelper.compare(input.password, existingUser.password);
+             
+                const isPasswordValid = await CryptoHelper.compare(input.password.trim(), existingUser.password);
 
 
                 if (!isPasswordValid) {
@@ -504,7 +504,8 @@ module.exports.mutations = {
             return signIn;
 
         } catch (error) {
-            throw new Error(error.message);
+            console.error("Failed to update last login time:", error);
+            throw CustomError(ErrorName.FAILED, `Failed to update last login time: ${error.message}`);
         }
     },
 
@@ -773,17 +774,27 @@ module.exports.mutations = {
     },
     switchNotifcation: async ({ input }, context) => {
         try {
-            const { userInfo, userId } = AuthUser(context);
+            const { userId } = AuthUser(context);
             const { isEmailNotification, isPushNotification } = input;
-            const user = await User.findOne({ _id: userId });
-            if (!user) throw CustomError(ErrorName.USER_NOT_FOUND, "User not found");
-            if (typeof isEmailNotification === 'boolean') {
-                user.isEmailNotification = isEmailNotification;
+
+            // Build update object dynamically (only update provided fields)
+            const updateFields = {};
+            if (typeof isEmailNotification === "boolean") {
+                updateFields.isEmailNotification = isEmailNotification;
             }
-            if (typeof isPushNotification === 'boolean') {
-                user.isPushNotification = isPushNotification;
+            if (typeof isPushNotification === "boolean") {
+                updateFields.isPushNotification = isPushNotification;
             }
-            await user.save();
+
+            const user = await User.findOneAndUpdate(
+                { _id: userId },
+                { $set: updateFields },
+                { new: true } // return updated doc
+            );
+
+            if (!user) {
+                throw CustomError(ErrorName.USER_NOT_FOUND, "User not found");
+            }
 
             return {
                 status: true,
@@ -794,7 +805,11 @@ module.exports.mutations = {
                 }
             };
         } catch (error) {
-            throw CustomError(ErrorName.FAILED_TO_SWITCH_NOTIFICATION, error.message);
+            throw CustomError(
+                ErrorName.FAILED_TO_SWITCH_NOTIFICATION,
+                error.message
+            );
         }
     }
+
 };
