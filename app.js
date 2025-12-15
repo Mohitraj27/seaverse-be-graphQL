@@ -221,6 +221,10 @@ const { httpsServer, httpServer, apolloServer } = (() => {
     const syncDashboardRoutes = require('./scripts/sync-api');
     ExpressServer.use('/sync', syncDashboardRoutes);
 
+    // Add MongoDB cache migration dashboard routes
+    const mongoCacheRoutes = require('./src/routes/mongo-cache');
+    ExpressServer.use('/mongo-cache', mongoCacheRoutes);
+
     // Serve static files for the UI
     ExpressServer.use('/public', express.static(path.join(__dirname, 'public')));
 
@@ -231,6 +235,11 @@ const { httpsServer, httpServer, apolloServer } = (() => {
 
     ExpressServer.get('/user-registration-flag-manager', (req, res) => {
         res.sendFile(path.join(__dirname, 'public', 'user-registration-flag-manager.html'));
+    });
+
+    // Serve the MongoDB cache migration dashboard
+    ExpressServer.get('/mongo-cache-dashboard', (req, res) => {
+        res.sendFile(path.join(__dirname, 'public', 'mongo-cache-dashboard.html'));
     });
 
     ExpressServer.get('/add-dummy-passwords', (req, res) => {
