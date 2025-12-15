@@ -3213,7 +3213,7 @@ module.exports.mutations = {
 
             let userRole = Role.LEARNER;
 
-            const savedUser = await User.create({
+            const savedUser = await User.create([{
                 subscriber: subscriberId,
                 firstName: encrypt(input.user.firstName.toLowerCase()),
                 lastName: input.user.lastName ? encrypt(input.user.lastName.toLowerCase()) : null,
@@ -3227,26 +3227,31 @@ module.exports.mutations = {
                 isSignupAdminAprroved: true,
                 lastUnregisteredAt: input.user.isRegistered === false ? new Date() : null,
                 UID: await EmployeeHelper.generateUserUID({ session }),
-            });
+            }], { session });
 
-            if (!savedUser) throw CustomError(ErrorName.FAILED);
+            if (!savedUser || savedUser.length === 0) throw CustomError(ErrorName.FAILED);
 
+            // Extract the user from the array (Mongoose create with session returns an array)
+            const userDoc = savedUser[0];
 
             let employeeUpdate = {
                 subscriber: subscriberId,
-                user: savedUser,
+                user: userDoc,
                 branch: input.branch,
                 organization: input.organization,
                 empDesignation: input.empDesignation,
                 designation: existingDesignation.name,
             };
 
-            const savedEmployee = await Employee.create({
+            const savedEmployee = await Employee.create([{
                 ...employeeUpdate,
                 UID: await EmployeeHelper.generateEmployeeUID({ subscriberId, session }),
-            });
+            }], { session });
 
-            if (!savedEmployee) throw CustomError(ErrorName.FAILED);
+            if (!savedEmployee || savedEmployee.length === 0) throw CustomError(ErrorName.FAILED);
+
+            // Extract the employee from the array (Mongoose create with session returns an array)
+            const employeeDoc = savedEmployee[0];
 
             let savedUserVessel;
             let vessel;
@@ -3254,22 +3259,23 @@ module.exports.mutations = {
             if (input.user.currentVessel || input.user.vesselStatus) {
 
                 let userVesselUpdate = {
-                    user: savedUser,
+                    user: userDoc,
                     vessel: input.user.currentVessel && input.user.currentVessel !== "" ? ObjectId(input.user.currentVessel) : null,
                     vesselStatus: input.user.vesselStatus && input.user.vesselStatus !== "" ? input.user.vesselStatus : null,
                 };
 
-                savedUserVessel = await UserVessel.create(userVesselUpdate);
+                const savedUserVesselArray = await UserVessel.create([userVesselUpdate], { session });
 
-                if (!savedUserVessel) throw CustomError(ErrorName.FAILED);
+                if (!savedUserVesselArray || savedUserVesselArray.length === 0) throw CustomError(ErrorName.FAILED);
+                savedUserVessel = savedUserVesselArray[0];
                 vessel = await Vessel.findById(savedUserVessel.vessel).populate("typeOfVessel", "_id name");
             }
 
             // invitationList.push({
-            //     userData: savedUser,
+            //     userData: userDoc,
             // });
 
-            savedEmployees.push({ ...savedEmployee, user: savedUser });
+            savedEmployees.push({ ...employeeDoc, user: userDoc });
             // Below  matchedLearningPlans is for testing purpose to check which matches the LP
             // const matchedLearningPlans = filteredPlans.map(plan => {
             //     return {
@@ -3284,9 +3290,9 @@ module.exports.mutations = {
             //     };
             // });
 
-            if (savedUser?.isRegistered === true && savedUser?.isEmailNotification) {
-                const decryptedEmail = decrypt(savedUser.email);
-                const decryptedFirstName = decrypt(savedUser.firstName);
+            if (userDoc?.isRegistered === true && userDoc?.isEmailNotification) {
+                const decryptedEmail = decrypt(userDoc.email);
+                const decryptedFirstName = decrypt(userDoc.firstName);
 
                 const emailContentforNewEmployee = createNewEmployeeEmailTemplate({
                     firstName: decryptedFirstName,
@@ -3304,52 +3310,52 @@ module.exports.mutations = {
                 }
             }
             try {
-                const userVesselsDetails = await Vessel.find({ _id: savedEmployee.user?.currentVessel, isDeleted: false, isActive: true }).populate('typeOfVessel', '_id name');
+                const userVesselsDetails = await Vessel.find({ _id: userDoc?.currentVessel, isDeleted: false, isActive: true }).populate('typeOfVessel', '_id name');
                 console.log('this is userVesselsDetails', userVesselsDetails);
                 const document = {
-                    employeeId: savedEmployee._id?.toString(),
-                    UID: savedEmployee.UID,
-                    designation: savedEmployee.designation,
-                    empDesignation: savedEmployee.empDesignation?.toString(),
-                    bulkId: savedEmployee.bulkId,
-                    regType: savedEmployee.regType,
-                    isActive: savedEmployee.isActive,
-                    isDeleted: savedEmployee.isDeleted,
-                    subscriber: savedEmployee.subscriber?.toString(),
-                    createdAt: savedEmployee.createdAt,
-                    updatedAt: savedEmployee.updatedAt,
+                    employeeId: employeeDoc._id?.toString(),
+                    UID: employeeDoc.UID,
+                    designation: employeeDoc.designation,
+                    empDesignation: employeeDoc.empDesignation?.toString(),
+                    bulkId: employeeDoc.bulkId,
+                    regType: employeeDoc.regType,
+                    isActive: employeeDoc.isActive,
+                    isDeleted: employeeDoc.isDeleted,
+                    subscriber: employeeDoc.subscriber?.toString(),
+                    createdAt: employeeDoc.createdAt,
+                    updatedAt: employeeDoc.updatedAt,
 
                     // Nested user fields
-                    userId: savedEmployee.user?._id?.toString(),
-                    firstName: savedEmployee.user?.firstName,
-                    lastName: savedEmployee.user?.lastName,
-                    email: savedEmployee.user?.email,
-                    civilIdOrPassport: savedEmployee.user?.civilIdOrPassport,
-                    languagePreference: savedEmployee.user?.languagePreference,
-                    role: savedEmployee.user?.role,
-                    subRoles: savedEmployee.user?.subRoles,
-                    isVerified: savedEmployee.user?.isVerified,
-                    isRegistered: savedEmployee.user?.isRegistered,
-                    superAdmin: savedEmployee.user?.superAdmin,
-                    deleteRequest: savedEmployee.user?.deleteRequest,
-                    isDeleted_user: savedEmployee.user?.isDeleted,
-                    directSignup: savedEmployee.user?.directSignup,
-                    contentlanguages: savedEmployee.user?.contentlanguages,
-                    currentVessel: savedEmployee.user?.currentVessel?.toString(),
-                    vesselStatus: savedEmployee.user?.vesselStatus,
-                    isEmailNotification: savedEmployee.user?.isEmailNotification,
-                    isPushNotification: savedEmployee.user?.isPushNotification,
-                    lastLoginAt: savedEmployee.user?.lastLoginAt,
-                    isSignupAdminAprroved: savedEmployee.user?.isSignupAdminAprroved,
-                    userCreatedAt: savedEmployee.user?.createdAt,
-                    userUpdatedAt: savedEmployee.user?.updatedAt,
+                    userId: userDoc?._id?.toString(),
+                    firstName: userDoc?.firstName,
+                    lastName: userDoc?.lastName,
+                    email: userDoc?.email,
+                    civilIdOrPassport: userDoc?.civilIdOrPassport,
+                    languagePreference: userDoc?.languagePreference,
+                    role: userDoc?.role,
+                    subRoles: userDoc?.subRoles,
+                    isVerified: userDoc?.isVerified,
+                    isRegistered: userDoc?.isRegistered,
+                    superAdmin: userDoc?.superAdmin,
+                    deleteRequest: userDoc?.deleteRequest,
+                    isDeleted_user: userDoc?.isDeleted,
+                    directSignup: userDoc?.directSignup,
+                    contentlanguages: userDoc?.contentlanguages,
+                    currentVessel: userDoc?.currentVessel?.toString(),
+                    vesselStatus: userDoc?.vesselStatus,
+                    isEmailNotification: userDoc?.isEmailNotification,
+                    isPushNotification: userDoc?.isPushNotification,
+                    lastLoginAt: userDoc?.lastLoginAt,
+                    isSignupAdminAprroved: userDoc?.isSignupAdminAprroved,
+                    userCreatedAt: userDoc?.createdAt,
+                    userUpdatedAt: userDoc?.updatedAt,
                     vesselName: userVesselsDetails[0]?.name,
                     vesselId: userVesselsDetails[0]?._id,
                     vesselIsDeleted: userVesselsDetails[0]?.isDeleted,
                     vesselIsActive: userVesselsDetails[0]?.isActive,
                     typeOfVesselName: userVesselsDetails[0]?.typeOfVessel?.name,
                     tyepOfVesselId: userVesselsDetails[0]?.typeOfVessel?._id,
-                    isResetPasswordDialog: savedEmployee.user?.isResetPasswordDialog,
+                    isResetPasswordDialog: userDoc?.isResetPasswordDialog,
                     enrolledCourses: 0,
                     averageCourseProgress: 0.0,
                     indexedAt: new Date(),
@@ -3358,10 +3364,10 @@ module.exports.mutations = {
                 try {
                     // Direct insert to UserSearchCache table
                     await UserSearchCache.findOneAndUpdate(
-                        { userId: savedEmployee._id.toString() },
+                        { userId: userDoc._id.toString() },
                         {
                             ...document,
-                            userId: savedEmployee._id.toString(),
+                            userId: userDoc._id.toString(),
                             indexedAt: new Date(),
                             updatedAt: new Date()
                         },
