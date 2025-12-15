@@ -526,8 +526,6 @@ module.exports.mutations = {
             }
 
             // Use DbTransactionHelper for atomic update
-            const { DbTransactionHelper } = require('../../util');
-            const { UserSearchCache } = require('../user/user_search_cache/user_search_cache_model');
 
             await DbTransactionHelper.performDbTransaction(async (session) => {
                 await User.findByIdAndUpdate(userId, mongoUpdate, {

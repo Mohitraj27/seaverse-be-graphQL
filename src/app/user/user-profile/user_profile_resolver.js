@@ -1,5 +1,5 @@
 const { CryptoHelper, MomentTimezone, ObjectId, CronHelper } = require("../../../tools");
-const { CustomError, ErrorName, AuthUser, Role, SendEmail } = require("../../../util");
+const { CustomError, ErrorName, AuthUser, Role, SendEmail, DbTransactionHelper } = require("../../../util");
 
 const { User } = require("../user_model");
 const { Employee } = require("../employee/employee_model");
@@ -37,6 +37,7 @@ const { encrypt, decrypt } = require("../../../util/encryption_helper");
 // Replaced Elasticsearch with MongoDB UserSearchCache
 // const { updateByQueryToElasticSearch } = require("../../../util/elastic_helper");
 const { updateByQueryToElasticSearch } = require("../../../util/user_search_helper");
+const { UserSearchCache } = require("../user_search_cache/user_search_cache_model");
 
 
 module.exports.queries = {
@@ -718,8 +719,6 @@ module.exports.mutations = {
             }
 
             // Use DbTransactionHelper for atomic update
-            const { DbTransactionHelper } = require('../../../util');
-            const { UserSearchCache } = require('../../user_search_cache/user_search_cache_model');
 
             const updateUser = await DbTransactionHelper.performDbTransaction(async (session) => {
                 const result = await User.findByIdAndUpdate(userId, {
