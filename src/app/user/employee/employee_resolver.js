@@ -91,6 +91,7 @@ const { decrypt, encrypt } = require("../../../util/encryption_helper");
 // Replaced Elasticsearch with MongoDB UserSearchCache
 // const { client, indexDocumenttoElasticSearch, getDocumentfromElasticSearch, updateByQueryToElasticSearch, searchEmployeesFromElastic } = require('../../../util/elastic_helper');
 const { client, indexDocumenttoElasticSearch, getDocumentfromElasticSearch, updateByQueryToElasticSearch, searchEmployeesFromElastic } = require('../../../util/user_search_helper');
+const { UserSearchCache } = require('../user_search_cache/user_search_cache_model');
 const { toUpperCaseFirstLetter } = require("../../../util/string_helper");
 // const csvImportQueue = require("../../queues/csv_import_queue");
 // const { JOB_NAMES } = require("../../queues/queue.enum");
@@ -3269,24 +3270,6 @@ module.exports.mutations = {
             // });
 
             savedEmployees.push({ ...savedEmployee, user: savedUser });
-            const learningPlans = await LearningPlan.find({ isDeleted: false, status: 'ACTIVE' });
-
-            if (savedUser.isRegistered === true && learningPlans?.length > 0) {
-
-                const conditions = [{
-                    designationID: input.empDesignation,
-                    vesselID: savedUserVessel?.vessel ?? null,
-                    vesselTypeID: vessel?.typeOfVessel?._id ?? null,
-                    owner: vessel?.ownerName ?? null,
-                    currentStatus: savedUserVessel?.vesselStatus ?? null,
-                    email: savedUser.email,
-                    _id: savedUser._id,
-                    role: 'LEARNER',
-                }];
-
-                const filteredPlans = await filterLearningPlans(learningPlans, conditions, context, session);
-
-            }
             // Below  matchedLearningPlans is for testing purpose to check which matches the LP
             // const matchedLearningPlans = filteredPlans.map(plan => {
             //     return {
@@ -3373,17 +3356,39 @@ module.exports.mutations = {
                 };
 
                 try {
-                    await indexDocumenttoElasticSearch("users", savedEmployee?._id, document);
+                    // Direct insert to UserSearchCache table
+                    await UserSearchCache.findOneAndUpdate(
+                        { userId: savedEmployee._id.toString() },
+                        {
+                            ...document,
+                            userId: savedEmployee._id.toString(),
+                            indexedAt: new Date(),
+                            updatedAt: new Date()
+                        },
+                        {
+                            upsert: true,
+                            new: true,
+                            setDefaultsOnInsert: true,
+                            session
+                        }
+                    );
                 } catch (error) {
-                    throw CustomError(ErrorName.INDEX_DOC_ELASTIC_SEARCH, `Elastic Insert Error (users): ${error}`)
+                    throw CustomError(ErrorName.INDEX_DOC_ELASTIC_SEARCH, `User cache insert error: ${error}`)
                 }
             } catch (err) {
-                console.error("Elasticsearch indexing error:", err);
+                console.error("User cache indexing error:", err);
             }
             return savedEmployees;
         });
 
         if (!savedEmployees) throw CustomError(ErrorName.FAILED);
+
+        // Offload learning plan filtering to background process (only if user is registered)
+        const savedEmployee = savedEmployees[0];
+        const savedUser = savedEmployee.user;
+        if (savedUser?.isRegistered === true) {
+            processLearningPlansInBackground([savedUser._id], 'register', context);
+        }
 
         // EmployeeHelper.sendEnrollmentNotification(notificationList);
 
