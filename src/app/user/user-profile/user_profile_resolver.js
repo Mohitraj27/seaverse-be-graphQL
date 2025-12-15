@@ -636,32 +636,29 @@ module.exports.mutations = {
                 );
             }
 
-            user.password = await CryptoHelper.hash(input.newPassword, 10);
+            // Use DbTransactionHelper for atomic update
+            const updateUser = await DbTransactionHelper.performDbTransaction(async (session) => {
+                user.password = await CryptoHelper.hash(input.newPassword, 10);
+                user.resetPasswordToken = null;
+                user.resetPasswordExpires = null;
+                user.isResetPasswordDialog = true;
 
-            user.resetPasswordToken = null;
-            user.resetPasswordExpires = null;
-            user.isResetPasswordDialog = true;
+                const result = await user.save({ session });
 
-            const updateUser = await user.save();
-
-            try {
-                await updateByQueryToElasticSearch(
-                    "users",
-                    `
-                    ctx._source.isResetPasswordDialog = true;
-                `,
+                // Update cache within transaction
+                await UserSearchCache.updateOne(
+                    { userId: user._id.toString() },
                     {
-                        match: {
-                            userId: user._id.toString(),
+                        $set: {
+                            isResetPasswordDialog: true,
+                            updatedAt: new Date()
                         }
                     },
-                    {
-                        password: user.password
-                    }
+                    { session }
                 );
-            } catch (error) {
-                throw CustomError(ErrorName.FAILED, error.message);
-            }
+
+                return result;
+            });
 
             if (updateUser) {
                 return "Password updated successfully!";
