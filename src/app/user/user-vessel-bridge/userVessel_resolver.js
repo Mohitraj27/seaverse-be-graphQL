@@ -12,10 +12,13 @@ const { vesselAssignmentEmail, vesselAssignmentEmailforAdmin } = require("../../
 const NotificationHelper = require("../../notifications/notification_helper");
 const NotificationType = require("../../notifications/notification_type.json");
 const notificationEnum = require("../../notifications/notification_icon.json")
-const {filterLearningPlans} = require('../employee/employee_helper');
-const {LearningPlan} = require('../../learning-plan/learning_plan_model');
-const {Employee} = require('../employee/employee_model');
-const { updateByQueryToElasticSearch } = require("../../../util/elastic_helper");
+const { filterLearningPlans } = require('../employee/employee_helper');
+const { processLearningPlansInBackground } = require('../employee/learning_plan_helper');
+const { LearningPlan } = require('../../learning-plan/learning_plan_model');
+const { Employee } = require('../employee/employee_model');
+// Replaced Elasticsearch with MongoDB UserSearchCache
+// const { updateByQueryToElasticSearch } = require("../../../util/elastic_helper");
+const { updateByQueryToElasticSearch } = require("../../../util/user_search_helper");
 module.exports.mutations = {
     assignVesselToUser: async ({ input }, context) => {
 
@@ -52,10 +55,10 @@ module.exports.mutations = {
 
             const userVesselsDetails = await Vessel.find({ _id: vesselId, isDeleted: false, isActive: true }).populate('typeOfVessel', '_id name');
 
-            const vesselName= userVesselsDetails?.[0]?.name;
-            const vesselIsActive= userVesselsDetails?.[0]?.isActive
-            const typeOfVesselName= userVesselsDetails?.[0]?.typeOfVessel?.name
-            const tyepOfVesselId= userVesselsDetails?.[0]?.typeOfVessel?._id
+            const vesselName = userVesselsDetails?.[0]?.name;
+            const vesselIsActive = userVesselsDetails?.[0]?.isActive
+            const typeOfVesselName = userVesselsDetails?.[0]?.typeOfVessel?.name
+            const tyepOfVesselId = userVesselsDetails?.[0]?.typeOfVessel?._id
 
             if (vesselId) {
 
@@ -77,8 +80,8 @@ module.exports.mutations = {
 
                     try {
                         await updateByQueryToElasticSearch(
-                        'users', 
-                        `
+                            'users',
+                            `
                             ctx._source.currentVessel = params.vesselId;
                             ctx._source.vesselId = params.vesselId;
                             ctx._source.vesselStatus = params.vesselStatus;
@@ -87,20 +90,20 @@ module.exports.mutations = {
                             ctx._source.typeOfVesselName = params.typeOfVesselName;
                             ctx._source.tyepOfVesselId = params.tyepOfVesselId;
                         `,
-                        {
-                            term: {
-                            userId: input.userId
+                            {
+                                term: {
+                                    userId: input.userId
+                                }
+                            },
+                            {
+                                vesselId: vesselId ?? null,
+                                vesselStatus: vesselStatus ?? null,
+                                vesselName: vesselName ?? null,
+                                vesselIsActive: vesselIsActive ?? null,
+                                typeOfVesselName: typeOfVesselName ?? null,
+                                tyepOfVesselId: tyepOfVesselId ?? null
                             }
-                        },
-                        {
-                            vesselId: vesselId ?? null,
-                            vesselStatus: vesselStatus ?? null,
-                            vesselName: vesselName ?? null,
-                            vesselIsActive: vesselIsActive ?? null,
-                            typeOfVesselName: typeOfVesselName ?? null,
-                            tyepOfVesselId: tyepOfVesselId ?? null
-                        }
-                    );
+                        );
                     } catch (error) {
                         throw CustomError(ErrorName.FAILED, `${error.message}`);
                     }
@@ -130,8 +133,8 @@ module.exports.mutations = {
 
                     try {
                         await updateByQueryToElasticSearch(
-                        'users', 
-                        `
+                            'users',
+                            `
                             ctx._source.currentVessel = params.vesselId;
                             ctx._source.vesselId = params.vesselId;
                             ctx._source.vesselStatus = params.vesselStatus;
@@ -140,20 +143,20 @@ module.exports.mutations = {
                             ctx._source.typeOfVesselName = params.typeOfVesselName;
                             ctx._source.tyepOfVesselId = params.tyepOfVesselId;
                         `,
-                        {
-                            term: {
-                            userId: input.userId
+                            {
+                                term: {
+                                    userId: input.userId
+                                }
+                            },
+                            {
+                                vesselId: vesselId ?? null,
+                                vesselStatus: vesselStatus ?? null,
+                                vesselName: vesselName ?? null,
+                                vesselIsActive: vesselIsActive ?? null,
+                                typeOfVesselName: typeOfVesselName ?? null,
+                                tyepOfVesselId: tyepOfVesselId ?? null
                             }
-                        },
-                        {
-                            vesselId: vesselId ?? null,
-                            vesselStatus: vesselStatus ?? null,
-                            vesselName: vesselName ?? null,
-                            vesselIsActive: vesselIsActive ?? null,
-                            typeOfVesselName: typeOfVesselName ?? null,
-                            tyepOfVesselId: tyepOfVesselId ?? null
-                        }
-                    );
+                        );
                     } catch (error) {
                         throw CustomError(ErrorName.FAILED, `${error.message}`);
                     }
@@ -186,7 +189,7 @@ module.exports.mutations = {
 
                 try {
                     await updateByQueryToElasticSearch(
-                        'users', 
+                        'users',
                         `
                             ctx._source.currentVessel = params.vesselId;
                             ctx._source.vesselId = params.vesselId;
@@ -198,7 +201,7 @@ module.exports.mutations = {
                         `,
                         {
                             term: {
-                            userId: input.userId
+                                userId: input.userId
                             }
                         },
                         {
@@ -233,44 +236,45 @@ module.exports.mutations = {
                     userName: getUser.firstName,
                 })
                     */
-/*  
-                if (getVessel) {
-                    await NotificationHelper.createNotificationhelper({
-                        subscriber: subscriberId,
-                        titleValue: `New Vessel Assigned: ${getVessel?.name}`,
-                        messageValue: `${getVessel?.name} has been assigned by ${userInfo?.firstName} ${userInfo?.lastName}.`,
-                        notificationType: NotificationType.VESSEL_CREATED,
-                        notifyAllAdmin: true,
-                        status: "SENT",
-                        icon: notificationEnum.SUCCESS,
-                        createdBy: userInfo,
-                    });
-                }
-  */
+                /*  
+                                if (getVessel) {
+                                    await NotificationHelper.createNotificationhelper({
+                                        subscriber: subscriberId,
+                                        titleValue: `New Vessel Assigned: ${getVessel?.name}`,
+                                        messageValue: `${getVessel?.name} has been assigned by ${userInfo?.firstName} ${userInfo?.lastName}.`,
+                                        notificationType: NotificationType.VESSEL_CREATED,
+                                        notifyAllAdmin: true,
+                                        status: "SENT",
+                                        icon: notificationEnum.SUCCESS,
+                                        createdBy: userInfo,
+                                    });
+                                }
+                  */
                 const learningPlans = await LearningPlan.find({ isDeleted: false, status: 'ACTIVE' });
-                const designation = await Employee.find({user: input?.userId}).select('empDesignation -_id');
+                const designation = await Employee.find({ user: input?.userId }).select('empDesignation -_id');
                 let typeOfVessel;
-                if(input?.vesselId){
-                    typeOfVessel = await Vessel.find({_id: input?.vesselId}).select('ownerName typeOfVessel -_id');
+                if (input?.vesselId) {
+                    typeOfVessel = await Vessel.find({ _id: input?.vesselId }).select('ownerName typeOfVessel -_id');
                 }
-                const emailData = await User.find({_id: input?.userId}).select('email -_id');
+                const emailData = await User.find({ _id: input?.userId }).select('email -_id');
                 const conditions = [{
                     designationID: designation?.[0]?.empDesignation ?? null,
-                    vesselID: input?.vesselId ?? null, 
+                    vesselID: input?.vesselId ?? null,
                     vesselTypeID: typeOfVessel?.[0]?.typeOfVessel ?? null,
-                    owner : typeOfVessel?.[0]?.ownerName ?? null,
+                    owner: typeOfVessel?.[0]?.ownerName ?? null,
                     currentStatus: input?.vesselStatus ?? null,
                     email: emailData,
-                    _id: input?.userId ,
+                    _id: input?.userId,
                 }];
-                const result = await filterLearningPlans(learningPlans, conditions, context);
-               /*
-                await SendEmail({
-                    receiverEmail: userInfo.email,
-                    subject: `User Vessel Assignment Notification`,
-                    htmlContent: emailContentforAdmin,
-                })
-                */
+                // Offload learning plan filtering to background process (single user)
+                processLearningPlansInBackground([input.userId], 'vessel_assignment', context);
+                /*
+                 await SendEmail({
+                     receiverEmail: userInfo.email,
+                     subject: `User Vessel Assignment Notification`,
+                     htmlContent: emailContentforAdmin,
+                 })
+                 */
                 return {
                     status: "Success",
                     message: "The vessel updated successfully!"

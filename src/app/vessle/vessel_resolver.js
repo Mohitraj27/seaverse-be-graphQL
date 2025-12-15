@@ -26,8 +26,11 @@ const LearningPlanStatus = require('../learning-plan/enumFields/learning_plan_st
 const targetAudienceEnum = require('../learning-plan/enumFields/targetAudienceEnum.json')
 const typeOfConditionalCustomFieldEnum = require('../learning-plan/enumFields/typeOfConditionalCustomField.json');
 const { filterLearningPlans } = require("../user/employee/employee_helper");
+const { processLearningPlansInBackground } = require("../user/employee/learning_plan_helper");
 const { encrypt, decrypt } = require("../../util/encryption_helper");
-const { updateByQueryToElasticSearch } = require('../../util/elastic_helper');
+// Replaced Elasticsearch with MongoDB UserSearchCache
+// const { updateByQueryToElasticSearch } = require('../../util/elastic_helper');
+const { updateByQueryToElasticSearch } = require('../../util/user_search_helper');
 
 // Utility function to safely decrypt data
 const safeDecrypt = (encryptedData, fieldName = 'field') => {
@@ -183,7 +186,7 @@ module.exports.queries = {
                 ownerNameIdsToMatch = matchedOwnerIds;
                 filterConditions.ownerId = { $in: ownerNameIdsToMatch };
             }
-            
+
             if (filterInput?.search) {
                 const escapedSearch = escapeRegex(filterInput.search);
 
@@ -664,7 +667,9 @@ module.exports.mutations = {
                 });
 
             if (learningPlans && learningPlans.length > 0 && userConditions && userConditions.length > 0) {
-                await filterLearningPlans(learningPlans, userConditions, context);
+                // Offload learning plan filtering to background process (all users on vessel)
+                const userIdsOnVessel = userIds.map(u => u._id);
+                processLearningPlansInBackground(userIdsOnVessel, 'vessel_update', context);
             }
 
 

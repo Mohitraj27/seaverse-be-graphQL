@@ -3,10 +3,12 @@ const { User } = require("../../user/user_model");
 const { OverallTrainingProgress } = require("./overall_progress_model");
 const { TrainingRegistration } = require("../training_registration_model");
 const { TrainingProgress } = require("../training-progress/training_progress_model");
-const  LearningPlanAssignment  = require("../../learning-plan/assignedLearner/assignedLearnerModel");
+const LearningPlanAssignment = require("../../learning-plan/assignedLearner/assignedLearnerModel");
 const { Employee } = require("../../user/employee/employee_model");
 const { ObjectId } = require("../../../tools");
-const { bulkUpdateDocumentsInElastic, updateByQueryToElasticSearch } = require("../../../util/elastic_helper");
+// Replaced Elasticsearch with MongoDB UserSearchCache
+// const { bulkUpdateDocumentsInElastic, updateByQueryToElasticSearch } = require("../../../util/elastic_helper");
+const { bulkUpdateDocumentsInElastic, updateByQueryToElasticSearch } = require("../../../util/user_search_helper");
 
 const deleteCourseDataForUserDeleted5yearsAgo = async () => {
     try {
@@ -33,7 +35,7 @@ const deleteCourseDataForDeletedUsers = async userIds => {
     console.log("Deleting course data for deleted users:", userIds);
     try {
         const existingData = await OverallTrainingProgress.find({ user: { $in: userIds } }).select("user trainingRegistration learningPlan ").lean();
-        if(existingData.length === 0) {
+        if (existingData.length === 0) {
             console.log("No course data found for deleted users.");
             return;
         }
@@ -53,11 +55,11 @@ const deleteCourseDataForDeletedUsers = async userIds => {
         const userlearningPlanIdMap = existingData.reduce((acc, curr) => {
             const userId = curr.user.toString();
             const plans = Array.isArray(curr.learningPlan) ? curr.learningPlan : [curr.learningPlan];
-        
+
             if (!acc[userId]) {
                 acc[userId] = [];
             }
-        
+
             acc[userId].push(...plans);
             return acc;
         }, {});
@@ -77,7 +79,7 @@ const deleteCourseDataForDeletedUsers = async userIds => {
         }));
 
         const session = await performDbTransaction(async session => {
-            
+
             if (userTrainingRegMapDeleteOps.length > 0) {
                 await TrainingRegistration.bulkWrite(userTrainingRegMapDeleteOps, { session });
             }
@@ -104,7 +106,7 @@ const deleteCourseDataForDeletedUsers = async userIds => {
                 { user: { $in: userIds } },
                 { session }
             );
-            
+
             console.log(result.deletedCount, "OverallTrainingProgress deleted");
             return result.deletedCount;
         });
@@ -115,7 +117,7 @@ const deleteCourseDataForDeletedUsers = async userIds => {
     }
 };
 
-const getEnrolledCoursesOfUsers = async (userIds,session) => {
+const getEnrolledCoursesOfUsers = async (userIds, session) => {
     try {
         if (!Array.isArray(userIds) || userIds.length === 0) {
             return [];
@@ -141,7 +143,7 @@ const getEnrolledCoursesOfUsers = async (userIds,session) => {
         console.log("error calculating user's enrolled courses: ", error)
     }
 }
-const getUsersAvgProgress = async (userIds,session) => {
+const getUsersAvgProgress = async (userIds, session) => {
     try {
         if (!Array.isArray(userIds) || userIds.length === 0) {
             return {};

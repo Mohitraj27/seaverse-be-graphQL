@@ -18,7 +18,9 @@ const BatchRemainder = require("./src/app/batches/batch_reminder");
 const BackupHelper = require("./src/app/backup/backup_helper");
 const firebaseHelper = require('./src/util/firebase_helper');
 const EmployeeHelper = require("./src/app/user/employee/employee_helper");
-const { client } = require("./src/util/elastic_helper");
+// Replaced Elasticsearch with MongoDB UserSearchCache
+// const { client } = require("./src/util/elastic_helper");
+const { client } = require("./src/util/user_search_helper");
 const { connectToMongo } = require("./src/util/mongodb_helper");
 const { toUpperCaseFirstLetter } = require("./src/util/string_helper");
 const SystemStatsScheduler = require("./src/app/reports/system_stats_scheduler");
@@ -257,12 +259,13 @@ const { httpsServer, httpServer, apolloServer } = (() => {
     return { httpsServer, httpServer, apolloServer };
 })();
 firebaseHelper.init();
+// MongoDB UserSearchCache connection (no separate connection needed)
 const elasticConnect = async () => {
     try {
-        await client.info();
-        console.log("Elasticsearch is connected");
+        await client.ping();
+        console.log("User Search Cache (MongoDB) is connected");
     } catch (error) {
-        console.error("Elasticsearch connection failed:", error);
+        console.error("User Search Cache connection failed:", error);
     }
 };
 elasticConnect();

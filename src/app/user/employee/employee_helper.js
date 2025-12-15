@@ -75,7 +75,9 @@ const { fetchFile, sendEmail } = require("../../../util/aws_helper");
 const { SubRole } = require("../sub-roles/sub_role_model");
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 const { decrypt, encrypt } = require('../../../util/encryption_helper');
-const { client, deleteByQueryFromElasticSearch, updateDocumenttoElasticSearch, updateByQueryToElasticSearch, indexDocumenttoElasticSearch, bulkIndexDocumentsToElasticSearch } = require('../../../util/elastic_helper');
+// Replaced Elasticsearch with MongoDB UserSearchCache
+// const { client, deleteByQueryFromElasticSearch, updateDocumenttoElasticSearch, updateByQueryToElasticSearch, indexDocumenttoElasticSearch, bulkIndexDocumentsToElasticSearch } = require('../../../util/elastic_helper');
+const { client, deleteByQueryFromElasticSearch, updateDocumenttoElasticSearch, updateByQueryToElasticSearch, indexDocumenttoElasticSearch, bulkIndexDocumentsToElasticSearch } = require('../../../util/user_search_helper');
 const { MongoClient, ObjectId: mongodbObject } = require('mongodb');
 const { VesselType } = require('../../vessle/vessel-type/vessel_type_model');
 const { ImportJob } = require("./import_job_model");
@@ -1224,14 +1226,14 @@ const filterLearningPlans = async (learningPlans, userConditions, context, sessi
                     }
                 }
                 if (validUsers?.length > 0) {
-                    const userIds = validUsers.map(user => user._id);              
+                    const userIds = validUsers.map(user => user._id);
                     const existingAssignments = await LearningPlanAssignment.find({
                         learningPlanId: plan._id,
                         assignedLearnerId: { $in: userIds },
                         isDeleted: { $ne: true }
                     }, { assignedLearnerId: 1 });
 
-                        const alreadyAssignedUserIds = new Set(existingAssignments.map(assignment => assignment.assignedLearnerId.toString()));
+                    const alreadyAssignedUserIds = new Set(existingAssignments.map(assignment => assignment.assignedLearnerId.toString()));
 
                     const newAssignments = userIds
                         .filter(userId => !alreadyAssignedUserIds.has(userId.toString()))
@@ -3422,7 +3424,49 @@ module.exports = {
         try {
             const userVesselsDetails = await Vessel.find({ _id: savedEmployee.user?.currentVessel, isDeleted: false, isActive: true }).populate('typeOfVessel', '_id name');
 
-            const document = {
+            const scriptSource = `
+                ctx._source.employeeId = params.employeeId;
+                ctx._source.UID = params.UID;
+                ctx._source.designation = params.designation;
+                ctx._source.empDesignation = params.empDesignation;
+                ctx._source.bulkId = params.bulkId;
+                ctx._source.regType = params.regType;
+                ctx._source.isActive = params.isActive;
+                ctx._source.isDeleted = params.isDeleted;
+                ctx._source.subscriber = params.subscriber;
+                ctx._source.createdAt = params.createdAt;
+                ctx._source.updatedAt = params.updatedAt;
+                ctx._source.firstName = params.firstName;
+                ctx._source.lastName = params.lastName;
+                ctx._source.email = params.email;
+                ctx._source.civilIdOrPassport = params.civilIdOrPassport;
+                ctx._source.languagePreference = params.languagePreference;
+                ctx._source.role = params.role;
+                ctx._source.subRoles = params.subRoles;
+                ctx._source.isVerified = params.isVerified;
+                ctx._source.isRegistered = params.isRegistered;
+                ctx._source.superAdmin = params.superAdmin;
+                ctx._source.deleteRequest = params.deleteRequest;
+                ctx._source.isDeleted_user = params.isDeleted_user;
+                ctx._source.directSignup = params.directSignup;
+                ctx._source.contentlanguages = params.contentlanguages;
+                ctx._source.currentVessel = params.currentVessel;
+                ctx._source.vesselStatus = params.vesselStatus;
+                ctx._source.isEmailNotification = params.isEmailNotification;
+                ctx._source.isPushNotification = params.isPushNotification;
+                ctx._source.lastLoginAt = params.lastLoginAt;
+                ctx._source.isSignupAdminAprroved = params.isSignupAdminAprroved;
+                ctx._source.vesselName = params.vesselName;
+                ctx._source.vesselIsActive = params.vesselIsActive;
+                ctx._source.vesselId = params.vesselId;
+                ctx._source.vesselIsDeleted = params.vesselIsDeleted;
+                ctx._source.typeOfVesselName = params.typeOfVesselName;
+                ctx._source.tyepOfVesselId = params.tyepOfVesselId;
+                ctx._source.userCreatedAt = params.userCreatedAt;
+                ctx._source.userUpdatedAt = params.userUpdatedAt;
+            `;
+
+            const params = {
                 employeeId: savedEmployee._id?.toString(),
                 UID: savedEmployee.UID,
                 designation: savedEmployee.designation,
@@ -3434,8 +3478,6 @@ module.exports = {
                 subscriber: savedEmployee.subscriber?.toString(),
                 createdAt: savedEmployee.createdAt,
                 updatedAt: savedEmployee.updatedAt,
-
-                userId: savedEmployee.user?._id?.toString(),
                 firstName: savedEmployee.user?.firstName,
                 lastName: savedEmployee.user?.lastName,
                 email: savedEmployee.user?.email,
@@ -3465,7 +3507,13 @@ module.exports = {
                 userCreatedAt: savedEmployee.user?.createdAt,
                 userUpdatedAt: savedEmployee.user?.updatedAt,
             };
-            await updateDocumenttoElasticSearch("users", savedEmployee._id, document);
+
+            await updateByQueryToElasticSearch(
+                "users",
+                scriptSource,
+                { term: { userId: savedEmployee.user?._id?.toString() } },
+                params
+            );
         } catch (err) {
             console.error("Error updating document in Elastic:", err);
         }
@@ -3822,6 +3870,64 @@ module.exports = {
                 });
 
                 savedEmployees.push({ ...savedEmployee, user: savedUser });
+            }
+
+            // Index to cache within transaction for atomicity
+            const cacheDocuments = [];
+            for (const emp of savedEmployees) {
+                const designation = await Designation.findById(emp.empDesignation).session(session).lean();
+                const vessel = emp.user.currentVessel ? await Vessel.findById(emp.user.currentVessel).session(session).lean() : null;
+                const vesselType = vessel?.typeOfVessel ? await VesselType.findById(vessel.typeOfVessel).session(session).lean() : null;
+
+                const cacheDoc = {
+                    id: emp.user._id,
+                    userId: emp.user._id,
+                    employeeId: emp._id,
+                    UID: emp.user.UID || emp.UID,
+                    subscriber: emp.user.subscriber,
+                    firstName: emp.user.firstName,
+                    lastName: emp.user.lastName,
+                    email: emp.user.email,
+                    civilIdOrPassport: emp.user.civilIdOrPassport,
+                    role: emp.user.role,
+                    subRoles: emp.user.subRoles || [],
+                    superAdmin: emp.user.superAdmin || false,
+                    designation: designation?.name || null,
+                    empDesignation: emp.empDesignation || null,
+                    regType: emp.regType || 1,
+                    bulkId: emp.bulkId || null,
+                    currentVessel: emp.user.currentVessel || null,
+                    vesselName: vessel?.name || null,
+                    vesselId: vessel?._id || null,
+                    vesselStatus: emp.user.vesselStatus || null,
+                    vesselIsActive: vessel?.isActive || false,
+                    vesselIsDeleted: vessel?.isDeleted || false,
+                    typeOfVesselName: vesselType?.name || null,
+                    tyepOfVesselId: vesselType?._id || null,
+                    isActive: emp.user.isActive,
+                    isVerified: emp.user.isVerified || false,
+                    isRegistered: emp.user.isRegistered !== undefined ? emp.user.isRegistered : true,
+                    isDeleted: emp.user.isDeleted || false,
+                    isDeleted_user: emp.user.isDeleted || false,
+                    isSignupAdminAprroved: emp.user.isSignupAdminAprroved,
+                    isResetPasswordDialog: emp.user.isResetPasswordDialog || false,
+                    deleteRequest: emp.user.deleteRequest || false,
+                    directSignup: emp.user.directSignup || false,
+                    languagePreference: emp.user.languagePreference || 'en',
+                    contentlanguages: emp.user.contentlanguages || ['english'],
+                    isEmailNotification: emp.user.isEmailNotification !== undefined ? emp.user.isEmailNotification : true,
+                    isPushNotification: emp.user.isPushNotification !== undefined ? emp.user.isPushNotification : true,
+                    enrolledCourses: 0,
+                    averageCourseProgress: 0,
+                    lastLoginAt: emp.user.lastLoginAt,
+                    userCreatedAt: emp.user.createdAt,
+                    userUpdatedAt: emp.user.updatedAt,
+                };
+                cacheDocuments.push(cacheDoc);
+            }
+
+            if (cacheDocuments.length > 0) {
+                await bulkIndexDocumentsToElasticSearch("users", cacheDocuments, session);
             }
 
             return savedEmployees;
@@ -4634,7 +4740,8 @@ module.exports = {
                 });
 
                 try {
-                    await bulkIndexDocumentsToElasticSearch("users", elasticDocuments);
+                    // Index to cache within transaction for atomicity
+                    await bulkIndexDocumentsToElasticSearch("users", elasticDocuments, session);
                 } catch (error) {
                     throw CustomError(ErrorName.INDEX_DOC_ELASTIC_SEARCH, `Elastic Insert Error (users): ${error}`)
                 }
