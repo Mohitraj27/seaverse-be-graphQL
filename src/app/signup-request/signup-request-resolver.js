@@ -20,6 +20,7 @@ const { decrypt, encrypt } = require('../../util/encryption_helper');
 // Replaced Elasticsearch with MongoDB UserSearchCache
 // const { updateByQueryToElasticSearch, deleteByQueryFromElasticSearch } = require("../../util/elastic_helper");
 const { updateByQueryToElasticSearch, deleteByQueryFromElasticSearch } = require("../../util/user_search_helper");
+const { UserSearchCache } = require('../user/user_search_cache/user_search_cache_model');
 module.exports.queries = {
     getSignupRequest: async ({ id, search, pageInput }, context) => {
         const { subscriberId } = AuthUser(context);
@@ -203,48 +204,33 @@ module.exports.mutations = {
                     const userVesselsDetails = await Vessel.find({ _id: vesselName, isDeleted: false, isActive: true }).populate('typeOfVessel', '_id name');
 
                     try {
-                        await updateByQueryToElasticSearch(
-                            'users',
-                            `
-                            ctx._source.designation = params.designation;
-                            ctx._source.empDesignation = params.empDesignation;
-                            ctx._source.civilIdOrPassport = params.civilIdOrPassport;
-                            ctx._source.isSignupAdminAprroved = params.isSignupAdminAprroved;
-                            ctx._source.isRegistered = params.isRegistered;
-                            ctx._source.vesselStatus = params.vesselStatus;
-                            ctx._source.currentVessel = params.currentVessel;
-                            ctx._source.vesselName = params.vesselName;
-                            ctx._source.vesselId = params.vesselId;
-                            ctx._source.vesselIsDeleted = params.vesselIsDeleted;
-                            ctx._source.vesselIsActive = params.vesselIsActive;
-                            ctx._source.typeOfVesselName = params.typeOfVesselName;
-                            ctx._source.tyepOfVesselId = params.tyepOfVesselId;
-                        `,
+                        // Direct update to UserSearchCache table
+                        await UserSearchCache.updateOne(
+                            { userId: signupRequest?.userId?.toString() },
                             {
-                                term: {
-                                    userId: signupRequest?.userId?.toString()
+                                $set: {
+                                    designation: designationObject?.name,
+                                    empDesignation: designation,
+                                    civilIdOrPassport: encrypt(employeeId?.toUpperCase()),
+                                    isSignupAdminAprroved: true,
+                                    isRegistered,
+                                    vesselStatus: vesselStatus || null,
+                                    currentVessel: vesselName || null,
+                                    vesselName: userVesselsDetails[0]?.name || null,
+                                    vesselId: userVesselsDetails[0]?._id || null,
+                                    vesselIsDeleted: userVesselsDetails[0]?.isDeleted || null,
+                                    vesselIsActive: userVesselsDetails[0]?.isActive || null,
+                                    typeOfVesselName: userVesselsDetails[0]?.typeOfVessel?.name || null,
+                                    tyepOfVesselId: userVesselsDetails[0]?.typeOfVessel?._id || null,
+                                    updatedAt: new Date()
                                 }
                             },
-                            {
-                                designation: designationObject?.name,
-                                empDesignation: designation,
-                                civilIdOrPassport: encrypt(employeeId?.toUpperCase()),
-                                isSignupAdminAprroved: true,
-                                isRegistered,
-                                vesselStatus: vesselStatus || null,
-                                currentVessel: vesselName || null,
-                                vesselName: userVesselsDetails[0]?.name || null,
-                                vesselId: userVesselsDetails[0]?._id || null,
-                                vesselIsDeleted: userVesselsDetails[0]?.isDeleted || null,
-                                vesselIsActive: userVesselsDetails[0]?.isActive || null,
-                                typeOfVesselName: userVesselsDetails[0]?.typeOfVessel?.name || null,
-                                tyepOfVesselId: userVesselsDetails[0]?.typeOfVessel?._id || null,
-                            }
+                            { session }
                         );
                     } catch (error) {
                         throw CustomError(
                             ErrorName.ELASTIC_UPDATE_FAILED,
-                            "Elasticsearch update failed. Transaction will be rolled back."
+                            "User cache update failed. Transaction will be rolled back."
                         );
                     }
 
