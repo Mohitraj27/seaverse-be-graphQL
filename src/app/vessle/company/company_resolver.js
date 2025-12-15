@@ -18,7 +18,7 @@ module.exports.queries = {
             if (search) {
                 query.name = { $regex: search, $options: "i" };
             }
-            const companies = await Company.find(query);
+            const companies = await Company.find(query).sort({ name: 1 });
 
             return {
                 companies,

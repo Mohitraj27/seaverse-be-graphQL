@@ -24,7 +24,8 @@ const { client } = require("./src/util/user_search_helper");
 const { connectToMongo } = require("./src/util/mongodb_helper");
 const { toUpperCaseFirstLetter } = require("./src/util/string_helper");
 const SystemStatsScheduler = require("./src/app/reports/system_stats_scheduler");
-const aws_helper = require("./src/util/aws_helper");
+const { RELEASE_VERSION, BUILD_DATE, VERSION_HISTORY } = require("./src/config/version");
+
 if (process.env.NODE_ENV === "production" || process.env.NODE_ENV === "development-production") {
     process.env.PORT = process.env.PORT_LIVE;
     process.env.MONGO_DB = process.env.MONGO_DB_LIVE;
@@ -221,6 +222,10 @@ const { httpsServer, httpServer, apolloServer } = (() => {
     const syncDashboardRoutes = require('./scripts/sync-api');
     ExpressServer.use('/sync', syncDashboardRoutes);
 
+    // Add MongoDB cache migration dashboard routes
+    const mongoCacheRoutes = require('./src/routes/mongo-cache');
+    ExpressServer.use('/mongo-cache', mongoCacheRoutes);
+
     // Serve static files for the UI
     ExpressServer.use('/public', express.static(path.join(__dirname, 'public')));
 
@@ -231,6 +236,11 @@ const { httpsServer, httpServer, apolloServer } = (() => {
 
     ExpressServer.get('/user-registration-flag-manager', (req, res) => {
         res.sendFile(path.join(__dirname, 'public', 'user-registration-flag-manager.html'));
+    });
+
+    // Serve the MongoDB cache migration dashboard
+    ExpressServer.get('/mongo-cache-dashboard', (req, res) => {
+        res.sendFile(path.join(__dirname, 'public', 'mongo-cache-dashboard.html'));
     });
 
     ExpressServer.get('/add-dummy-passwords', (req, res) => {
@@ -245,6 +255,7 @@ const { httpsServer, httpServer, apolloServer } = (() => {
 
     var public = path.join(__dirname, 'uploads');
     ExpressServer.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+    ExpressServer.use('/public', express.static(path.join(__dirname, 'public')));
     const httpsServer = HttpsHelper.createServer(
         {
         },
@@ -261,6 +272,7 @@ const { httpsServer, httpServer, apolloServer } = (() => {
 firebaseHelper.init();
 // MongoDB UserSearchCache connection (no separate connection needed)
 const elasticConnect = async () => {
+    console.log("Connecting to Elasticsearch...");
     try {
         await client.ping();
         console.log("User Search Cache (MongoDB) is connected");
@@ -306,8 +318,35 @@ ExpressServer.get('/health-check', (req, res) => {
     res.status(200).send('App is up and running test mode');
 });
 
+ExpressServer.get('/api/ci', (req, res) => {
+    res.status(200).send('App is up and running');
+});
+
 ExpressServer.get('/', (req, res) => {
     res.status(200).send('Welcome to Squadra API V2');
+});
+
+ExpressServer.get('/version-dashboard', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'version-dashboard.html'));
+});
+
+ExpressServer.get('/api/version', (req, res) => {
+    res.status(200).json({
+        version: RELEASE_VERSION,
+        title: `SeaVerse LMS v${RELEASE_VERSION}`,
+        description: 'Latest version of the SeaVerse Learning Management System',
+        buildDate: BUILD_DATE,
+        releaseDate: BUILD_DATE,
+        timestamp: new Date().toISOString(),
+        features: [
+            'Version API endpoint for real-time version tracking',
+            'Enhanced user management system',
+            'Training registration and certificate management',
+            'Comprehensive reporting dashboard',
+            'Real-time notifications system'
+        ],
+        history: VERSION_HISTORY
+    });
 });
 
 // connectToMongo(process.env.MONGO_DB);

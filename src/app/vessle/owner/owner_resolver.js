@@ -69,7 +69,7 @@ module.exports.queries = {
             const owners = await Owner.find(query);
 
             // Decrypt before returning
-            const decryptedOwners = owners.map(owner => {
+            let decryptedOwners = owners.map(owner => {
                 const obj = owner.toObject();
                 const firstName = obj.firstName ? safeDecrypt(obj.firstName, 'owner firstName') : "";
                 const lastName = obj.lastName ? safeDecrypt(obj.lastName, 'owner lastName') : "";
@@ -89,7 +89,8 @@ module.exports.queries = {
                 };
             });
 
-
+            // Sort owners by firstName (ascending)
+            decryptedOwners.sort((a, b) => a.firstName.localeCompare(b.firstName));
             return {
                 owners: decryptedOwners,
                 totalCount: decryptedOwners.length

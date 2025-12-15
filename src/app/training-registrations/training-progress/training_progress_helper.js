@@ -837,7 +837,7 @@ module.exports = {
                     })
                     .execPopulate();
 
-                sendCourseCompletionMail(savedTrainingCertificate);
+                // sendCourseCompletionMail(savedTrainingCertificate);
             }
 
             const notificationsList = [];
