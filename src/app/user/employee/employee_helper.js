@@ -78,6 +78,7 @@ const { decrypt, encrypt } = require('../../../util/encryption_helper');
 // Replaced Elasticsearch with MongoDB UserSearchCache
 // const { client, deleteByQueryFromElasticSearch, updateDocumenttoElasticSearch, updateByQueryToElasticSearch, indexDocumenttoElasticSearch, bulkIndexDocumentsToElasticSearch } = require('../../../util/elastic_helper');
 const { client, deleteByQueryFromElasticSearch, updateDocumenttoElasticSearch, updateByQueryToElasticSearch, indexDocumenttoElasticSearch, bulkIndexDocumentsToElasticSearch } = require('../../../util/user_search_helper');
+const { UserSearchCache } = require('../user_search_cache/user_search_cache_model');
 const { MongoClient, ObjectId: mongodbObject } = require('mongodb');
 const { VesselType } = require('../../vessle/vessel-type/vessel_type_model');
 const { ImportJob } = require("./import_job_model");
@@ -2224,7 +2225,7 @@ const deleteUsers = async (users, errors) => {
 }
 
 const softDeleteUsers = async (users, errors) => {
-
+   console.log(users,"users");
     try {
 
         const getUsers = await User.find({ _id: { $in: users }, isDeleted: false })
@@ -2333,11 +2334,12 @@ const softDeleteUsers = async (users, errors) => {
                     );
 
                     try {
-                        await deleteByQueryFromElasticSearch('users', {
-                            terms: {
-                                userId: users
-                            }
-                        });
+                        // Direct delete from UserSearchCache table
+                        const userIdStrings = users.map(id => id.toString());
+                        await UserSearchCache.deleteMany(
+                            { userId: { $in: userIdStrings } },
+                            { session }
+                        );
                     } catch (error) {
                         throw CustomError(ErrorName.FAILED_TO_DELETE_USER, error.message,);
                     }
