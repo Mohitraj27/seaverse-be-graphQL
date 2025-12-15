@@ -3265,91 +3265,13 @@ module.exports = {
                         vessel: ObjectId(input?.user?.currentVessel),
                         vesselStatus: input?.user?.vesselStatus === '' ? null : input?.user?.vesselStatus,
                     });
-                    /*
-                                        await NotificationHelper.createNotificationhelper({
-                                            subscriber: subscriberId,
-                                            titleValue: `User Vessel Updated Successfully`,
-                                            messageValue: `User  ${existingEmployee?.user?.firstName} ${existingEmployee?.user?.lastName}" has been assigned to vessel ${newVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`,
-                                            notificationType: NotificationType.USER_VESSEL_UPDATE,
-                                            notifyAllAdmin: true,
-                                            affected: [
-                                                {
-                                                    targetRef: "User",
-                                                    target: existingEmployee?.user?._id,
-                                                },
-                                            ],
-                                            icon: notificationiconEnum.SUCCESS,
-                                            createdBy: userInfo,
-                                        });
-                     
-                                        await NotificationHelper.createNotificationhelper({
-                                            subscriber: subscriberId,
-                                            titleValue: `Your Vessel has been Updated`,
-                                            messageValue: `Your have been assigned to vessel  ${newVessel?.name} by ${userInfo?.firstName} ${userInfo?.lastName}`,
-                                            notificationType: NotificationType.USER_VESSEL_UPDATE,
-                                            notifyAllAdmin: false,
-                                            affected: [
-                                                {
-                                                    targetRef: "User",
-                                                    target: existingEmployee?.user?._id,
-                                                },
-                                            ],
-                                            notifiers: [existingEmployee?.user?._id],
-                                            employeeNotifiers: [existingEmployee?.user?._id],
-                                            icon: notificationiconEnum.SUCCESS,
-                                            createdBy: userInfo,
-                                        });
-                      */
+                    
                 }
 
             }
 
         }
-        /* 
-                if (input?.user?.vesselStatus || input?.user?.vesselStatus === '') {
         
-                    await UserVessel.findOneAndUpdate(
-                        { user: existingEmployee?.user?._id, isActive: true },
-                        { vesselStatus: input?.user?.vesselStatus === '' ? null : input?.user?.vesselStatus }
-                    )
-        
-                    await NotificationHelper.createNotificationhelper({
-                        subscriber: subscriberId,
-                        titleValue: `User status Updated Successfully`,
-                        messageValue: `User  ${existingEmployee?.user?.firstName} ${existingEmployee?.user?.lastName}'s status updated.`,
-        
-                        notificationType: NotificationType.USER_VESSEL_UPDATE,
-                        notifyAllAdmin: true,
-                        affected: [
-                            {
-                                targetRef: "User",
-                                target: existingEmployee?.user?._id,
-                            },
-                        ],
-                        icon: notificationiconEnum.SUCCESS,
-                        createdBy: userInfo,
-                    });
-        
-                    await NotificationHelper.createNotificationhelper({
-                        subscriber: subscriberId,
-                        titleValue: `Your vessel status has been Updated`,
-                        messageValue: input?.user?.vesselStatus === '' ? 'Your vessel status has been removed' : `Your vessel status has been updated to ${input?.user?.vesselStatus}`,
-                        notificationType: NotificationType.USER_VESSEL_UPDATE,
-                        notifyAllAdmin: false,
-                        affected: [
-                            {
-                                targetRef: "User",
-                                target: existingEmployee?.user?._id,
-                            },
-                        ],
-                        notifiers: [existingEmployee?.user?._id],
-                        employeeNotifiers: [existingEmployee?.user?._id],
-                        icon: notificationiconEnum.SUCCESS,
-                        createdBy: userInfo,
-                    });
-        
-                }
-         */
         const updatedUser = await UserHelper.updateUser(
             {
                 id: id,
@@ -4156,7 +4078,7 @@ module.exports = {
                                         civilIdOrPassport: user.civilIdOrPassport,
                                         vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                                         currentVessel: user?.imoNumber && user?.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
-                                        isRegistered: false, // to enter users in unregistered state
+                                        isRegistered: true, // to enter users in unregistered state
                                     },
                                 },
                             },
@@ -4191,7 +4113,7 @@ module.exports = {
                                     email: user.email,
                                     vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                                     currentVessel: user?.imoNumber && user?.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
-                                    isRegistered: false, // to enter users in unregistered state
+                                    isRegistered: true, // to enter users in unregistered state
                                 },
                             },
                         },
@@ -4236,7 +4158,7 @@ module.exports = {
                                         email: user.email,
                                         vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                                         currentVessel: user?.imoNumber && user?.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
-                                        isRegistered: false, // to enter users in unregistered state
+                                        isRegistered: true, // to enter users in unregistered state
                                     },
                                 },
                             },
@@ -4271,7 +4193,7 @@ module.exports = {
                                     civilIdOrPassport: user.civilIdOrPassport,
                                     vesselStatus: user?.vesselStatus && user?.vesselStatus.trim() !== '' ? user.vesselStatus?.toUpperCase() : null,
                                     currentVessel: user?.imoNumber && user?.imoNumber.trim() !== '' ? vesselMap.get(user.imoNumber)?.id || null : null,
-                                    isRegistered: false, // to enter users in unregistered state
+                                    isRegistered: true, // to enter users in unregistered state
                                 },
                             },
                         },
@@ -4329,7 +4251,7 @@ module.exports = {
                         password: await CryptoHelper.hash(password, 10),
                         subscriber: subscriber_Id ?? null,
                         isSignupAdminAprroved: true,
-                        isRegistered: false, // to enter users in unregistered state
+                        isRegistered: true, // to enter users in unregistered state
                     });
 
                     if (user.imoNumber && user.vesselStatus.toUpperCase() !== VesselStatus.ONSHORE) {
@@ -4746,7 +4668,7 @@ module.exports = {
                 }
 
                 // console.time('filterPlans')
-                // const filteredPlans = await filterLearningPlans(learningPlans, conditionsList, context, session);
+                const filteredPlans = await filterLearningPlans(learningPlans, conditionsList, context, session);
                 // console.timeEnd('filterPlans')
 
                 // if (filteredPlans.length > 0) {
@@ -4766,7 +4688,7 @@ module.exports = {
 
             if (decryptedPasswordEmailList.length > 0) {
 
-                // await sendBulkEmails(decryptedPasswordEmailList);
+                await sendBulkEmails(decryptedPasswordEmailList);
 
             }
 

@@ -2,43 +2,42 @@ const AWS = require("aws-sdk");
 var path = require("path");
 var fs = require('fs');
 
-
 module.exports = {
+    
+   fetchFile: async (filePath) => {
+        if (filePath) { 
+            function encodeFilePath(filePath) {
+                if (!filePath || typeof filePath !== "string") return filePath;
+                return filePath.replace(/ /g, "%20");
+            }
 
-    fetchFile: async (filePath) => {
-        if (filePath) {
-            // console.log('fetchFile', {
-            //     AWS_ACCESS_KEY: process.env.AWS_ACCESS_KEY,
-            //     AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY,
-            //     AWS_REGION: process.env.AWS_REGION,
-            //     S3_BUCKET: process.env.S3_BUCKET,
-            //     filePath
-            // });
-            const s3 = new AWS.S3({
-                accessKeyId: process.env.AWS_ACCESS_KEY?.trim(),
-                secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY?.trim(),
-                region: process.env.AWS_REGION?.trim(),
-            });
+            // Read PEM file - 2 directories up from current file
+            const privateKeyPath = path.join(__dirname, '..', '..', 'cloudfront-private-key.pem');
+            const privateKey = fs.readFileSync(privateKeyPath, 'utf8');
 
-            const signedUrl = await new Promise((resolve, reject) => {
-                const params = {
-                    Bucket: process.env.S3_BUCKET?.trim(),
-                    Key: filePath?.trim(),
-                    Expires: 60 * 60 * 5
-                };
+            const cloudfront = new AWS.CloudFront.Signer(
+                'K3SQ2SES575KAS',
+                privateKey
+            );
+            const withoutSpaces=encodeFilePath(filePath);
+            
+            const cloudfrontDomain = 'd1hlcsotuwlxxk.cloudfront.net';
+            const url = `https://${cloudfrontDomain}/${withoutSpaces?.trim()}`;
 
-                s3.getSignedUrl('getObject', params, (error, url) => {
-                    if (error) {
-                        reject(error);
-                    } else {
-                        resolve(url);
-                    }
-                });
+            const signedUrl = cloudfront.getSignedUrl({
+                url: url,
+                expires: Math.floor(Date.now() / 1000) + (60 * 60 * 5) // 5 hours from now
             });
 
             return signedUrl;
         }
     },
+
+
+    // const signedUrl = signer.getSignedUrl({
+    //     url: resourceUrl,
+    //     expires: Math.floor(Date.now() / 1000) + 3600 // 1 hour from now
+    // });
     uploadFile: async ({ fileData, filePath, originalFileName, mimeType }) => {
         if (fileData && filePath) {
             const s3 = new AWS.S3({
