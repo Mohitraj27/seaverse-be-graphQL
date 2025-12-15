@@ -2225,7 +2225,6 @@ const deleteUsers = async (users, errors) => {
 }
 
 const softDeleteUsers = async (users, errors) => {
-   console.log(users,"users");
     try {
 
         const getUsers = await User.find({ _id: { $in: users }, isDeleted: false })
@@ -2503,43 +2502,41 @@ const deleteUsersAfterGDPR = async (users, errors) => {
             // const updateDeletedList = await DeletedUser.insertMany(deletedUsers, { session });
 
             try {
-                await updateByQueryToElasticSearch(
-                    "users",
-                    `
-                ctx._source.isDeleted = true;
-                ctx._source.isRegistered = false;
-                ctx._source.subRoles = [];
-                ctx._source.deleteRequest = false;
-                ctx._source.deletionDate = params.deletionDate;
-
-                ctx._source.remove("email");
-                ctx._source.remove("dummyPassword");
-                ctx._source.remove("languagePreference");
-                ctx._source.remove("currentVessel");
-                ctx._source.remove("vesselStatus");
-                ctx._source.remove("password");
-                ctx._source.remove("isSignupAdminApproved");
-                ctx._source.remove("UID");
-                ctx._source.remove("lastLoginAt");
-                ctx._source.remove("civilIdOrPassport");
-                ctx._source.remove("roleAssignmentDate");
-                ctx._source.remove("contentlanguages");
-                ctx._source.remove("deleteRequestDate");
-                ctx._source.remove("reasonForDelete");
-            `,
+                // Direct update to UserSearchCache table
+                const userIdStrings = users.map(id => id.toString());
+                await UserSearchCache.updateMany(
+                    { userId: { $in: userIdStrings } },
                     {
-                        terms: {
-                            userId: users, // assuming your ES documents have `userId` field that matches Mongo `_id`
+                        $set: {
+                            isDeleted: true,
+                            isRegistered: false,
+                            subRoles: [],
+                            deleteRequest: false,
+                            deletionDate: new Date(),
+                            updatedAt: new Date()
                         },
+                        $unset: {
+                            email: "",
+                            dummyPassword: "",
+                            languagePreference: "",
+                            currentVessel: "",
+                            vesselStatus: "",
+                            password: "",
+                            isSignupAdminApproved: "",
+                            UID: "",
+                            lastLoginAt: "",
+                            civilIdOrPassport: "",
+                            roleAssignmentDate: "",
+                            contentlanguages: "",
+                            deleteRequestDate: "",
+                            reasonForDelete: "",
+                        }
                     },
-                    {
-                        deletionDate: new Date(),
-                    }
+                    { session }
                 );
             } catch (error) {
-                console.error("Error deleting users from ElasticSearch:", error);
+                console.error("Error deleting users from UserSearchCache:", error);
                 throw CustomError(ErrorName.FAILED_TO_DELETE_USER, error.message);
-
             }
 
             const deletedOverallTrainingProgresses = await OverallTrainingProgress.deleteMany(
