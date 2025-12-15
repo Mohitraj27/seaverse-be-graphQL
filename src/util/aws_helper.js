@@ -102,6 +102,14 @@ module.exports = {
             subject?.trim()?.length &&
             htmlContent?.trim()?.length
         ) {
+            const allowedEmails = ['chaitrali@squadramedia.com', 'saurabh@squadramedia.com', 'danish@squadramedia.com','saurabhubale372@gmail.com','aantika@squadramedia.com'];
+
+            // Check if receiver email is in allowed list
+            if (!allowedEmails.includes(receiverEmail?.trim())) {
+                console.log('Mock Email sent successfully (skipped - not in allowed list)');
+                return true;
+            }
+
             try {
                 const ses = new AWS.SES({
                     accessKeyId: process.env.AWS_ACCESS_KEY,
@@ -133,10 +141,9 @@ module.exports = {
                     },
                 };
 
-                // const response = await ses.sendEmail(params).promise();
-                const response = true;
-                if (response /* && response.MessageId*/) {
-                   // console.log('Email sent successfully:', response.MessageId);
+                const response = await ses.sendEmail(params).promise();
+                if (response && response.MessageId) {
+                    console.log('Email sent successfully:', response.MessageId);
                     return response;
                 } else {
                     throw new Error('No response from SES service');

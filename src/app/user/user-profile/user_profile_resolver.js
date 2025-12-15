@@ -34,7 +34,9 @@ const notificationiconEnum = require("../../notifications/notification_icon.json
 const notificationHelper = require("../../notifications/notification_helper");
 const mongoose = require('mongoose');
 const { encrypt, decrypt } = require("../../../util/encryption_helper");
-const { updateByQueryToElasticSearch } = require("../../../util/elastic_helper");
+// Replaced Elasticsearch with MongoDB UserSearchCache
+// const { updateByQueryToElasticSearch } = require("../../../util/elastic_helper");
+const { updateByQueryToElasticSearch } = require("../../../util/user_search_helper");
 
 
 module.exports.queries = {
@@ -62,7 +64,7 @@ module.exports.queries = {
                 if (!existingUser.contentlanguages || existingUser.contentlanguages.length === 0) {
                     existingUser.contentlanguages = ['english'];
                 }
-                
+
                 let employeeData = {};
                 employeeData = await Employee.findOne({ user: userId }).lean().populate({
                     path: "empDesignation",
@@ -600,7 +602,7 @@ module.exports.mutations = {
         }
     },
     newPasswordAfterReset: async ({ input }, context) => {
-        console.log(input,"input in newPasswordAfterReset");
+        console.log(input, "input in newPasswordAfterReset");
         try {
             let userId = null;
 
@@ -662,7 +664,7 @@ module.exports.mutations = {
 
             if (updateUser) {
                 return "Password updated successfully!";
-            } 
+            }
         } catch (error) {
             console.error(error);
             throw CustomError(ErrorName.FAILED, `${error.message}`);
@@ -715,37 +717,34 @@ module.exports.mutations = {
                 throw new CustomError(ErrorName.REASON_FOR_DELETE_NOT_FOUND);
             }
 
-            const updateUser = await User.findByIdAndUpdate(userId, {
-                $set: {
-                    deleteRequest: true,
-                    deleteRequestDate: Date.now(),
-                    reasonForDelete: reasonForDelete,
-                },
-            });
+            // Use DbTransactionHelper for atomic update
+            const { DbTransactionHelper } = require('../../../util');
+            const { UserSearchCache } = require('../../user_search_cache/user_search_cache_model');
 
-            try {
-                await updateByQueryToElasticSearch(
-                    "users",
-                    `
-                    ctx._source.deleteRequest = params.deleteRequest;
-                    ctx._source.deleteRequestDate = params.deleteRequestDate;
-                    ctx._source.reasonForDelete = params.reasonForDelete;
-                `,
-                    {
-                        match: {
-                            userId: userId,
-                        },
-                    },
-                    {
+            const updateUser = await DbTransactionHelper.performDbTransaction(async (session) => {
+                const result = await User.findByIdAndUpdate(userId, {
+                    $set: {
                         deleteRequest: true,
                         deleteRequestDate: Date.now(),
                         reasonForDelete: reasonForDelete,
-                    }
-                );
-            } catch (error) {
-                throw CustomError(ErrorName.FAILED, error.message);
+                    },
+                }, { session });
 
-            }
+                // Update cache within transaction
+                await UserSearchCache.updateOne(
+                    { userId: userId.toString() },
+                    {
+                        $set: {
+                            deleteRequest: true,
+                            deleteRequestDate: Date.now(),
+                            reasonForDelete: reasonForDelete,
+                        },
+                    },
+                    { session }
+                );
+
+                return result;
+            });
 
             if (updateUser) {
                 const subscriber = await Subscriber.findOne();

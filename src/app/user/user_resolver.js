@@ -42,7 +42,9 @@ const { consentsforLearnerInitalLogin } = require('../email-template/consentsfor
 const { sendConsentsforAllAdminsInitalLogin } = require('../email-template/consentsforAllAdminsInitalLogin');
 const { SubRole } = require("../user/sub-roles/sub_role_model");
 const { encrypt, decrypt } = require("../../util/encryption_helper");
-const { updateByQueryToElasticSearch, indexDocumenttoElasticSearch } = require("../../util/elastic_helper");
+// Replaced Elasticsearch with MongoDB UserSearchCache
+// const { updateByQueryToElasticSearch, indexDocumenttoElasticSearch } = require("../../util/elastic_helper");
+const { updateByQueryToElasticSearch, indexDocumenttoElasticSearch } = require("../../util/user_search_helper");
 module.exports.queries = {
     downloadNotification: async ({ input }, context) => {
 
@@ -378,7 +380,7 @@ module.exports.mutations = {
         try {
             const signIn = await DbTransactionHelper.performDbTransaction(async session => {
                 const encryptedEmail = encrypt(input.emailOrCivilIdOrPassport);
-              
+
                 const existingUser = await User.findOne({
                     $or: [
                         { email: encryptedEmail },
@@ -396,15 +398,15 @@ module.exports.mutations = {
                     return CustomError(ErrorName.USER_NOT_FOUND);
                 }
 
-              
+
                 if (existingUser.deleteRequest === true) {
                     return CustomError(ErrorName.DELETE_REQUEST_PENDING, 'Your account delete request is pending. Please contact your admin');
                 }
 
-             
+
                 const isPasswordValid = await CryptoHelper.compare(input.password, existingUser.password);
 
-             
+
                 if (!isPasswordValid) {
                     return CustomError(ErrorName.WRONG_PASSWORD);
                 }
@@ -420,7 +422,7 @@ module.exports.mutations = {
                         const inputConditionId = condition._id ? condition._id.toString() : null;
 
                         if (inputConditionId && existingConditionsMap.has(inputConditionId)) {
-                        
+
                             const existingCondition = existingConditionsMap.get(inputConditionId);
                             existingCondition.message = condition.message;
                             existingCondition.consentType = consentTypes.INITIAL_LOGIN;
@@ -439,12 +441,12 @@ module.exports.mutations = {
                         }
                     });
 
-                 
+
                     if (input?.consents?.some(consent => consent.status === false)) {
                         const decryptedUserEmail = decrypt(existingUser?.email);
                         const decryptedUserFirstName = decrypt(existingUser?.firstName);
 
-                  
+
                         await AwsHelper.sendEmail({
                             receiverEmail: decryptedUserEmail,
                             subject: `Your Sign In Was Not Complete`,
@@ -457,7 +459,7 @@ module.exports.mutations = {
                             { email: 1, firstName: 1, lastName: 1 }
                         ).lean();
 
-                    
+
                         const adminUsers = adminUserEmails?.map(user => ({
                             email: decrypt(user?.email),
                             firstName: decrypt(user?.firstName),
@@ -503,31 +505,24 @@ module.exports.mutations = {
                 mongoUpdate.firebaseTokens = [firebaseToken];
             }
 
-            updatePromises.push(
-                User.findByIdAndUpdate(userId, mongoUpdate, {
-                    new: false, 
-                    lean: true 
-                })
-            );
+            // Use DbTransactionHelper for atomic update
+            const { DbTransactionHelper } = require('../../util');
+            const { UserSearchCache } = require('../user/user_search_cache/user_search_cache_model');
 
-           
-            updatePromises.push(
-                updateByQueryToElasticSearch(
-                    "users",
-                    "ctx._source.lastLoginAt = params.lastLoginAt",
-                    {
-                        match: {
-                            userId: userId.toString()
-                        }
-                    },
-                    {
-                        lastLoginAt: lastLoginAtTime
-                    }
-                )
-            );
+            await DbTransactionHelper.performDbTransaction(async (session) => {
+                await User.findByIdAndUpdate(userId, mongoUpdate, {
+                    new: false,
+                    lean: true,
+                    session
+                });
 
-           
-            await Promise.all(updatePromises);
+                // Update cache within transaction
+                await UserSearchCache.updateOne(
+                    { userId: userId.toString() },
+                    { $set: { lastLoginAt: lastLoginAtTime } },
+                    { session }
+                );
+            });
 
             return "Last login time updated successfully";
 

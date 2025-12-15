@@ -52,6 +52,7 @@ const groupTypes = require("../../../util/group_types.json");
 const LearningPlanAssignment = require("../../learning-plan/assignedLearner/assignedLearnerModel");
 const { enrollUsers } = require("../employee/employee_helper");
 const { filterLearningPlans } = require("../employee/employee_helper");
+const { processLearningPlansInBackground } = require("../employee/learning_plan_helper");
 const {
     OverallTrainingProgress,
 } = require("../../training-registrations/overall-course-progress/overall_progress_model");
@@ -634,9 +635,9 @@ module.exports.queries = {
                     customGroupNames = customGroup.map(group => group.groupName);
                 }
             }
-            existingUser.firstName =  decrypt(existingUser?.firstName);
+            existingUser.firstName = decrypt(existingUser?.firstName);
             existingUser.lastName = existingUser?.lastName ? decrypt(existingUser?.lastName) : '';
-            existingUser.email =  decrypt(existingUser?.email);
+            existingUser.email = decrypt(existingUser?.email);
             if (existingUser && user && designation) {
                 return {
                     designation: designationName ?? null,
@@ -668,15 +669,15 @@ module.exports.queries = {
             { $match: { isRegistered: true, isDeleted: false } },
             ...(search
                 ? [
-                      {
-                          $match: {
-                              $or: [
-                                  { firstName: { $regex: encryptedSearch, $options: "i" } },
-                                  { lastName: { $regex: encryptedSearch, $options: "i" } },
-                              ],
-                          },
-                      },
-                  ]
+                    {
+                        $match: {
+                            $or: [
+                                { firstName: { $regex: encryptedSearch, $options: "i" } },
+                                { lastName: { $regex: encryptedSearch, $options: "i" } },
+                            ],
+                        },
+                    },
+                ]
                 : []),
         ]);
 
@@ -1507,7 +1508,8 @@ module.exports.mutations = {
                     });
 
                 if (learningPlans?.length > 0 && userConditions?.length > 0) {
-                    await filterLearningPlans(learningPlans, userConditions, context);
+                    // Offload learning plan filtering to background process (group members)
+                    processLearningPlansInBackground(allUniqueUserIds, 'group_update', context);
                 }
             }
         }
