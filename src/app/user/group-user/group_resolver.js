@@ -27,6 +27,7 @@ const {
     getAutoSyncUsersOfSingleGroup,
     getAutoSyncedGroupsOnly,
     getCustomGroupsOnly,
+    getAutoSyncedGroupsOnlyFromCache,
 } = require("./group_helper");
 const error_helper = require("../../../util/error_helper");
 const {
@@ -416,7 +417,7 @@ module.exports.queries = {
 
             switch (groupType) {
                 case "Autosyncedgroups":
-                    let allAutosyncedGroups = await getAutoSyncedGroupsOnly(subscriberId);
+                    let allAutosyncedGroups = await getAutoSyncedGroupsOnlyFromCache(subscriberId);
 
                     allAutosyncedGroups = allAutosyncedGroups.filter(
                         group => group._id && group.groupName
@@ -461,7 +462,7 @@ module.exports.queries = {
                     break;
 
                 default:
-                    let allAutosynced = await getAutoSyncedGroupsOnly(subscriberId);
+                    let allAutosynced = await getAutoSyncedGroupsOnlyFromCache(subscriberId);
                     let allCustom = await getCustomGroupsOnly(
                         groupFilter?.customGroupId,
                         skip,
