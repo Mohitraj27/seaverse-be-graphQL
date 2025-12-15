@@ -22,7 +22,7 @@ module.exports = {
         type TypeOfVesselDetails {
     _id: ID
     isActive: Boolean!
-    name: String!
+    name: String
 }
 
 type VesselDetails {

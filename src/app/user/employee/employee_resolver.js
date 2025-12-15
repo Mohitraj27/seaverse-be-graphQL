@@ -859,7 +859,9 @@ module.exports.queries = {
                 filterConditions.regType = filterInput?.regType;
             }
             if (filterInput?.empDesignation && filterInput.empDesignation.length > 0) {
-                filterConditions.empDesignation = { $in: filterInput.empDesignation };
+                filterConditions.empDesignation = {
+                    $in: filterInput.empDesignation.map(id => new mongoose.Types.ObjectId(id))
+                };
             }
             const fetchResult = async pipeline => {
                 const empData = await Employee.aggregate(pipeline);
