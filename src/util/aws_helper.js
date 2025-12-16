@@ -134,7 +134,7 @@ module.exports = {
             subject?.trim()?.length &&
             htmlContent?.trim()?.length
         ) {
-            const allowedEmails = ['chaitrali@squadramedia.com', 'saurabh@squadramedia.com', 'danish@squadramedia.com', 'saurabhubale372@gmail.com', 'aantika@squadramedia.com', 'chaitrali929200@gmail.com', 'anjima@squadramedia.com'];
+            const allowedEmails = ['chaitrali@squadramedia.com', 'saurabh@squadramedia.com', 'danish@squadramedia.com', 'saurabhubale372@gmail.com', 'aantika@squadramedia.com', 'chaitrali929200@gmail.com', 'anjima@squadramedia.com','aravind@squadramedia.com','ashwin@squadramedia.com','arshid@squadramedia.com'];
 
             // Check if receiver email is in allowed list
             if (!allowedEmails.includes(receiverEmail?.trim())) {
