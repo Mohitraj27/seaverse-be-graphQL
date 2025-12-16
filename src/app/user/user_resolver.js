@@ -201,14 +201,7 @@ module.exports.mutations = {
 
                 if (password !== confirmPassword) throw CustomError(ErrorName.PASSWORD_MISMATCH, "Passwords do not match");
 
-                const passwordRegex = new RegExp("^(?=.*[A-Z])(?=.*[!@#$%^&*.,])(?=.*[0-9])(?=.{8,})(?![a-z])");
-                if (!passwordRegex.test(password)) {
-                    throw CustomError(
-                        ErrorName.INVALID_PASSWORD,
-                        "Password must have at least one uppercase letter, one special character, one number and minimum 8 characters"
-                    );
-                }
-
+             
                 const existingUser = await User.findOne({ email: encrypt(email?.toLowerCase()), isDeleted: false }).session(session);
 
                 if (existingUser) throw CustomError(ErrorName.ALREADY_EXIST, "Email entered already exists. Please log in to continue");
