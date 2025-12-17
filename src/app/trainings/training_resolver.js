@@ -151,45 +151,45 @@ module.exports.queries = {
 
             const totalCount = await Training.countDocuments(filterConditions);
 
-
-            const trainings = await Training.aggregate([
-                { $match: filterConditions },
-                { $sort: sortOrder },
-                { $skip: skip },
-                { $limit: limit },
-                {
-                    $lookup: {
-                        from: "users",
-                        localField: "updatedBy",
-                        foreignField: "_id",
-                        as: "createdByDetails",
-                        pipeline: [{ $project: { firstName: 1, lastName: 1, email: 1, _id: 1 } }],
-                    },
+        
+        const trainings = await Training.aggregate([
+            { $match: filterConditions },
+            { $sort: sortOrder },
+            { $skip: skip },
+            { $limit: limit },
+            {
+                $lookup: {
+                    from: "users",
+                    localField: "updatedBy",
+                    foreignField: "_id",
+                    as: "createdByDetails",
+                    pipeline: [{ $project: { firstName: 1, lastName: 1, email: 1, _id: 1 } }],
                 },
-                {
-                    $lookup: {
-                        from: "overalltrainingprogresses",
-                        localField: "_id",
-                        foreignField: "training",
-                        as: "trainingUsers",
-                        pipeline: [
-                            { $project: { _id: 1 } }
-                        ]
-                    },
+            },
+            // {
+            //     $lookup: {
+            //         from: "overalltrainingprogresses",
+            //         localField: "_id",
+            //         foreignField: "training",
+            //         as: "trainingUsers",
+            //         pipeline: [
+            //             { $project: { _id: 1 } }
+            //         ]
+            //     },
+            // },
+            {
+                $addFields: {
+                    createdBy: { $arrayElemAt: ["$createdByDetails", 0] },
+                    // countOfUsers: { $size: "$trainingUsers" },
                 },
-                {
-                    $addFields: {
-                        createdBy: { $arrayElemAt: ["$createdByDetails", 0] },
-                        countOfUsers: { $size: "$trainingUsers" },
-                    },
-                },
-                {
-                    $project: {
-                        createdByDetails: 0,
-                        trainingUsers: 0
-                    }
-                },
-            ]);
+            },
+            {
+                $project: {
+                    createdByDetails: 0,
+                    trainingUsers: 0
+                }
+            },
+        ]);
 
             const decryptedTrainings = trainings?.map((training) => ({
                 ...training,
@@ -568,7 +568,7 @@ module.exports.mutations = {
 
                             const jobId = uuidv4();
 
-                            const batchSize = 200;
+                            const batchSize = 50;
                             const totalUsers = completedMigrationUsers.length;
                             const batchCount = Math.ceil(totalUsers / batchSize);
 

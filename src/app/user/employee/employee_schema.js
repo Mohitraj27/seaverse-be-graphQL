@@ -22,7 +22,7 @@ module.exports = {
         type TypeOfVesselDetails {
     _id: ID
     isActive: Boolean!
-    name: String!
+    name: String
 }
 
 type VesselDetails {
@@ -406,6 +406,7 @@ type FetchFileResponse {
         respondToDeleteRequest(input: respondToDeleteInput!): String!
         assignSubroleToLearners(input: AssignSubroleInput!): AssignSubroleResponse!
         exportUserToCsv(userObjectIds: UserObjectIDs!): exportUserToCsvResponse!
+        exportUserDataForPowerBi(userObjectIds: UserObjectIDs!): exportUserToCsvResponse!
         createOrUpdateDynamicData(input: DynamicDataInput!):DynamicDataResponse!
         clearApprovedDeletionRequestHistory:createEmployeeRes
     `,

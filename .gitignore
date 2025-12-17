@@ -1,9 +1,10 @@
 node_modules
 build
+scripts
 npm-debug.log
 .DS_Store
 .idea/
 .vscode/
 .env
-scripts/
+.env.prod
 emails.db

@@ -2,18 +2,44 @@ const AWS = require("aws-sdk");
 var path = require("path");
 var fs = require('fs');
 
-
 module.exports = {
 
     fetchFile: async (filePath) => {
         if (filePath) {
-            // console.log('fetchFile', {
-            //     AWS_ACCESS_KEY: process.env.AWS_ACCESS_KEY,
-            //     AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY,
-            //     AWS_REGION: process.env.AWS_REGION,
-            //     S3_BUCKET: process.env.S3_BUCKET,
-            //     filePath
-            // });
+            function encodeFilePath(filePath) {
+                if (!filePath || typeof filePath !== "string") return filePath;
+                return filePath.replace(/ /g, "%20");
+            }
+
+            // Only use CloudFront in production environment
+            if (process.env.NODE_ENV === 'production') {
+                try {
+                    // Read PEM file - 2 directories up from current file
+                    const privateKeyPath = path.join(__dirname, '..', '..', 'cloudfront-private-key.pem');
+                    const privateKey = fs.readFileSync(privateKeyPath, 'utf8');
+
+                    const cloudfront = new AWS.CloudFront.Signer(
+                        'K3SQ2SES575KAS',
+                        privateKey
+                    );
+                    const withoutSpaces = encodeFilePath(filePath);
+
+                    const cloudfrontDomain = 'd1hlcsotuwlxxk.cloudfront.net';
+                    const url = `https://${cloudfrontDomain}/${withoutSpaces?.trim()}`;
+
+                    const signedUrl = cloudfront.getSignedUrl({
+                        url: url,
+                        expires: Math.floor(Date.now() / 1000) + (60 * 60 * 5) // 5 hours from now
+                    });
+
+                    return signedUrl;
+                } catch (error) {
+                    console.error('CloudFront signing error:', error.message);
+                    // Fall through to S3 direct URL
+                }
+            }
+
+            // For development or if CloudFront fails, use S3 signed URL
             const s3 = new AWS.S3({
                 accessKeyId: process.env.AWS_ACCESS_KEY?.trim(),
                 secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY?.trim(),
@@ -24,7 +50,7 @@ module.exports = {
                 const params = {
                     Bucket: process.env.S3_BUCKET?.trim(),
                     Key: filePath?.trim(),
-                    Expires: 60 * 60 * 5
+                    Expires: 60 * 60 * 5 // 5 hours
                 };
 
                 s3.getSignedUrl('getObject', params, (error, url) => {
@@ -39,6 +65,12 @@ module.exports = {
             return signedUrl;
         }
     },
+
+
+    // const signedUrl = signer.getSignedUrl({
+    //     url: resourceUrl,
+    //     expires: Math.floor(Date.now() / 1000) + 3600 // 1 hour from now
+    // });
     uploadFile: async ({ fileData, filePath, originalFileName, mimeType }) => {
         if (fileData && filePath) {
             const s3 = new AWS.S3({
@@ -102,6 +134,14 @@ module.exports = {
             subject?.trim()?.length &&
             htmlContent?.trim()?.length
         ) {
+            const allowedEmails = ['chaitrali@squadramedia.com', 'saurabh@squadramedia.com', 'danish@squadramedia.com', 'saurabhubale372@gmail.com', 'aantika@squadramedia.com', 'chaitrali929200@gmail.com', 'anjima@squadramedia.com', 'aravind@squadramedia.com', 'ashwin@squadramedia.com', 'arshid@squadramedia.com','rituraj@squadramedia.com','mohit@squadramedia.com','mohit.raj2711@gmail.com','raj716980@gmail.com'];
+
+            // Check if receiver email is in allowed list
+            if (!allowedEmails.includes(receiverEmail?.trim())) {
+                console.log('Mock Email sent successfully (skipped - not in allowed list)');
+                return true;
+            }
+
             try {
                 const ses = new AWS.SES({
                     accessKeyId: process.env.AWS_ACCESS_KEY,
@@ -135,7 +175,7 @@ module.exports = {
 
                 const response = await ses.sendEmail(params).promise();
                 if (response && response.MessageId) {
-                   // console.log('Email sent successfully:', response.MessageId);
+                    console.log('Email sent successfully:', response.MessageId);
                     return response;
                 } else {
                     throw new Error('No response from SES service');

@@ -203,6 +203,9 @@ module.exports = {
             training: ID!
             isEnrolled: Boolean!
             search: String
+            skip: Int
+            limit: Int
+            isLearningPlan: Boolean
         }
         input myCourseFilterInput {
             search: String
@@ -249,6 +252,11 @@ module.exports = {
             countOfUsers: Int,
             users: [UserDetails!]!
         }
+        type AllUserCoursesRes {
+            status: Boolean!
+            message: String!
+            courses: [OverallTrainingProgress]
+        }
     `,
     queries: `
         getTrainingRegistrations(input: getTrainingRegsInput!): getTrainingLearningPlan!
@@ -257,6 +265,7 @@ module.exports = {
         myCourses(filterInput: myCourseFilterInput,pageInput : PageInput): myCoursesRes!
         getSingleCourseDetails(input: ID!): singleTrainingRes!
         getSingleCourseDetailsforWeb(input: ID!): singleTrainingWebRes!
+        getAllUserCoursesDetails: AllUserCoursesRes!
     `,
     mutations: `
         """used for assign course to employee"""

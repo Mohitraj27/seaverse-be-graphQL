@@ -27,7 +27,9 @@ const { decrypt, encrypt } = require("../../util/encryption_helper");
 const { singleLearnerEnrollmentReportQuery, singleLearnerModuleReportQuery, customEnrollmentReportQuery, customQuizReportQuery } = require("./reports_query_builder");
 const { fork } = require("child_process");
 const NotificationEvent = require("../notifications/notification_event.json");
-const { searchEmployeesFromElastic } = require("../../util/elastic_helper");
+// Replaced Elasticsearch with MongoDB UserSearchCache
+// const { searchEmployeesFromElastic } = require("../../util/elastic_helper");
+const { searchEmployeesFromElastic } = require("../../util/user_search_helper");
 
 const getMainLearnersReport = async ({ input }, context) => {
     const { subscriberId, userInfo } = AuthUser(context);
@@ -70,7 +72,7 @@ const getMainLearnersReport = async ({ input }, context) => {
 
             elasticFilterInput = {
                 search: filterInput.search || '',
-                vesselType : filterInput.vesselTypes || [],
+                vesselType: filterInput.vesselTypes || [],
                 vesselName: filterInput.vesselIds || [],
                 empDesignation: filterInput.designations || [],
                 vesselStatus: filterInput.userVesselStatus || [],
@@ -78,88 +80,88 @@ const getMainLearnersReport = async ({ input }, context) => {
                 includeDeletedUsers: input?.filterInput?.includeDeletedUsers,
             }
 
-/* 
-            if (filterInput.vesselTypes && Array.isArray(filterInput.vesselTypes) && filterInput.vesselTypes.length > 0) {
-                matchStage.push({
-                    $match: {
-                        'vesselDetails.typeOfVessel': { $in: filterInput.vesselTypes },
-                    },
-                });
-            }
-
-            if (filterInput.vesselIds && Array.isArray(filterInput.vesselIds) && filterInput.vesselIds.length > 0) {
-                matchStage.push({
-                    $match: {
-                        'vesselDetails._id': { $in: filterInput.vesselIds },
-                    },
-                });
-            }
-
-            if (filterInput.designations && Array.isArray(filterInput.designations) && filterInput.designations.length > 0) {
-                matchStage.push({
-                    $match: {
-                        'employeeDesignation._id': { $in: filterInput.designations },
-                    },
-                });
-            }
-
-            if (filterInput.userVesselStatus && Array.isArray(filterInput.userVesselStatus) && filterInput.userVesselStatus.length > 0) {
-                matchStage.push({
-                    $match: {
-                        'vesselInfo.vesselStatus': { $in: filterInput.userVesselStatus },
-                    },
-                });
-            }
-
-            if (filterInput.isRegistered !== undefined) {
-                matchStage.push({
-                    $match: { 'userInfo.isRegistered': filterInput.isRegistered },
-                });
-            }
-            if (input?.filterInput?.includeDeletedUsers) {
-                deteledUsersStage = [
-                    {
-                        $lookup: {
-                            from: 'deletedusers',
-                            localField: 'user',
-                            foreignField: '_id',
-                            as: 'deletedUserInfo',
-                        },
-                    },
-                    {
-                        $unwind: {
-                            path: '$deletedUserInfo',
-                            preserveNullAndEmptyArrays: true,
-                        },
-                    },
-                    {
-                        $addFields: {
-                            userInfo: {
-                                $mergeObjects: ['$userInfo', '$deletedUserInfo']
-                            }
-                        },
-                    },
-                ];
-            } else {
-                deteledUsersStage = [
-                    {
-                        $match: {
-                            $or: [
+            /* 
+                        if (filterInput.vesselTypes && Array.isArray(filterInput.vesselTypes) && filterInput.vesselTypes.length > 0) {
+                            matchStage.push({
+                                $match: {
+                                    'vesselDetails.typeOfVessel': { $in: filterInput.vesselTypes },
+                                },
+                            });
+                        }
+            
+                        if (filterInput.vesselIds && Array.isArray(filterInput.vesselIds) && filterInput.vesselIds.length > 0) {
+                            matchStage.push({
+                                $match: {
+                                    'vesselDetails._id': { $in: filterInput.vesselIds },
+                                },
+                            });
+                        }
+            
+                        if (filterInput.designations && Array.isArray(filterInput.designations) && filterInput.designations.length > 0) {
+                            matchStage.push({
+                                $match: {
+                                    'employeeDesignation._id': { $in: filterInput.designations },
+                                },
+                            });
+                        }
+            
+                        if (filterInput.userVesselStatus && Array.isArray(filterInput.userVesselStatus) && filterInput.userVesselStatus.length > 0) {
+                            matchStage.push({
+                                $match: {
+                                    'vesselInfo.vesselStatus': { $in: filterInput.userVesselStatus },
+                                },
+                            });
+                        }
+            
+                        if (filterInput.isRegistered !== undefined) {
+                            matchStage.push({
+                                $match: { 'userInfo.isRegistered': filterInput.isRegistered },
+                            });
+                        }
+                        if (input?.filterInput?.includeDeletedUsers) {
+                            deteledUsersStage = [
                                 {
-                                    "userInfo.isDeleted": {
-                                        $ne: true
-                                    }
+                                    $lookup: {
+                                        from: 'deletedusers',
+                                        localField: 'user',
+                                        foreignField: '_id',
+                                        as: 'deletedUserInfo',
+                                    },
                                 },
                                 {
-                                    isDeleted: {
-                                        $ne: true
+                                    $unwind: {
+                                        path: '$deletedUserInfo',
+                                        preserveNullAndEmptyArrays: true,
+                                    },
+                                },
+                                {
+                                    $addFields: {
+                                        userInfo: {
+                                            $mergeObjects: ['$userInfo', '$deletedUserInfo']
+                                        }
+                                    },
+                                },
+                            ];
+                        } else {
+                            deteledUsersStage = [
+                                {
+                                    $match: {
+                                        $or: [
+                                            {
+                                                "userInfo.isDeleted": {
+                                                    $ne: true
+                                                }
+                                            },
+                                            {
+                                                isDeleted: {
+                                                    $ne: true
+                                                }
+                                            }
+                                        ]
                                     }
-                                }
-                            ]
-                        }
-                    },
-                ];
-            } */
+                                },
+                            ];
+                        } */
 
         }
 
@@ -210,7 +212,7 @@ const getMainLearnersReport = async ({ input }, context) => {
         if (limit > 0 && (!input?.export)) {
             pageLimit.push({ $skip: skip }, { $limit: limit });
         }
-        console.time('getMainLearnersReport'); 
+        console.time('getMainLearnersReport');
         const sortOrderMap = {
             "1": "asc",
             "-1": "desc",
@@ -238,7 +240,7 @@ const getMainLearnersReport = async ({ input }, context) => {
             latestUpdatedAt: new Date(user.updatedAt),
 
             name: (user.firstName || user.lastName)
-                ? `${decrypt(user.firstName ?? '',true)} ${decrypt(user.lastName ?? '',true)}`.trim()
+                ? `${decrypt(user.firstName ?? '', true)} ${decrypt(user.lastName ?? '', true)}`.trim()
                 : ' ',
 
             isRegistered: user.isRegistered ?? false,
@@ -249,14 +251,14 @@ const getMainLearnersReport = async ({ input }, context) => {
             designation: user.designation ?? '',
             designationId: user.empDesignation ?? '',
             lastSeen: user.lastLoginAt ? new Date(user.lastLoginAt) : null,
-            vesselName : user.vesselName ?? null,
-            vesselTypeName : user.typeOfVesselName ?? null,
+            vesselName: user.vesselName ?? null,
+            vesselTypeName: user.typeOfVesselName ?? null,
             vesselId: user.currentVessel ?? null,
             vesselTypeId: user.tyepOfVesselId ?? null,
         }));
         console.timeEnd('getMainLearnersReport');
-        
-       
+
+
         let s3PresignedUrl = "";
 
         if (input?.export) {
@@ -296,7 +298,7 @@ const getMainLearnersReport = async ({ input }, context) => {
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
                     titleValue: `${fileNameStd} Report Exported Successfully`,
-                    messageValue: `The ${selectVesselOrLearner} report has been successfully generated and exported by ${decrypt(userInfo?.firstName,true)} ${decrypt(userInfo?.lastName,true) ?? ""}.`,
+                    messageValue: `The ${selectVesselOrLearner} report has been successfully generated and exported by ${decrypt(userInfo?.firstName, true)} ${decrypt(userInfo?.lastName, true) ?? ""}.`,
                     notificationType: NotificationType.REPORT_EXPORT_SUCCESS,
                     notifyAllAdmin: false,
                     isNotificatonForAdmin: true,
@@ -321,14 +323,14 @@ const getMainLearnersReport = async ({ input }, context) => {
             };
         }
         return {
-            employeesData : decryptedData,
+            employeesData: decryptedData,
         };
     } catch (err) {
         if (input?.export) {
             await NotificationHelper.createNotificationhelper({
                 subscriber: subscriberId,
                 titleValue: `${input.selectVesselOrLearner} Report Export Failed`,
-                messageValue: `An error occurred while generating the ${input.selectVesselOrLearner} report: ${err.message} by ${decrypt(userInfo?.firstName,true)} ${decrypt(userInfo?.lastName,true)}. `,
+                messageValue: `An error occurred while generating the ${input.selectVesselOrLearner} report: ${err.message} by ${decrypt(userInfo?.firstName, true)} ${decrypt(userInfo?.lastName, true)}. `,
                 notificationType: NotificationType.REPORT_EXPORT_FAILED,
                 notifyAllAdmin: false,
                 isNotificatonForAdmin: true,
@@ -378,7 +380,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
     if (isExportRequired) {
         try {
             // Fork a new process, giving it the path to our exporter script
-            const child = fork(path.resolve(__dirname, "learner_report_generator.js"),[],{execArgv : ["--expose-gc"]}); // expose gc is used to expose the garbage collector in the child process
+            const child = fork(path.resolve(__dirname, "learner_report_generator.js"), [], { execArgv: ["--expose-gc"] }); // expose gc is used to expose the garbage collector in the child process
 
             // Handle any errors during the creation of the child process
             child.on("error", err => {
@@ -417,7 +419,7 @@ const getSingleLearnerReport = async ({ input }, context) => {
             };
         } catch (forkError) {
             // Handle case where the process fails to even start
-            
+
             // await NotificationHelper.createNotificationhelper({
             //     /* ... failure notification ... */
             // });
@@ -757,7 +759,7 @@ const getMainCoursesReport = async ({ input }, context) => {
                 await NotificationHelper.createNotificationhelper({
                     subscriber: subscriberId,
                     titleValue: `Courses Report Exported Successfully`,
-                    messageValue: `The Courses report has been successfully generated and exported by ${decrypt(userInfo?.firstName, true)} ${decrypt(userInfo?.lastName,true) ?? ""}.`,
+                    messageValue: `The Courses report has been successfully generated and exported by ${decrypt(userInfo?.firstName, true)} ${decrypt(userInfo?.lastName, true) ?? ""}.`,
                     notificationType: NotificationType.COURSE_REPORT_EXPORT_SUCCESS,
                     notifyAllAdmin: false,
                     isNotificatonForAdmin: true,
@@ -813,12 +815,12 @@ const getSingleCourseReport = async ({ input }, context) => {
     if (!input || !input.reportType) {
         throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Report type is required.");
     }
-     if (input.dateRange) {
+    if (input.dateRange) {
         const { startDate, endDate } = input.dateRange;
         if (!startDate || !endDate) {
             throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Both startDate and endDate are required when dateRange is provided.");
         }
-         if (![input.courseIds, input.vesselType, input.vesselName, input.designation, input.learnerStatus, input.courseStatus].some(field => field && field.length > 0)) {
+        if (![input.courseIds, input.vesselType, input.vesselName, input.designation, input.learnerStatus, input.courseStatus].some(field => field && field.length > 0)) {
             throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Please enter one or more fields.");
         }
     }
@@ -826,14 +828,14 @@ const getSingleCourseReport = async ({ input }, context) => {
 
     // 2. Fork the child process
     console.log("Forking a child process for report generation...");
-    const child = fork(path.resolve(__dirname, 'course_report_generator.js'),[],{execArgv : ["--expose-gc"]}); // expose gc is used to expose the garbage collector in the child process
+    const child = fork(path.resolve(__dirname, 'course_report_generator.js'), [], { execArgv: ["--expose-gc"] }); // expose gc is used to expose the garbage collector in the child process
 
     // Handle any errors during the creation of the child process
     child.on('error', (err) => {
         console.error('Failed to start child process.', err);
         // You might want to send a failure notification here as a fallback
     });
-    
+
     // Optional: listen for the child process to exit
     child.on('exit', (code) => {
         console.log(`Child process exited with code ${code}`);
@@ -1406,27 +1408,27 @@ const generateCustomReport = async ({ input }, context) => {
         throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Please enter one or more fields.");
     }
 
-     /* if (input.dateRange) {
-        // const { startDate, endDate } = input.dateRange;
-        if (!startDate || !endDate) {
-            throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Both startDate and endDate are required when dateRange is provided.");
-        }
-         if(![input.courseIds, input.vesselType, input.vesselName, input.designation, input.learnerStatus, input.courseStatus].some(field => field && field.length > 0)) {
-            throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Please enter one or more fields.");
-        }
-    } */
+    /* if (input.dateRange) {
+       // const { startDate, endDate } = input.dateRange;
+       if (!startDate || !endDate) {
+           throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Both startDate and endDate are required when dateRange is provided.");
+       }
+        if(![input.courseIds, input.vesselType, input.vesselName, input.designation, input.learnerStatus, input.courseStatus].some(field => field && field.length > 0)) {
+           throw CustomError(ErrorName.ARGUMENTS_REQUIRED, "Please enter one or more fields.");
+       }
+   } */
 
 
     // 2. Fork the child process
     console.log("Forking a child process for report generation...");
-    const child = fork(path.resolve(__dirname, 'custom_report_generator.js'),[],{execArgv : ["--expose-gc"]}); // expose gc is used to expose the garbage collector in the child process
+    const child = fork(path.resolve(__dirname, 'custom_report_generator.js'), [], { execArgv: ["--expose-gc"] }); // expose gc is used to expose the garbage collector in the child process
 
     // Handle any errors during the creation of the child process
     child.on('error', (err) => {
         console.error('Failed to start child process.', err);
         // You might want to send a failure notification here as a fallback
     });
-    
+
     // Optional: listen for the child process to exit
     child.on('exit', (code) => {
         console.log(`Child process exited with code ${code}`);
@@ -1600,7 +1602,7 @@ const getCustomReportLogs = async ({ pageInput, searchQuery }, context) => {
                 const signedUrl = await aws_helper.fetchFile(item.filePath);
                 return {
                     _id: item._id,
-                    generatedBy: `${decrypt(item?.generatedByFirstName,true)} ${decrypt(item?.generatedByLastName,true)}`.trim() || "N/A",
+                    generatedBy: `${decrypt(item?.generatedByFirstName, true)} ${decrypt(item?.generatedByLastName, true)}`.trim() || "N/A",
                     generatedAt: new Date(item?.createdAt).toLocaleString(),
                     from: item?.from ? new Date(item?.from).toLocaleString() : null,
                     to: item?.to ? new Date(item?.to).toLocaleString() : null,
@@ -1683,7 +1685,7 @@ const getSystemStatsPerVessel = async (args, context) => {
 
 module.exports.queries = {
     getSystemStatsPerVessel,
-    getSystemStatsEmailConfig: async (parent, { type }, context) => {
+    getSystemStatsEmailConfig: async ({ type }, context) => {
         const { subscriberId } = AuthUser(context);
         if (!subscriberId) throw CustomError(ErrorName.FORBIDDEN);
 

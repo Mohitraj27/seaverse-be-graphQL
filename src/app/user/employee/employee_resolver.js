@@ -62,6 +62,7 @@ const { sendNotifications } = require("../../../util/firebase_helper");
 const Roles = require("../../../util/role.json");
 const { sendWelcomeEmailsToLearner, sendEmailToLearner } = require("../../email-template/sendWelcomeEmail");
 const { filterLearningPlans } = require("../employee/employee_helper");
+const { processLearningPlansInBackground } = require("./learning_plan_helper");
 const createNewEmployeeEmailTemplate = require("../../email-template/createEmployee");
 const mongoose = require("mongoose");
 const { DynamicData } = require("./employee_dynamicData_model");
@@ -87,7 +88,10 @@ const { processFilters } = require('./user_exportCSV_filter');
 const { ImportJob } = require("./import_job_model");
 
 const { decrypt, encrypt } = require("../../../util/encryption_helper");
-const { client, indexDocumenttoElasticSearch, getDocumentfromElasticSearch, updateByQueryToElasticSearch, searchEmployeesFromElastic } = require('../../../util/elastic_helper');
+// Replaced Elasticsearch with MongoDB UserSearchCache
+// const { client, indexDocumenttoElasticSearch, getDocumentfromElasticSearch, updateByQueryToElasticSearch, searchEmployeesFromElastic } = require('../../../util/elastic_helper');
+const { client, indexDocumenttoElasticSearch, getDocumentfromElasticSearch, updateByQueryToElasticSearch, searchEmployeesFromElastic } = require('../../../util/user_search_helper');
+const { UserSearchCache } = require('../user_search_cache/user_search_cache_model');
 const { toUpperCaseFirstLetter } = require("../../../util/string_helper");
 // const csvImportQueue = require("../../queues/csv_import_queue");
 // const { JOB_NAMES } = require("../../queues/queue.enum");
@@ -855,7 +859,9 @@ module.exports.queries = {
                 filterConditions.regType = filterInput?.regType;
             }
             if (filterInput?.empDesignation && filterInput.empDesignation.length > 0) {
-                filterConditions.empDesignation = { $in: filterInput.empDesignation };
+                filterConditions.empDesignation = {
+                    $in: filterInput.empDesignation.map(id => new mongoose.Types.ObjectId(id))
+                };
             }
             const fetchResult = async pipeline => {
                 const empData = await Employee.aggregate(pipeline);
@@ -2237,20 +2243,27 @@ const changeRegisterEmployees = async ({ input }, context) => {
                 throw CustomError(ErrorName.EMPLOYEE_ALREADY_REGISTERED);
             }
 
-            updateUsers = await User.updateMany(
-                { _id: { $in: input.users } },
-                { isRegistered: true }
-            );
+            // Use DbTransactionHelper for atomic update
+            const { DbTransactionHelper } = require('../../../util');
+            const { UserSearchCache } = require('../../user/user_search_cache/user_search_cache_model');
+            const userIdStrings = input.users.map(id => id.toString());
 
-            try {
-                await updateByQueryToElasticSearch('users', "ctx._source.isRegistered = true", {
-                    terms: {
-                        userId: input.users  // input.users is an array of IDs
-                    }
-                });
-            } catch (error) {
-                throw error;
-            }
+            updateUsers = await DbTransactionHelper.performDbTransaction(async (session) => {
+                const result = await User.updateMany(
+                    { _id: { $in: input.users } },
+                    { isRegistered: true },
+                    { session }
+                );
+
+                // Update cache within transaction
+                await UserSearchCache.updateMany(
+                    { userId: { $in: userIdStrings } },
+                    { $set: { isRegistered: true } },
+                    { session }
+                );
+
+                return result;
+            });
             /* const emailContentforAdmin = registered_statusforAdmin(
                 {
                     adminfirstName: userInfo.firstName,
@@ -2263,7 +2276,8 @@ const changeRegisterEmployees = async ({ input }, context) => {
                 htmlContent: emailContentforAdmin,
             }); */
             if (learningPlans?.length > 0) {
-                const filteredPlans = await filterLearningPlans(learningPlans, conditions, context);
+                // Offload learning plan filtering to background process
+                processLearningPlansInBackground(input.users, 'register', context);
             }
             /* 
                         await NotificationHelper.createNotificationhelper({
@@ -2286,22 +2300,30 @@ const changeRegisterEmployees = async ({ input }, context) => {
             }
 
             const subRoleAdminId = await SubRole.findOne({ name: Roles.ADMIN, primaryRole: Roles.ADMIN }).select("_id");
-            updateUsers = await User.updateMany(
-                { _id: { $in: input.users } },
-                {
-                    $set: { isRegistered: false, lastUnregisteredAt: new Date() },
-                }
-            );
 
-            try {
-                await updateByQueryToElasticSearch('users', "ctx._source.isRegistered = false", {
-                    terms: {
-                        userId: input.users  // input.users is an array of IDs
-                    }
-                });
-            } catch (error) {
-                throw error;
-            }
+            // Use DbTransactionHelper for atomic update
+            const { DbTransactionHelper } = require('../../../util');
+            const { UserSearchCache } = require('../../user/user_search_cache/user_search_cache_model');
+            const userIdStrings = input.users.map(id => id.toString());
+
+            updateUsers = await DbTransactionHelper.performDbTransaction(async (session) => {
+                const result = await User.updateMany(
+                    { _id: { $in: input.users } },
+                    {
+                        $set: { isRegistered: false, lastUnregisteredAt: new Date() },
+                    },
+                    { session }
+                );
+
+                // Update cache within transaction
+                await UserSearchCache.updateMany(
+                    { userId: { $in: userIdStrings } },
+                    { $set: { isRegistered: false, lastUnregisteredAt: new Date() } },
+                    { session }
+                );
+
+                return result;
+            });
             /* Removed Unregistered User Autoenerollment
             if(learningPlans?.length > 0){
                 const filteredPlans = await filterLearningPlans(learningPlans, conditions, context);
@@ -2372,10 +2394,28 @@ const manageRole = async ({ input }, context) => {
     if (input.change === "Assign") {
         if (!input.assignType) throw CustomError(ErrorName.ASSIGNTYPE_ERROR);
 
-        updateUserRole = await User.updateMany(
-            { _id: { $in: input.users }, superAdmin: false },
-            { $set: { role: input.assignType } }
-        );
+        // Use DbTransactionHelper for atomic update
+        const { DbTransactionHelper } = require('../../../util');
+        const { UserSearchCache } = require('../../user/user_search_cache/user_search_cache_model');
+        const userIdStrings = input.users.map(id => id.toString());
+
+        updateUserRole = await DbTransactionHelper.performDbTransaction(async (session) => {
+            const result = await User.updateMany(
+                { _id: { $in: input.users }, superAdmin: false },
+                { $set: { role: input.assignType } },
+                { session }
+            );
+
+            // Update cache within transaction
+            await UserSearchCache.updateMany(
+                { userId: { $in: userIdStrings } },
+                { $set: { role: input.assignType } },
+                { session }
+            );
+
+            return result;
+        });
+
         operationType = `Assigned role ${input.assignType}`;
         notificationMessage = `Your role has been updated to ${input.assignType} by ${decrypt(userInfo?.firstName)} ${userInfo?.lastName ? decrypt(userInfo?.lastName) : ''}.`;
     } else if (input.change === "Remove") {
@@ -2394,32 +2434,33 @@ const manageRole = async ({ input }, context) => {
         // }
 
         if (input.removeType === operationTypeRoleEnum.REMOVE_AS_ADMIN) {
-            updateUserRole = await User.updateMany(
-                { _id: { $in: input.users }, superAdmin: false, role: "LEARNER" },
-                { $set: { subRoles: [], roleAssignmentDate: null } }
-            );
+            // Use DbTransactionHelper for atomic update
+            const { DbTransactionHelper } = require('../../../util');
+            const { UserSearchCache } = require('../../user/user_search_cache/user_search_cache_model');
+            const userIdStrings = input.users.map(id => id.toString());
 
             console.log("input.users", input.users);
-            try {
-                await updateByQueryToElasticSearch(
-                    'users',
-                    `
-                    ctx._source.subRoles = [];
-                    ctx._source.roleAssignmentDate = null;
-                `,
-                    {
-                        bool: {
-                            must: [
-                                { terms: { userId: input.users } },
-                                { term: { superAdmin: false } },
-                                { term: { "role.keyword": "LEARNER" } }
-                            ]
-                        }
-                    }
+
+            updateUserRole = await DbTransactionHelper.performDbTransaction(async (session) => {
+                const result = await User.updateMany(
+                    { _id: { $in: input.users }, superAdmin: false, role: "LEARNER" },
+                    { $set: { subRoles: [], roleAssignmentDate: null } },
+                    { session }
                 );
-            } catch (error) {
-                throw error;
-            }
+
+                // Update cache within transaction
+                await UserSearchCache.updateMany(
+                    {
+                        userId: { $in: userIdStrings },
+                        superAdmin: false,
+                        role: "LEARNER"
+                    },
+                    { $set: { subRoles: [], roleAssignmentDate: null } },
+                    { session }
+                );
+
+                return result;
+            });
 
             const registeredUsers = await User.find({ _id: { $in: input.users }, isRegistered: true });
             if (updateUserRole?.nModified > 0 && registeredUsers?.length > 0) {
@@ -2474,7 +2515,8 @@ const manageRole = async ({ input }, context) => {
 
                 console.log(userConditions, "userConditions");
 
-                await filterLearningPlans(learningPlans, userConditions, context);
+                // Offload learning plan filtering to background process
+                processLearningPlansInBackground(input.users, 'remove_role', context);
                 // const dta = await autoenrollRoleBasedLP(learningPlans, registeredUsers.map(user => user._id), Roles.ADMIN, operationTypeRoleEnum.REMOVE_AS_ADMIN, userInfo, context);
             }
             operationType = "Removed Roles for LEARNER";
@@ -2596,37 +2638,39 @@ const respondToDeleteRequest = async ({ input }, context) => {
                 isRegistered: user?.isRegistered
             }));
 
-            const rejectDeleteRequest = await User.updateMany(
-                { _id: { $in: input.users } },
-                {
-                    $set: {
-                        deleteRequest: false,
-                        deleteRequestDate: null,
-                        reasonForDelete: null,
-                    },
-                }
-            );
+            // Use DbTransactionHelper for atomic update
+            const { DbTransactionHelper } = require('../../../util');
+            const { UserSearchCache } = require('../../user/user_search_cache/user_search_cache_model');
+            const userIdStrings = input.users.map(id => id.toString());
 
-            try {
-                await updateByQueryToElasticSearch(
-                    "users",
-                    `
-                        ctx._source.deleteRequest = false;
-                        ctx._source.deleteRequestDate = null;
-                        ctx._source.reasonForDelete = null;
-                    `,
+            const rejectDeleteRequest = await DbTransactionHelper.performDbTransaction(async (session) => {
+                const result = await User.updateMany(
+                    { _id: { $in: input.users } },
                     {
-                        terms: {
-                            userId: input.users,
+                        $set: {
+                            deleteRequest: false,
+                            deleteRequestDate: null,
+                            reasonForDelete: null,
                         },
-                    }
+                    },
+                    { session }
                 );
 
-            } catch (error) {
-                console.error("Error updating delete request in Elasticsearch:", error);
-                throw CustomError(ErrorName.FAILED, "Failed to update delete request in Elasticsearch");
+                // Update cache within transaction
+                await UserSearchCache.updateMany(
+                    { userId: { $in: userIdStrings } },
+                    {
+                        $set: {
+                            deleteRequest: false,
+                            deleteRequestDate: null,
+                            reasonForDelete: null,
+                        },
+                    },
+                    { session }
+                );
 
-            }
+                return result;
+            });
 
             if (rejectDeleteRequest.nModified > 0) {
 
@@ -3171,7 +3215,7 @@ module.exports.mutations = {
 
             let userRole = Role.LEARNER;
 
-            const savedUser = await User.create({
+            const savedUser = await User.create([{
                 subscriber: subscriberId,
                 firstName: encrypt(input.user.firstName.toLowerCase()),
                 lastName: input.user.lastName ? encrypt(input.user.lastName.toLowerCase()) : null,
@@ -3185,26 +3229,31 @@ module.exports.mutations = {
                 isSignupAdminAprroved: true,
                 lastUnregisteredAt: input.user.isRegistered === false ? new Date() : null,
                 UID: await EmployeeHelper.generateUserUID({ session }),
-            });
+            }], { session });
 
-            if (!savedUser) throw CustomError(ErrorName.FAILED);
+            if (!savedUser || savedUser.length === 0) throw CustomError(ErrorName.FAILED);
 
+            // Extract the user from the array (Mongoose create with session returns an array)
+            const userDoc = savedUser[0];
 
             let employeeUpdate = {
                 subscriber: subscriberId,
-                user: savedUser,
+                user: userDoc,
                 branch: input.branch,
                 organization: input.organization,
                 empDesignation: input.empDesignation,
                 designation: existingDesignation.name,
             };
 
-            const savedEmployee = await Employee.create({
+            const savedEmployee = await Employee.create([{
                 ...employeeUpdate,
                 UID: await EmployeeHelper.generateEmployeeUID({ subscriberId, session }),
-            });
+            }], { session });
 
-            if (!savedEmployee) throw CustomError(ErrorName.FAILED);
+            if (!savedEmployee || savedEmployee.length === 0) throw CustomError(ErrorName.FAILED);
+
+            // Extract the employee from the array (Mongoose create with session returns an array)
+            const employeeDoc = savedEmployee[0];
 
             let savedUserVessel;
             let vessel;
@@ -3212,40 +3261,23 @@ module.exports.mutations = {
             if (input.user.currentVessel || input.user.vesselStatus) {
 
                 let userVesselUpdate = {
-                    user: savedUser,
+                    user: userDoc,
                     vessel: input.user.currentVessel && input.user.currentVessel !== "" ? ObjectId(input.user.currentVessel) : null,
                     vesselStatus: input.user.vesselStatus && input.user.vesselStatus !== "" ? input.user.vesselStatus : null,
                 };
 
-                savedUserVessel = await UserVessel.create(userVesselUpdate);
+                const savedUserVesselArray = await UserVessel.create([userVesselUpdate], { session });
 
-                if (!savedUserVessel) throw CustomError(ErrorName.FAILED);
+                if (!savedUserVesselArray || savedUserVesselArray.length === 0) throw CustomError(ErrorName.FAILED);
+                savedUserVessel = savedUserVesselArray[0];
                 vessel = await Vessel.findById(savedUserVessel.vessel).populate("typeOfVessel", "_id name");
             }
 
             // invitationList.push({
-            //     userData: savedUser,
+            //     userData: userDoc,
             // });
 
-            savedEmployees.push({ ...savedEmployee, user: savedUser });
-            const learningPlans = await LearningPlan.find({ isDeleted: false, status: 'ACTIVE' });
-
-            if (savedUser.isRegistered === true && learningPlans?.length > 0) {
-
-                const conditions = [{
-                    designationID: input.empDesignation,
-                    vesselID: savedUserVessel?.vessel ?? null,
-                    vesselTypeID: vessel?.typeOfVessel?._id ?? null,
-                    owner: vessel?.ownerName ?? null,
-                    currentStatus: savedUserVessel?.vesselStatus ?? null,
-                    email: savedUser.email,
-                    _id: savedUser._id,
-                    role: 'LEARNER',
-                }];
-
-                const filteredPlans = await filterLearningPlans(learningPlans, conditions, context, session);
-
-            }
+            savedEmployees.push({ ...employeeDoc, user: userDoc });
             // Below  matchedLearningPlans is for testing purpose to check which matches the LP
             // const matchedLearningPlans = filteredPlans.map(plan => {
             //     return {
@@ -3260,9 +3292,9 @@ module.exports.mutations = {
             //     };
             // });
 
-            if (savedUser?.isRegistered === true && savedUser?.isEmailNotification) {
-                const decryptedEmail = decrypt(savedUser.email);
-                const decryptedFirstName = decrypt(savedUser.firstName);
+            if (userDoc?.isRegistered === true && userDoc?.isEmailNotification) {
+                const decryptedEmail = decrypt(userDoc.email);
+                const decryptedFirstName = decrypt(userDoc.firstName);
 
                 const emailContentforNewEmployee = createNewEmployeeEmailTemplate({
                     firstName: decryptedFirstName,
@@ -3280,69 +3312,91 @@ module.exports.mutations = {
                 }
             }
             try {
-                const userVesselsDetails = await Vessel.find({ _id: savedEmployee.user?.currentVessel, isDeleted: false, isActive: true }).populate('typeOfVessel', '_id name');
+                const userVesselsDetails = await Vessel.find({ _id: userDoc?.currentVessel, isDeleted: false, isActive: true }).populate('typeOfVessel', '_id name');
                 console.log('this is userVesselsDetails', userVesselsDetails);
                 const document = {
-                    employeeId: savedEmployee._id?.toString(),
-                    UID: savedEmployee.UID,
-                    designation: savedEmployee.designation,
-                    empDesignation: savedEmployee.empDesignation?.toString(),
-                    bulkId: savedEmployee.bulkId,
-                    regType: savedEmployee.regType,
-                    isActive: savedEmployee.isActive,
-                    isDeleted: savedEmployee.isDeleted,
-                    subscriber: savedEmployee.subscriber?.toString(),
-                    createdAt: savedEmployee.createdAt,
-                    updatedAt: savedEmployee.updatedAt,
+                    employeeId: employeeDoc._id?.toString(),
+                    UID: employeeDoc.UID,
+                    designation: employeeDoc.designation,
+                    empDesignation: employeeDoc.empDesignation?.toString(),
+                    bulkId: employeeDoc.bulkId,
+                    regType: employeeDoc.regType,
+                    isActive: employeeDoc.isActive,
+                    isDeleted: employeeDoc.isDeleted,
+                    subscriber: employeeDoc.subscriber?.toString(),
+                    createdAt: employeeDoc.createdAt,
+                    updatedAt: employeeDoc.updatedAt,
 
                     // Nested user fields
-                    userId: savedEmployee.user?._id?.toString(),
-                    firstName: savedEmployee.user?.firstName,
-                    lastName: savedEmployee.user?.lastName,
-                    email: savedEmployee.user?.email,
-                    civilIdOrPassport: savedEmployee.user?.civilIdOrPassport,
-                    languagePreference: savedEmployee.user?.languagePreference,
-                    role: savedEmployee.user?.role,
-                    subRoles: savedEmployee.user?.subRoles,
-                    isVerified: savedEmployee.user?.isVerified,
-                    isRegistered: savedEmployee.user?.isRegistered,
-                    superAdmin: savedEmployee.user?.superAdmin,
-                    deleteRequest: savedEmployee.user?.deleteRequest,
-                    isDeleted_user: savedEmployee.user?.isDeleted,
-                    directSignup: savedEmployee.user?.directSignup,
-                    contentlanguages: savedEmployee.user?.contentlanguages,
-                    currentVessel: savedEmployee.user?.currentVessel?.toString(),
-                    vesselStatus: savedEmployee.user?.vesselStatus,
-                    isEmailNotification: savedEmployee.user?.isEmailNotification,
-                    isPushNotification: savedEmployee.user?.isPushNotification,
-                    lastLoginAt: savedEmployee.user?.lastLoginAt,
-                    isSignupAdminAprroved: savedEmployee.user?.isSignupAdminAprroved,
-                    userCreatedAt: savedEmployee.user?.createdAt,
-                    userUpdatedAt: savedEmployee.user?.updatedAt,
+                    userId: userDoc?._id?.toString(),
+                    firstName: userDoc?.firstName,
+                    lastName: userDoc?.lastName,
+                    email: userDoc?.email,
+                    civilIdOrPassport: userDoc?.civilIdOrPassport,
+                    languagePreference: userDoc?.languagePreference,
+                    role: userDoc?.role,
+                    subRoles: userDoc?.subRoles,
+                    isVerified: userDoc?.isVerified,
+                    isRegistered: userDoc?.isRegistered,
+                    superAdmin: userDoc?.superAdmin,
+                    deleteRequest: userDoc?.deleteRequest,
+                    isDeleted_user: userDoc?.isDeleted,
+                    directSignup: userDoc?.directSignup,
+                    contentlanguages: userDoc?.contentlanguages,
+                    currentVessel: userDoc?.currentVessel?.toString(),
+                    vesselStatus: userDoc?.vesselStatus,
+                    isEmailNotification: userDoc?.isEmailNotification,
+                    isPushNotification: userDoc?.isPushNotification,
+                    lastLoginAt: userDoc?.lastLoginAt,
+                    isSignupAdminAprroved: userDoc?.isSignupAdminAprroved,
+                    userCreatedAt: userDoc?.createdAt,
+                    userUpdatedAt: userDoc?.updatedAt,
                     vesselName: userVesselsDetails[0]?.name,
                     vesselId: userVesselsDetails[0]?._id,
                     vesselIsDeleted: userVesselsDetails[0]?.isDeleted,
                     vesselIsActive: userVesselsDetails[0]?.isActive,
                     typeOfVesselName: userVesselsDetails[0]?.typeOfVessel?.name,
                     tyepOfVesselId: userVesselsDetails[0]?.typeOfVessel?._id,
-                    isResetPasswordDialog: savedEmployee.user?.isResetPasswordDialog,
+                    isResetPasswordDialog: userDoc?.isResetPasswordDialog,
                     enrolledCourses: 0,
                     averageCourseProgress: 0.0,
                     indexedAt: new Date(),
                 };
 
                 try {
-                    await indexDocumenttoElasticSearch("users", savedEmployee?._id, document);
+                    // Direct insert to UserSearchCache table
+                    await UserSearchCache.findOneAndUpdate(
+                        { userId: userDoc._id.toString() },
+                        {
+                            ...document,
+                            userId: userDoc._id.toString(),
+                            indexedAt: new Date(),
+                            updatedAt: new Date()
+                        },
+                        {
+                            upsert: true,
+                            new: true,
+                            setDefaultsOnInsert: true,
+                            session
+                        }
+                    );
                 } catch (error) {
-                    throw CustomError(ErrorName.INDEX_DOC_ELASTIC_SEARCH, `Elastic Insert Error (users): ${error}`)
+                    throw CustomError(ErrorName.INDEX_DOC_ELASTIC_SEARCH, `User cache insert error: ${error}`)
                 }
             } catch (err) {
-                console.error("Elasticsearch indexing error:", err);
+                console.error("User cache indexing error:", err);
             }
             return savedEmployees;
         });
 
         if (!savedEmployees) throw CustomError(ErrorName.FAILED);
+
+        // Offload learning plan filtering to background process (only if user is registered)
+        const savedEmployee = savedEmployees[0];
+        const savedUser = savedEmployee.user;
+        if (savedUser?.isRegistered === true) {
+            processLearningPlansInBackground([savedUser._id], 'register', context);
+        }
 
         // EmployeeHelper.sendEnrollmentNotification(notificationList);
 
@@ -3726,39 +3780,30 @@ module.exports.mutations = {
                 throw new Error("Invalid subrole");
             }
 
-            try {
+            // Use DbTransactionHelper for atomic update
+            const { DbTransactionHelper } = require('../../../util');
+            const { UserSearchCache } = require('../../user/user_search_cache/user_search_cache_model');
+            const userIdStrings = users.map(id => id.toString());
+
+            await DbTransactionHelper.performDbTransaction(async (session) => {
                 await User.updateMany(
                     { _id: { $in: users } },
                     { $addToSet: { subRoles: subrole }, $set: { roleAssignmentDate: new Date() } },
+                    { session }
                 );
 
                 console.log("Users updated with subrole:", users, subrole);
-            } catch (error) {
-                throw error
-            }
 
-            try {
-                await updateByQueryToElasticSearch(
-                    'users',
-                    `
-                    if (!ctx._source.subRoles.contains(params.subrole)) {
-                    ctx._source.subRoles.add(params.subrole);
-                    }
-                    ctx._source.roleAssignmentDate = params.currentDate;
-                `,
+                // Update cache within transaction
+                await UserSearchCache.updateMany(
+                    { userId: { $in: userIdStrings } },
                     {
-                        terms: {
-                            userId: users
-                        }
+                        $addToSet: { subRoles: subrole },
+                        $set: { roleAssignmentDate: new Date() }
                     },
-                    {
-                        subrole,
-                        currentDate: new Date().toISOString()
-                    }
+                    { session }
                 );
-            } catch (error) {
-                throw error
-            }
+            });
 
             const usersToUpdate = await User.find({ _id: { $in: users } });
 
@@ -3894,7 +3939,8 @@ module.exports.mutations = {
                         console.error(error);
                     });
 
-                await filterLearningPlans(learningPlans, userConditions, context);
+                // Offload learning plan filtering to background process
+                processLearningPlansInBackground(users, 'assign_role', context);
                 // await autoenrollRoleBasedLP(learningPlans, sendOnlyRegisteredUsers?.map(user => user._id), Roles.ADMIN, operationTypeRoleEnum.ASSIGN_ROLE_AS_ADMIN, userInfo,context);
             }
 
@@ -4001,8 +4047,8 @@ module.exports.mutations = {
                         localField: '_id',
                         foreignField: 'user',
                         as: 'employeeDetails',
-                        pipeline:[
-                            { $match: { isDeleted: false} }
+                        pipeline: [
+                            { $match: { isDeleted: false } }
                         ]
                     },
                 },
@@ -4278,6 +4324,361 @@ module.exports.mutations = {
                 };
                 // notifications.push(successNotification);
                 await NotificationHelper.createNotification([successNotification]);
+                return {
+                    status: true,
+                    message: "User Export successful",
+                    filePath: s3PresignedUrl,
+                    fileName: path.basename(excelFilePath)
+                };
+            } else {
+                throw CustomError(ErrorName.UPLOAD_FAILED);
+            }
+        } catch (error) {
+            console.log(error)
+            throw CustomError(ErrorName.FAILED_TO_EXPORT_USERS_TO_CSV, error.message);
+        }
+    },
+    exportUserDataForPowerBi: async ({ userObjectIds }, context) => {
+        const { role, userId, subscriberId, userInfo } = AuthUser(context);
+        if (!role || role !== Role.ADMIN) {
+            throw CustomError(ErrorName.FORBIDDEN);
+        }
+        const hardcodedFields = [
+            "First Name",
+            "Last Name",
+            "User ID",
+            "Email",
+            "Designation",
+            "Vessel Name",
+            "IMO Number",
+            "Current Status",
+            "Last Login",
+            "Created At",
+            "User Roles",
+            "Vessel Type",
+            "User Status",
+            "User State",
+        ];
+
+        try {
+            if (userObjectIds?.regType === undefined || userObjectIds?.regType === null) {
+                throw CustomError(ErrorName.REGTYPE_REQUIRED, "regType is required.");
+            }
+            const notifications = [];
+            
+            const regType = userObjectIds?.regType;
+            if (![0, 1, 2].includes(regType)) {
+                throw CustomError(ErrorName.INVALID_REG_TYPE, "Invalid regType provided. Must be 0, 1, or 2.");
+            }
+            let employeeQuery = {};
+            if (regType === 0) {
+                employeeQuery = { regType: { $in: [1, 2] } };
+            } else {
+                employeeQuery = { regType: regType };
+            }
+
+            let userIds = [];
+            if (userObjectIds?.ids && userObjectIds.ids.length > 0) {
+                await checkUserRegType(userObjectIds.ids, regType);
+                userIds = userObjectIds.ids.map(id => mongoose.Types.ObjectId(id));
+            } else {
+                const employees = await Employee.find(employeeQuery).select('user');
+                userIds = employees.map(emp => emp.user);
+            }
+            const initialMatchStage = {
+                $match: {
+                    _id: { $in: userIds },
+                    isDeleted: false
+                }
+            };
+            if (userObjectIds?.filterInput) {
+                await processFilters(userObjectIds.filterInput, initialMatchStage);
+            }
+            const pipeline = [
+                initialMatchStage,
+                {
+                    $lookup: {
+                        from: 'employees',
+                        localField: '_id',
+                        foreignField: 'user',
+                        as: 'employeeDetails',
+                    },
+                },
+                { $unwind: { path: '$employeeDetails', preserveNullAndEmptyArrays: true } },
+                {
+                    $match: {
+                        'employeeDetails.regType': regType === 0 ? { $in: [1, 2] } : regType
+                    }
+                },
+                {
+                    $lookup: {
+                        from: 'vessels',
+                        localField: 'currentVessel',
+                        foreignField: '_id',
+                        as: 'vesselDetails',
+                    },
+                },
+                { $unwind: { path: '$vesselDetails', preserveNullAndEmptyArrays: true } },
+                {
+                    $lookup: {
+                        from: 'designations',
+                        localField: 'employeeDetails.empDesignation',
+                        foreignField: '_id',
+                        as: 'designationDetails',
+                    },
+                },
+                { $unwind: { path: '$designationDetails', preserveNullAndEmptyArrays: true } },
+                {
+                    $lookup: {
+                        from: 'uservessels',
+                        localField: '_id',
+                        foreignField: 'user',
+                        as: 'typeOfVesselDetails',
+                        pipeline: [
+                            {
+                                $lookup: {
+                                    from: 'vessels',
+                                    localField: 'vessel',
+                                    foreignField: '_id',
+                                    as: 'vesselDetails',
+                                },
+                            },
+                            { $unwind: { path: '$vesselDetails', preserveNullAndEmptyArrays: true } },
+                            {
+                                $lookup: {
+                                    from: 'vesseltypes',
+                                    localField: 'vesselDetails.typeOfVessel',
+                                    foreignField: '_id',
+                                    as: 'vesselTypes',
+                                },
+                            },
+                            { $unwind: { path: '$vesselTypes', preserveNullAndEmptyArrays: true } },
+                        ],
+                    },
+                },
+                { $unwind: { path: '$typeOfVesselDetails', preserveNullAndEmptyArrays: true } },
+                {
+                    $lookup: {
+                        from: 'subroles',
+                        localField: 'subRoles',
+                        foreignField: '_id',
+                        as: 'subRoleDetails',
+                    },
+                },
+                {
+                    $group: {
+                        _id: '$_id',
+                        firstName: { $first: '$firstName' },
+                        lastName: { $first: '$lastName' },
+                        civilIdOrPassport: { $first: '$civilIdOrPassport' },
+                        email: { $first: '$email' },
+                        designationName: { $first: '$designationDetails.name' },
+                        vesselName: {
+                            $first: {
+                                $cond: {
+                                    if: { $eq: ['$vesselDetails.isActive', true] },
+                                    then: '$vesselDetails.name',
+                                    else: ' ',
+                                },
+                            },
+                        },
+                        vesselImoNumber: {
+                            $first: {
+                                $cond: {
+                                    if: { $eq: ['$vesselDetails.isActive', true] },
+                                    then: '$vesselDetails.imoNumber',
+                                    else: ' ',
+                                },
+                            },
+                        },
+                        vesselStatus: { $first: '$vesselStatus' },
+                        lastLoginAt: { $first: '$lastLoginAt' },
+                        createdAt: { $first: '$createdAt' },
+                        role: { $first: '$role' },
+                        vesselType: { $first: '$typeOfVesselDetails.vesselTypes.name' },
+                        isResetPasswordDialog: { $first: '$isResetPasswordDialog' },
+                        isRegistered: { $first: '$isRegistered' },
+                        subRoleDetails: { $first: '$subRoleDetails' },
+                        isSignupAdminAprroved: { $first: '$isSignupAdminAprroved'},
+                    },
+                },
+                {
+                    $sort: { 'firstName': 1, 'lastName': 1 }
+                }
+            ];
+
+            const projectStage = {
+                $project: {
+                    "First Name": "$firstName",
+                    "Last Name": "$lastName",
+                    "User ID": "$civilIdOrPassport",
+                    Email: "$email",
+                    Designation: "$designationName",
+                    "Vessel Name": "$vesselName",
+                    "IMO Number": "$vesselImoNumber",
+                    "Current Status": {
+                        $cond: {
+                            if: { $eq: ["$vesselStatus", "ONBOARDED"] },
+                            then: "ONBOARD",
+                            else: "$vesselStatus",
+                        },
+                    },
+                    "Last Login": {
+                        $cond: {
+                            if: { $eq: ["$lastLoginAt", null] },
+                            then: " ",
+                            else: { $toDate: "$lastLoginAt" },
+                        },
+                    },
+                    "Created At": {
+                        $cond: {
+                            if: { $eq: ["$createdAt", null] },
+                            then: " ",
+                            else: { $toDate: "$createdAt" },
+                        },
+                    },
+                    "User Roles": {
+                        $concat: [
+                            "$role",
+                            {
+                                $cond: {
+                                    if: {
+                                        $and: [
+                                            { $isArray: "$subRoleDetails" },
+                                            { $gt: [{ $size: "$subRoleDetails" }, 0] },
+                                        ],
+                                    },
+                                    then: {
+                                        $concat: [
+                                            "  ",
+                                            {
+                                                $reduce: {
+                                                    input: "$subRoleDetails",
+                                                    initialValue: "",
+                                                    in: {
+                                                        $concat: [
+                                                            "$$value",
+                                                            {
+                                                                $cond: [
+                                                                    { $eq: ["$$value", ""] },
+                                                                    "",
+                                                                    ", ",
+                                                                ],
+                                                            },
+                                                            "$$this.name",
+                                                        ],
+                                                    },
+                                                },
+                                            },
+                                        ],
+                                    },
+                                    else: " ",
+                                },
+                            },
+                        ],
+                    },
+                    "Vessel Type": "$vesselType",
+                    "User Status": {
+                        $cond: {
+                            if: { $eq: ["$isSignupAdminAprroved", true] },
+                            then: "Accepted",
+                            else: "Not Accepted",
+                        },
+                    },
+                    "User State": {
+                        $cond: {
+                            if: { $eq: ["$isRegistered", true] },
+                            then: "Registered",
+                            else: "Unregistered",
+                        },
+                    },
+                },
+            };
+
+            pipeline.push(projectStage);
+
+
+            const users = await User.aggregate(pipeline, { allowDiskUse: true }).option({ maxTimeMS: 300000 });
+            if (users.length === 0) {
+                throw CustomError(ErrorName.NOT_FOUND, "No users found matching the criteria.");
+            }
+            const data = users.map(user => {
+                const rowData = {};
+                const isResetPassword = user?.isResetPasswordDialog ?? true;
+                hardcodedFields.forEach(field => {
+
+                    if (field === 'Last Login' && user['Last Login'] !== 'N/A') {
+                        rowData[field] = isResetPassword ? formatDate(new Date(user['Last Login'])) : "";
+                    } else if (field === 'Created At' && user['Created At'] !== 'N/A') {
+                        rowData[field] = formatDate(new Date(user['Created At']));
+                    } else {
+                        rowData[field] = user[field] || ' ';
+                    }
+                });
+                return rowData;
+            });
+            const decryptedData = data?.map(user => {
+                return {
+                    ...user,
+                    'First Name*': toUpperCaseFirstLetter(decrypt(user['First Name*'])),
+                    'Last Name': toUpperCaseFirstLetter(decrypt(user['Last Name'])),
+                    'Email*': decrypt(user['Email*']),
+                    'User ID*': decrypt(user['User ID*']),
+                };
+            });
+
+            const workbook = xlsx.utils.book_new();
+            const worksheet = xlsx.utils.json_to_sheet(decryptedData);
+            xlsx.utils.book_append_sheet(workbook, worksheet, "Users");
+            const excelBuffer = xlsx.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+            const excelFilePath = await UploadHelper.uploadExcel({
+                data: excelBuffer,
+                folderName: "exports",
+                fileName: `exported_users_${await generateFileNameTimestamp()}.xlsx`,
+                uploadType: UploadHelper.uploadType.exportExcel,
+            });
+
+            if (excelFilePath) {
+                const s3PresignedUrl = await AwsHelper.fetchFile(excelFilePath);
+                const urlObject = new URL(s3PresignedUrl);
+                const extractedfilePath = urlObject.pathname;
+                /* const exportEntry = new Export({
+                    filePath: extractedfilePath,
+                    subscriberId: subscriberId,
+                    createdBy: userId,
+                    updatedBy: userId,
+                    type_of_export: 'USER_EXPORT'
+                });
+                await exportEntry.save();
+                const successNotification = {
+                    subscriber: subscriberId,
+                    title: [{ lang: "en", value: `User Export Successful` }],
+                    message: [
+                        {
+                            lang: "en",
+                            // value: `The export user process completed successfully by ${decrypt(userInfo?.firstName)} ${userInfo.lastName ? decrypt(userInfo?.lastName) : ''}.`,
+                            value: `"User Export" file is ready:`,
+                        },
+                    ],
+                    notificationType: NotificationType.EXPORT_SUCCESSFUL,
+                    notifyAllAdmin: false,
+                    isNotificatonForAdmin: true,
+                    notifiers: [userId],
+                    additionalInfo: [
+                        {
+                            infoType: "EXPORT_URL",
+                            infoData: {
+                                filePath: excelFilePath
+                            }
+                        }
+                    ],
+                    employeeNotifiers: [],
+                    affected: [{ targetRef: "Export", target: exportEntry._id }],
+                    icon: notificationiconEnum.SUCCESS,
+                    createdBy: userInfo,
+                };
+                // notifications.push(successNotification);
+                await NotificationHelper.createNotification([successNotification]); */
                 return {
                     status: true,
                     message: "User Export successful",

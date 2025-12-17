@@ -41,7 +41,9 @@ const mongoose = require("mongoose");
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 const { decrypt, encrypt } = require('../../util/encryption_helper');
 const { updateCoursesCountAndProgressInElasticSearch } = require("./overall-course-progress/overall_progress_helper");
-const { bulkUpdateDocumentsInElastic } = require("../../util/elastic_helper");
+// Replaced Elasticsearch with MongoDB UserSearchCache
+// const { bulkUpdateDocumentsInElastic } = require("../../util/elastic_helper");
+const { bulkUpdateDocumentsInElastic } = require("../../util/user_search_helper");
 const fetchUserFromAutoSyncedGroups = (async (groups, fromGetGroups) => {
 
     try {
@@ -581,7 +583,7 @@ const createTrainingProgressForMigrationUsersHelper = async (userIds, trainingId
 
 
             overallIds.push(overallId);
-            
+
             newProgressEntries.push({
                 updateOne: {
                     filter: { user: user, training: trainingId },
@@ -2150,6 +2152,13 @@ module.exports = {
                                 userProgressMap.get(userId).add(trainingId);
                             }
 
+                            const progressKeySet = new Set(); // "userId_trainingId"
+
+                            for (const entry of progressEntries) {
+                                progressKeySet.add(
+                                    `${entry.user.toString()}_${entry.training.toString()}`
+                                );
+                            }
                             // Step 3: Prepare email data
                             const emailData = [];
 
@@ -2157,16 +2166,26 @@ module.exports = {
                                 if (!user.isEmailNotification) continue;
 
                                 const userId = user._id.toString();
-                                const enrolledTrainings = userProgressMap.get(userId) || new Set();
 
-                                const isMissingAnyTraining = input?.trainings?.some(
-                                    tId => !enrolledTrainings.has(tId)
-                                );
+                                 //  Filter out trainings already enrolled (isDeleted:false)
+                                const eligibleTrainings = trainingsData.filter(training => {
+                                    const key = `${userId}_${training._id.toString()}`;
+                                    return !progressKeySet.has(key);
+                                });
 
-                                if (!isMissingAnyTraining) continue;
+                                // If nothing left, don't send email
+                                if (!eligibleTrainings.length) continue;
+
+                                // const enrolledTrainings = userProgressMap.get(userId) || new Set();
+
+                                // const isMissingAnyTraining = input?.trainings?.some(
+                                //     tId => !enrolledTrainings.has(tId)
+                                // );
+
+                                // if (!isMissingAnyTraining) continue;
 
                                 // ⬇️ ✅ Send all trainings, not just missing ones
-                                const courses = trainingsData?.map(training => ({
+                                const courses = eligibleTrainings?.map(training => ({
                                     trainingTitle: training?.title?.[0]?.value || ' ',
                                     durationHours: ((training?.durationHours || 0) / 60).toFixed(1),
                                     courseImage: imageUrlMap.get(training._id.toString())

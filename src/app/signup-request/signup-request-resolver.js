@@ -15,11 +15,12 @@ const sortingFieldJSONData = require('./sortingField.json')
 const { rejectionEmailTemplate } = require('../email-template/SignupRequestRejected');
 const { approvalEmailTemplate } = require('../email-template/SignupRequestApproved');
 const aws_helper = require("../../util/aws_helper");
-const { LearningPlan } = require('../learning-plan/learning_plan_model');
 const { Vessel } = require('../vessle/vessel_model');
-const { filterLearningPlans } = require("../user/employee/employee_helper");
 const { decrypt, encrypt } = require('../../util/encryption_helper');
-const { updateByQueryToElasticSearch, deleteByQueryFromElasticSearch } = require("../../util/elastic_helper");
+// Replaced Elasticsearch with MongoDB UserSearchCache
+// const { updateByQueryToElasticSearch, deleteByQueryFromElasticSearch } = require("../../util/elastic_helper");
+const { updateByQueryToElasticSearch, deleteByQueryFromElasticSearch } = require("../../util/user_search_helper");
+const { UserSearchCache } = require('../user/user_search_cache/user_search_cache_model');
 module.exports.queries = {
     getSignupRequest: async ({ id, search, pageInput }, context) => {
         const { subscriberId } = AuthUser(context);
@@ -203,48 +204,33 @@ module.exports.mutations = {
                     const userVesselsDetails = await Vessel.find({ _id: vesselName, isDeleted: false, isActive: true }).populate('typeOfVessel', '_id name');
 
                     try {
-                        await updateByQueryToElasticSearch(
-                            'users',
-                            `
-                            ctx._source.designation = params.designation;
-                            ctx._source.empDesignation = params.empDesignation;
-                            ctx._source.civilIdOrPassport = params.civilIdOrPassport;
-                            ctx._source.isSignupAdminAprroved = params.isSignupAdminAprroved;
-                            ctx._source.isRegistered = params.isRegistered;
-                            ctx._source.vesselStatus = params.vesselStatus;
-                            ctx._source.currentVessel = params.currentVessel;
-                            ctx._source.vesselName = params.vesselName;
-                            ctx._source.vesselId = params.vesselId;
-                            ctx._source.vesselIsDeleted = params.vesselIsDeleted;
-                            ctx._source.vesselIsActive = params.vesselIsActive;
-                            ctx._source.typeOfVesselName = params.typeOfVesselName;
-                            ctx._source.tyepOfVesselId = params.tyepOfVesselId;
-                        `,
+                        // Direct update to UserSearchCache table
+                        await UserSearchCache.updateOne(
+                            { userId: signupRequest?.userId?.toString() },
                             {
-                                term: {
-                                    userId: signupRequest?.userId?.toString()
+                                $set: {
+                                    designation: designationObject?.name,
+                                    empDesignation: designation,
+                                    civilIdOrPassport: encrypt(employeeId?.toUpperCase()),
+                                    isSignupAdminAprroved: true,
+                                    isRegistered,
+                                    vesselStatus: vesselStatus || null,
+                                    currentVessel: vesselName || null,
+                                    vesselName: userVesselsDetails[0]?.name || null,
+                                    vesselId: userVesselsDetails[0]?._id || null,
+                                    vesselIsDeleted: userVesselsDetails[0]?.isDeleted || null,
+                                    vesselIsActive: userVesselsDetails[0]?.isActive || null,
+                                    typeOfVesselName: userVesselsDetails[0]?.typeOfVessel?.name || null,
+                                    tyepOfVesselId: userVesselsDetails[0]?.typeOfVessel?._id || null,
+                                    updatedAt: new Date()
                                 }
                             },
-                            {
-                                designation: designationObject?.name,
-                                empDesignation: designation,
-                                civilIdOrPassport: encrypt(employeeId?.toUpperCase()),
-                                isSignupAdminAprroved: true,
-                                isRegistered,
-                                vesselStatus: vesselStatus || null,
-                                currentVessel: vesselName || null,
-                                vesselName: userVesselsDetails[0]?.name || null,
-                                vesselId: userVesselsDetails[0]?._id || null,
-                                vesselIsDeleted: userVesselsDetails[0]?.isDeleted || null,
-                                vesselIsActive: userVesselsDetails[0]?.isActive || null,
-                                typeOfVesselName: userVesselsDetails[0]?.typeOfVessel?.name || null,
-                                tyepOfVesselId: userVesselsDetails[0]?.typeOfVessel?._id || null,
-                            }
+                            { session }
                         );
                     } catch (error) {
                         throw CustomError(
                             ErrorName.ELASTIC_UPDATE_FAILED,
-                            "Elasticsearch update failed. Transaction will be rolled back."
+                            "User cache update failed. Transaction will be rolled back."
                         );
                     }
 
@@ -277,22 +263,50 @@ module.exports.mutations = {
 
                     if (isRegistered) {
 
-                        // Conditions for auto enrollment
-                        const learningPlans = await LearningPlan.find({ isDeleted: false, status: 'ACTIVE' });
-                        const existingVesselType = await Vessel.findOne({ _id: vesselName }).select('ownerName typeOfVessel -_id').lean();
-                        const conditions = [{
-                            designationID: designation,
-                            vesselID: vesselName || "",
-                            vesselTypeID: existingVesselType ? existingVesselType.typeOfVessel : "",
-                            owner: existingVesselType ? existingVesselType?.ownerName : "",
-                            currentStatus: vesselStatus || "",
-                            email: decrypt(signupRequest?.email),
-                            _id: signupRequest?.userId,
-                            role: 'LEARNER',
-                        }];
+                        // Offload filterLearningPlans to background child process (time-consuming operation)
+                        try {
+                            const { fork } = require('child_process');
+                            const path = require('path');
 
-                        if (learningPlans.length > 0) {
-                            const result = await filterLearningPlans(learningPlans, conditions, context, session);
+                            const existingVesselType = await Vessel.findOne({ _id: vesselName }).select('ownerName typeOfVessel -_id').lean();
+                            const conditions = [{
+                                designationID: designation,
+                                vesselID: vesselName || "",
+                                vesselTypeID: existingVesselType ? existingVesselType.typeOfVessel : "",
+                                owner: existingVesselType ? existingVesselType?.ownerName : "",
+                                currentStatus: vesselStatus || "",
+                                email: decrypt(signupRequest?.email),
+                                _id: signupRequest?.userId,
+                                role: 'LEARNER',
+                            }];
+
+                            const backgroundProcessPath = path.join(__dirname, 'signup_approval_background_process.js');
+                            const child = fork(backgroundProcessPath);
+
+                            // Send data to child process
+                            child.send({
+                                conditions: conditions,
+                                context: context
+                            });
+
+                            // Handle child process messages (optional - for logging)
+                            child.on('message', (message) => {
+                                if (message.success) {
+                                    console.log(`✅ Background learning plan filtering completed for user ${signupRequest?.userId}`);
+                                } else {
+                                    console.error(`⚠️ Background learning plan filtering failed for user ${signupRequest?.userId}:`, message.error);
+                                }
+                            });
+
+                            // Handle child process errors
+                            child.on('error', (error) => {
+                                console.error(`❌ Background process error for user ${signupRequest?.userId}:`, error);
+                            });
+
+                            console.log(`🚀 Learning plan filtering started in background for user ${signupRequest?.userId}`);
+                        } catch (error) {
+                            console.error(`⚠️ Failed to start background process for learning plan filtering:`, error);
+                            // Don't throw - we don't want to fail the signup approval if background process fails to start
                         }
 
                     }

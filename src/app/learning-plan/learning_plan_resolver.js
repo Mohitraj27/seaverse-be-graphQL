@@ -756,74 +756,74 @@ module.exports.queries = {
                 },
 
                 // OPTIMIZED: Get only essential progress data (no user details)
-                {
-                    $lookup: {
-                        from: "overalltrainingprogresses",
-                        let: { learningPlanId: "$_id" },
-                        pipeline: [
-                            // {
-                            //     $match: {
-                            //         $expr: {
-                            //             $and: [
-                            //                 {
-                            //                     $in: [
-                            //                         { $toObjectId: "$$learningPlanId" },
-                            //                         "$learningPlan",
-                            //                     ],
-                            //                 },
-                            //                 { $ne: ["$isEnrolled", false] },
-                            //             ],
-                            //         },
-                            //     },
-                            // },
-                            {
-                                $match: {
-                                    $expr: {
-                                        $and: [
-                                            {
-                                                $or: [
-                                                    // eq check: only compare if field exists
-                                                    {
-                                                        $and: [
-                                                            { $ne: ["$learningPlan", null] },
-                                                            { $eq: ["$learningPlan", { $toObjectId: "$$learningPlanId" }] }
-                                                        ]
-                                                    },
-                                                    // in check: default to empty array if missing
-                                                    {
-                                                        $in: [
-                                                            { $toObjectId: "$$learningPlanId" },
-                                                            { $ifNull: ["$learningPlan", []] }
-                                                        ]
-                                                    }
-                                                ]
-                                            },
-                                            { $ne: ["$isEnrolled", false] }
-                                        ]
-                                    }
-                                }
-                            },
-                            // Group to get only summary data (no user details lookup)
-                            {
-                                $group: {
-                                    _id: null,
-                                    averageProgress: { $avg: "$progressPercentage" },
-                                    totalTimeSpend: { $sum: "$timeSpend" },
-                                    overallTrainingprogressStatus: { $addToSet: "$status" },
-                                },
-                            },
-                            {
-                                $project: {
-                                    _id: 0,
-                                    averageProgress: { $round: ["$averageProgress", 2] },
-                                    totalTimeSpend: 1,
-                                    overallTrainingprogressStatus: 1,
-                                },
-                            },
-                        ],
-                        as: "progressData",
-                    },
-                },
+                // {
+                //     $lookup: {
+                //         from: "overalltrainingprogresses",
+                //         let: { learningPlanId: "$_id" },
+                //         pipeline: [
+                //             // {
+                //             //     $match: {
+                //             //         $expr: {
+                //             //             $and: [
+                //             //                 {
+                //             //                     $in: [
+                //             //                         { $toObjectId: "$$learningPlanId" },
+                //             //                         "$learningPlan",
+                //             //                     ],
+                //             //                 },
+                //             //                 { $ne: ["$isEnrolled", false] },
+                //             //             ],
+                //             //         },
+                //             //     },
+                //             // },
+                //             {
+                //                 $match: {
+                //                     $expr: {
+                //                         $and: [
+                //                             {
+                //                                 $or: [
+                //                                     // eq check: only compare if field exists
+                //                                     {
+                //                                         $and: [
+                //                                             { $ne: ["$learningPlan", null] },
+                //                                             { $eq: ["$learningPlan", { $toObjectId: "$$learningPlanId" }] }
+                //                                         ]
+                //                                     },
+                //                                     // in check: default to empty array if missing
+                //                                     {
+                //                                         $in: [
+                //                                             { $toObjectId: "$$learningPlanId" },
+                //                                             { $ifNull: ["$learningPlan", []] }
+                //                                         ]
+                //                                     }
+                //                                 ]
+                //                             },
+                //                             { $ne: ["$isEnrolled", false] }
+                //                         ]
+                //                     }
+                //                 }
+                //             },
+                //             // Group to get only summary data (no user details lookup)
+                //             {
+                //                 $group: {
+                //                     _id: null,
+                //                     averageProgress: { $avg: "$progressPercentage" },
+                //                     totalTimeSpend: { $sum: "$timeSpend" },
+                //                     overallTrainingprogressStatus: { $addToSet: "$status" },
+                //                 },
+                //             },
+                //             {
+                //                 $project: {
+                //                     _id: 0,
+                //                     averageProgress: { $round: ["$averageProgress", 2] },
+                //                     totalTimeSpend: 1,
+                //                     overallTrainingprogressStatus: 1,
+                //                 },
+                //             },
+                //         ],
+                //         as: "progressData",
+                //     },
+                // },
 
                 // Project final structure using assignments for userCount
                 {
@@ -840,32 +840,32 @@ module.exports.queries = {
                         "createdBy._id": "$createdByDetails._id",
                         "createdBy.firstName": "$createdByDetails.firstName",
                         "createdBy.lastName": "$createdByDetails.lastName",
-                        overallProgress: {
-                            $cond: {
-                                if: { $gt: [{ $size: "$progressData" }, 0] },
-                                then: {
-                                    averageProgress: {
-                                        $arrayElemAt: ["$progressData.averageProgress", 0],
-                                    },
-                                    totalTimeSpend: {
-                                        $arrayElemAt: ["$progressData.totalTimeSpend", 0],
-                                    },
-                                    userCount: { $size: "$assignedLearners" }, // Use assignments count instead
-                                    overallTrainingprogressStatus: {
-                                        $arrayElemAt: [
-                                            "$progressData.overallTrainingprogressStatus",
-                                            0,
-                                        ],
-                                    },
-                                },
-                                else: {
-                                    averageProgress: 0,
-                                    totalTimeSpend: 0,
-                                    userCount: { $size: "$assignedLearners" }, // Use assignments count for zero state too
-                                    overallTrainingprogressStatus: [],
-                                },
-                            },
-                        },
+                        // overallProgress: {
+                        //     $cond: {
+                        //         if: { $gt: [{ $size: "$progressData" }, 0] },
+                        //         then: {
+                        //             averageProgress: {
+                        //                 $arrayElemAt: ["$progressData.averageProgress", 0],
+                        //             },
+                        //             totalTimeSpend: {
+                        //                 $arrayElemAt: ["$progressData.totalTimeSpend", 0],
+                        //             },
+                        //             userCount: { $size: "$assignedLearners" }, // Use assignments count instead
+                        //             overallTrainingprogressStatus: {
+                        //                 $arrayElemAt: [
+                        //                     "$progressData.overallTrainingprogressStatus",
+                        //                     0,
+                        //                 ],
+                        //             },
+                        //         },
+                        //         else: {
+                        //             averageProgress: 0,
+                        //             totalTimeSpend: 0,
+                        //             userCount: { $size: "$assignedLearners" }, // Use assignments count for zero state too
+                        //             overallTrainingprogressStatus: [],
+                        //         },
+                        //     },
+                        // },
                     },
                 },
             ];

@@ -1,23 +1,19 @@
 const { CryptoHelper, JwtHelper, Validator } = require("../../tools");
-const { CustomError, ErrorName, Role, UploadHelper, VesselStatus } = require("../../util");
+const { CustomError, ErrorName, Role, UploadHelper } = require("../../util");
 
-const { User  } = require("./user_model");
+const { User } = require("./user_model");
 
-const SubscriptionHelper = require("../saas/subscriber/subscription/subscription_helper");
-const NotificationHelper = require("../notifications/notification_helper");
-
-const NotificationType = require("../notifications/notification_type.json");
 const { decrypt, encrypt } = require('../../util/encryption_helper');
-const { updateByQueryToElasticSearch } = require("../../util/elastic_helper");
 module.exports = {
     makeAuthUser: async user => {
         const tokenPayload = {
             role: user.role,
             userId: user._id,
             subscriberId: user.subscriber?._id ?? user.subscriber,
+            isShipAdmin: user.isShipAdmin,
         };
 
-        const accessToken = JwtHelper.sign(tokenPayload, process.env.APP_SECRET, { expiresIn: "1m" });
+        const accessToken = JwtHelper.sign(tokenPayload, process.env.APP_SECRET, { expiresIn: "1d" });
         const refreshToken = JwtHelper.sign({ userId: user._id }, process.env.REFRESH_SECRET, { expiresIn: "7d" });
         // console.log('🧪 TEST MODE: Created tokens with short expiration');
         // console.log(`📅 Access Token expires in: 15 minutes`);
@@ -48,11 +44,12 @@ module.exports = {
                 permissions: [...new Set(user.subRoles?.map(x => x.permissions).flat(1))],
                 subscriberId: user.subscriber?._id ?? user.subscriber,
                 employeeId: user.employee?._id ?? user.employee,
+                isShipAdmin: user.isShipAdmin,
             };
-            const newAccessToken = JwtHelper.sign(tokenPayload, process.env.APP_SECRET, { expiresIn: "1m" });
+            const newAccessToken = JwtHelper.sign(tokenPayload, process.env.APP_SECRET, { expiresIn: "1d" });
             const newRefreshToken = JwtHelper.sign({ userId: user._id }, process.env.REFRESH_SECRET, { expiresIn: "7d" });
             console.log('🟢 TEST: Token refresh successful');
-            console.log(`📅 New Access Token expires in: 1 minute`);
+            console.log(`📅 New Access Token expires in: 1 day`);
             console.log(`📅 New Refresh Token expires in: 7 days`);
             return {
                 accessToken: newAccessToken,
@@ -148,16 +145,16 @@ module.exports = {
 
                 existingUser.email = encrypt(input.email.trim().toLowerCase());
             }
-            if (input?.consents?.length > 0 ) {
+            if (input?.consents?.length > 0) {
                 const validConsents = input.consents.every(consent =>
                     typeof consent.title === 'string' &&
                     typeof consent.message === 'string' &&
                     typeof consent.status === 'boolean'
                 );
                 if (!validConsents) {
-                     throw CustomError(ErrorName.INVALID_CONSENT_FORMAT, 'Invalid consent format');
+                    throw CustomError(ErrorName.INVALID_CONSENT_FORMAT, 'Invalid consent format');
                 }
-               await User.findByIdAndUpdate(
+                await User.findByIdAndUpdate(
                     input?._id,
                     { $set: { consents: input.consents } },
                     { new: true }
@@ -213,54 +210,45 @@ module.exports = {
                 if (input.isActive != null) existingUser.isActive = input.isActive;
             }
 
-            const savedUser = await existingUser.save();
-            if (!savedUser) throw CustomError(ErrorName.FAILED);
+            // Use transaction for atomic update with cache
+            const mongoose = require('mongoose');
+            const session = await mongoose.startSession();
+            await session.startTransaction();
 
+            let savedUser;
             try {
-                await updateByQueryToElasticSearch(
-                    "users", 
-                    `
-                        ctx._source.firstName = params.firstName;
-                        ctx._source.lastName = params.lastName;
-                        ctx._source.email = params.email;
-                        ctx._source.civilIdOrPassport = params.civilIdOrPassport;
-                        ctx._source.isRegistered = params.isRegistered;
-                        ctx._source.vesselStatus = params.vesselStatus;
-                        ctx._source.currentVessel = params.currentVessel;
-                        ctx._source.subRoles = params.subRoles;
-                        ctx._source.role = params.role;
-                        ctx._source.isActive = params.isActive;
-                        ctx._source.isVerified = params.isVerified;
-                        ctx._source.avatar = params.avatar;
-                    `,
-                    {
-                        term: { userId: savedUser._id.toString() }
-                    },
-                    {
-                        firstName: savedUser.firstName,
-                        lastName: savedUser.lastName,
-                        email: savedUser.email,
-                        phone: savedUser.phone,
-                        civilIdOrPassport: savedUser.civilIdOrPassport,
-                        avatar: savedUser.avatar,
-                        languagePreference: savedUser.languagePreference,
-                        isRegistered: savedUser.isRegistered,
-                        vesselStatus: savedUser.vesselStatus,
-                        currentVessel: savedUser.currentVessel,
-                        subRoles: savedUser.subRoles,
-                        role: savedUser.role,
-                        isActive: savedUser.isActive,
-                        isVerified: savedUser.isVerified,
-                        isOrganizationManager: savedUser.isOrganizationManager,
-                        managingOrganization: savedUser.managingOrganization,
-                        avatar: savedUser.avatar,
-                    }
-                );
+                savedUser = await existingUser.save({ session });
+                if (!savedUser) throw CustomError(ErrorName.FAILED);
+
+                // Update cache within transaction
+                const { updateDocumenttoElasticSearch } = require('../../util/user_search_helper');
+                const cacheUpdate = {};
+
+                if (input.firstName) cacheUpdate.firstName = savedUser.firstName;
+                if (input.lastName) cacheUpdate.lastName = savedUser.lastName;
+                if (input.email) cacheUpdate.email = savedUser.email;
+                if (input.civilIdOrPassport) cacheUpdate.civilIdOrPassport = savedUser.civilIdOrPassport;
+                if (input.languagePreference) cacheUpdate.languagePreference = savedUser.languagePreference;
+                if (input.isRegistered != null) cacheUpdate.isRegistered = savedUser.isRegistered;
+                if (input.currentVessel !== undefined) cacheUpdate.currentVessel = savedUser.currentVessel;
+                if (input.vesselStatus !== undefined) cacheUpdate.vesselStatus = savedUser.vesselStatus;
+                if (input.role) cacheUpdate.role = savedUser.role;
+                if (input.subRoles) cacheUpdate.subRoles = savedUser.subRoles;
+                if (input.isActive != null) cacheUpdate.isActive = savedUser.isActive;
+                if (input.isVerified != null) cacheUpdate.isVerified = savedUser.isVerified;
+
+                cacheUpdate.updatedAt = new Date();
+
+                await updateDocumenttoElasticSearch('users', savedUser._id, cacheUpdate, session);
+
+                await session.commitTransaction();
+                return savedUser;
             } catch (error) {
-                throw CustomError(ErrorName.NOT_FOUND);
+                await session.abortTransaction();
+                throw error;
+            } finally {
+                session.endSession();
             }
-            
-            return savedUser;
         }
 
         throw CustomError(ErrorName.NOT_FOUND);
@@ -296,7 +284,7 @@ module.exports = {
                     infoData: {
                         _id: notificationData.user._id,
                         firstName: decrypt(notificationData.user?.firstName),
-                        lastName: notificationData.user?.lastName ? decrypt(notificationData.user?.lastName):'',
+                        lastName: notificationData.user?.lastName ? decrypt(notificationData.user?.lastName) : '',
                     },
                 },
             ],

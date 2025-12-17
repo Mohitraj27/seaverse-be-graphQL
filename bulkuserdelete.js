@@ -1,17 +1,19 @@
 const mongoose = require("mongoose");
 // const { encrypt } = require("./helpers/cryptoHelper"); // Adjust path
 // import { encrypt } from "./src/util/encryption_helper";
-const { encrypt } = require("./src/util/encryption_helper"); 
+const { encrypt } = require("./src/util/encryption_helper");
 // const { User, Employee, Designation, UserVessel, Vessel } = require("./models");
 const { Employee } = require("./src/app/user/employee/employee_model");
 const { User, DeletedUser } = require("./src/app/user/user_model");
 const { UserVessel } = require("./src/app/user/user-vessel-bridge/userVessel_model");
 // import { UserVessel } from "./src/app/user/user-vessel-bridge/userVessel_model";
 // const { Designation } = require("../../designations/designation_model");
-const {Designation}=require("./src/app/designations/designation_model")
+const { Designation } = require("./src/app/designations/designation_model")
 const { generateUserUID, generateEmployeeUID } = require("./src/app/user/employee/employee_helper");
 // const { indexDocumenttoElasticSearch } = require("./helpers/elasticHelper");
-const { indexDocumenttoElasticSearch,deleteDocumenttoElasticSearch,client } = require("./src/util/elastic_helper");
+// Replaced Elasticsearch with MongoDB UserSearchCache
+// const { indexDocumenttoElasticSearch,deleteDocumenttoElasticSearch,client } = require("./src/util/elastic_helper");
+const { indexDocumenttoElasticSearch, deleteDocumenttoElasticSearch, client } = require("./src/util/user_search_helper");
 const { ObjectId } = mongoose.Types;
 const bcrypt = require("bcryptjs");
 // import { Vessel } from "./src/app/vessle/vessel_model";
@@ -247,7 +249,7 @@ const sampleUsers = [
 //         };
 //       await indexDocumenttoElasticSearch("users", savedEmployee[0]._id, document);
 //       indexedESDocs.push(savedEmployee[0]._id);
-      
+
 //       console.log(`Created & indexed: ${input.email}`);
 //     }
 //     await session.commitTransaction();

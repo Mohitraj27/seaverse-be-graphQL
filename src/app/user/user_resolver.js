@@ -42,7 +42,10 @@ const { consentsforLearnerInitalLogin } = require('../email-template/consentsfor
 const { sendConsentsforAllAdminsInitalLogin } = require('../email-template/consentsforAllAdminsInitalLogin');
 const { SubRole } = require("../user/sub-roles/sub_role_model");
 const { encrypt, decrypt } = require("../../util/encryption_helper");
-const { updateByQueryToElasticSearch, indexDocumenttoElasticSearch } = require("../../util/elastic_helper");
+// Replaced Elasticsearch with MongoDB UserSearchCache
+// const { updateByQueryToElasticSearch, indexDocumenttoElasticSearch } = require("../../util/elastic_helper");
+const { updateByQueryToElasticSearch, indexDocumenttoElasticSearch } = require("../../util/user_search_helper");
+const { UserSearchCache } = require('./user_search_cache/user_search_cache_model');
 module.exports.queries = {
     downloadNotification: async ({ input }, context) => {
 
@@ -198,14 +201,7 @@ module.exports.mutations = {
 
                 if (password !== confirmPassword) throw CustomError(ErrorName.PASSWORD_MISMATCH, "Passwords do not match");
 
-                const passwordRegex = new RegExp("^(?=.*[A-Z])(?=.*[!@#$%^&*.,])(?=.*[0-9])(?=.{8,})(?![a-z])");
-                if (!passwordRegex.test(password)) {
-                    throw CustomError(
-                        ErrorName.INVALID_PASSWORD,
-                        "Password must have at least one uppercase letter, one special character, one number and minimum 8 characters"
-                    );
-                }
-
+             
                 const existingUser = await User.findOne({ email: encrypt(email?.toLowerCase()), isDeleted: false }).session(session);
 
                 if (existingUser) throw CustomError(ErrorName.ALREADY_EXIST, "Email entered already exists. Please log in to continue");
@@ -244,57 +240,76 @@ module.exports.mutations = {
                     designation: 'null'
                 };
 
-                const savedEmployee = await Employee.create({
+                const savedEmployee = await Employee.create([{
                     ...employeeUpdate,
-                    UID: await EmployeeHelper.generateEmployeeUID({ subscriberId }),
-                });
-                if (!savedEmployee) throw CustomError(ErrorName.FAILED, "Employee creation failed!");
+                    UID: await EmployeeHelper.generateEmployeeUID({ subscriberId, session }),
+                }], { session });
+                if (!savedEmployee || savedEmployee.length === 0) throw CustomError(ErrorName.FAILED, "Employee creation failed!");
+
+                const employeeDoc = savedEmployee[0];
+
+                const userDoc = createUser[0];
 
                 const document = {
-                    employeeId: savedEmployee._id?.toString(),
-                    UID: savedEmployee.UID,
-                    designation: savedEmployee.designation,
-                    empDesignation: savedEmployee.empDesignation?.toString(),
-                    bulkId: savedEmployee.bulkId,
-                    regType: savedEmployee.regType,
-                    isActive: savedEmployee.isActive,
-                    isDeleted: savedEmployee.isDeleted,
-                    subscriber: savedEmployee.subscriber?.toString(),
-                    createdAt: savedEmployee.createdAt,
-                    updatedAt: savedEmployee.updatedAt,
+                    employeeId: employeeDoc._id?.toString(),
+                    UID: employeeDoc.UID,
+                    designation: employeeDoc.designation,
+                    empDesignation: employeeDoc.empDesignation?.toString(),
+                    bulkId: employeeDoc.bulkId,
+                    regType: employeeDoc.regType,
+                    isActive: employeeDoc.isActive,
+                    isDeleted: employeeDoc.isDeleted,
+                    subscriber: employeeDoc.subscriber?.toString(),
+                    createdAt: employeeDoc.createdAt,
+                    updatedAt: employeeDoc.updatedAt,
 
                     // Nested user fields
-                    userId: savedEmployee.user?._id?.toString(),
-                    firstName: savedEmployee.user?.firstName,
-                    lastName: savedEmployee.user?.lastName,
-                    email: savedEmployee.user?.email,
-                    civilIdOrPassport: savedEmployee.user?.civilIdOrPassport,
-                    languagePreference: savedEmployee.user?.languagePreference,
-                    role: savedEmployee.user?.role,
-                    subRoles: savedEmployee.user?.subRoles,
-                    isVerified: savedEmployee.user?.isVerified,
-                    isRegistered: savedEmployee.user?.isRegistered,
-                    superAdmin: savedEmployee.user?.superAdmin,
-                    deleteRequest: savedEmployee.user?.deleteRequest,
-                    isDeleted_user: savedEmployee.user?.isDeleted,
-                    directSignup: savedEmployee.user?.directSignup,
-                    contentlanguages: savedEmployee.user?.contentlanguages,
-                    currentVessel: savedEmployee.user?.currentVessel?.toString(),
-                    vesselStatus: savedEmployee.user?.vesselStatus,
-                    isEmailNotification: savedEmployee.user?.isEmailNotification,
-                    isPushNotification: savedEmployee.user?.isPushNotification,
-                    lastLoginAt: savedEmployee.user?.lastLoginAt,
-                    isSignupAdminAprroved: savedEmployee.user?.isSignupAdminAprroved,
-                    userCreatedAt: savedEmployee.user?.createdAt,
-                    userUpdatedAt: savedEmployee.user?.updatedAt,
-                    isResetPasswordDialog: savedEmployee.user?.isResetPasswordDialog,
+                    userId: userDoc._id?.toString(),
+                    firstName: userDoc.firstName,
+                    lastName: userDoc.lastName,
+                    email: userDoc.email,
+                    civilIdOrPassport: userDoc.civilIdOrPassport,
+                    languagePreference: userDoc.languagePreference,
+                    role: userDoc.role,
+                    subRoles: userDoc.subRoles,
+                    isVerified: userDoc.isVerified,
+                    isRegistered: userDoc.isRegistered,
+                    superAdmin: userDoc.superAdmin,
+                    deleteRequest: userDoc.deleteRequest,
+                    isDeleted_user: userDoc.isDeleted,
+                    directSignup: userDoc.directSignup,
+                    contentlanguages: userDoc.contentlanguages,
+                    currentVessel: userDoc.currentVessel?.toString(),
+                    vesselStatus: userDoc.vesselStatus,
+                    isEmailNotification: userDoc.isEmailNotification,
+                    isPushNotification: userDoc.isPushNotification,
+                    lastLoginAt: userDoc.lastLoginAt,
+                    isSignupAdminAprroved: userDoc.isSignupAdminAprroved,
+                    userCreatedAt: userDoc.createdAt,
+                    userUpdatedAt: userDoc.updatedAt,
+                    isResetPasswordDialog: userDoc.isResetPasswordDialog,
                     indexedAt: new Date(),
                 };
 
                 try {
-                    await indexDocumenttoElasticSearch("users", savedEmployee?._id, document);
+                    // Direct insert to UserSearchCache table
+                    await UserSearchCache.findOneAndUpdate(
+                        { userId: userDoc._id.toString() },
+                        {
+                            ...document,
+                            userId: userDoc._id.toString(),
+                            indexedAt: new Date(),
+                            updatedAt: new Date()
+                        },
+                        {
+                            upsert: true,
+                            new: true,
+                            setDefaultsOnInsert: true,
+                            session
+                        }
+                    );
                 } catch (error) {
-                    throw CustomError(ErrorName.SIGNUP_FAILED, error.message);
+                    throw CustomError(ErrorName.SIGNUP_FAILED, `User cache insert error: ${error.message}`);
                 }
 
                 const result = await SignupRequest.create([{
@@ -307,11 +322,11 @@ module.exports.mutations = {
                 if (!result) throw CustomError(ErrorName.FAILED, "Signup request creation failed!");
 
                 let tokenPayload = {
-                    role: savedEmployee?.user?.role,
-                    userId: savedEmployee?.user?._id,
-                    permissions: [...new Set(savedEmployee?.user?.subRoles?.map(x => x.permissions).flat(1))],
-                    subscriberId: savedEmployee?.user?.subscriber?._id ?? savedEmployee?.user?.subscriber,
-                    employeeId: savedEmployee?._id,
+                    role: userDoc.role,
+                    userId: userDoc._id,
+                    permissions: [...new Set(userDoc.subRoles?.map(x => x.permissions).flat(1))],
+                    subscriberId: userDoc.subscriber?._id ?? userDoc.subscriber,
+                    employeeId: employeeDoc._id,
                 };
 
                 if (tokenPayload.subscriberId) {
@@ -324,13 +339,13 @@ module.exports.mutations = {
                         ...activeSubscriptionInfo,
                     };
 
-                    savedEmployee.user.subscriptionInfo = activeSubscriptionInfo;
+                    userDoc.subscriptionInfo = activeSubscriptionInfo;
                 }
 
                 if (!tokenPayload) throw CustomError(ErrorName.FAILED, "Signup request creation failed!");
 
                 const accessToken = JwtHelper.sign(tokenPayload, process.env.APP_SECRET, { expiresIn: "8h" });
-                const refreshToken = JwtHelper.sign({ userId: savedEmployee?.user?._id }, process.env.REFRESH_SECRET, { expiresIn: "7d" });
+                const refreshToken = JwtHelper.sign({ userId: userDoc._id }, process.env.REFRESH_SECRET, { expiresIn: "7d" });
                 const viewRequestPath = `${process.env.APP_URL}/admin/signup-request`;
                 const signupRequestNotifcation = {
                     subscriber: subscriberId,
@@ -378,7 +393,7 @@ module.exports.mutations = {
         try {
             const signIn = await DbTransactionHelper.performDbTransaction(async session => {
                 const encryptedEmail = encrypt(input.emailOrCivilIdOrPassport);
-              
+
                 const existingUser = await User.findOne({
                     $or: [
                         { email: encryptedEmail },
@@ -396,15 +411,15 @@ module.exports.mutations = {
                     return CustomError(ErrorName.USER_NOT_FOUND);
                 }
 
-              
+
                 if (existingUser.deleteRequest === true) {
                     return CustomError(ErrorName.DELETE_REQUEST_PENDING, 'Your account delete request is pending. Please contact your admin');
                 }
 
              
-                const isPasswordValid = await CryptoHelper.compare(input.password, existingUser.password);
+                const isPasswordValid = await CryptoHelper.compare(input.password.trim(), existingUser.password);
 
-             
+
                 if (!isPasswordValid) {
                     return CustomError(ErrorName.WRONG_PASSWORD);
                 }
@@ -420,7 +435,7 @@ module.exports.mutations = {
                         const inputConditionId = condition._id ? condition._id.toString() : null;
 
                         if (inputConditionId && existingConditionsMap.has(inputConditionId)) {
-                        
+
                             const existingCondition = existingConditionsMap.get(inputConditionId);
                             existingCondition.message = condition.message;
                             existingCondition.consentType = consentTypes.INITIAL_LOGIN;
@@ -439,12 +454,12 @@ module.exports.mutations = {
                         }
                     });
 
-                 
+
                     if (input?.consents?.some(consent => consent.status === false)) {
                         const decryptedUserEmail = decrypt(existingUser?.email);
                         const decryptedUserFirstName = decrypt(existingUser?.firstName);
 
-                  
+
                         await AwsHelper.sendEmail({
                             receiverEmail: decryptedUserEmail,
                             subject: `Your Sign In Was Not Complete`,
@@ -457,7 +472,7 @@ module.exports.mutations = {
                             { email: 1, firstName: 1, lastName: 1 }
                         ).lean();
 
-                    
+
                         const adminUsers = adminUserEmails?.map(user => ({
                             email: decrypt(user?.email),
                             firstName: decrypt(user?.firstName),
@@ -482,7 +497,8 @@ module.exports.mutations = {
             return signIn;
 
         } catch (error) {
-            throw new Error(error.message);
+            console.error("Failed to update last login time:", error);
+            throw CustomError(ErrorName.FAILED, `Failed to update last login time: ${error.message}`);
         }
     },
 
@@ -503,31 +519,22 @@ module.exports.mutations = {
                 mongoUpdate.firebaseTokens = [firebaseToken];
             }
 
-            updatePromises.push(
-                User.findByIdAndUpdate(userId, mongoUpdate, {
-                    new: false, 
-                    lean: true 
-                })
-            );
+            // Use DbTransactionHelper for atomic update
 
-           
-            updatePromises.push(
-                updateByQueryToElasticSearch(
-                    "users",
-                    "ctx._source.lastLoginAt = params.lastLoginAt",
-                    {
-                        match: {
-                            userId: userId.toString()
-                        }
-                    },
-                    {
-                        lastLoginAt: lastLoginAtTime
-                    }
-                )
-            );
+            await DbTransactionHelper.performDbTransaction(async (session) => {
+                await User.findByIdAndUpdate(userId, mongoUpdate, {
+                    new: false,
+                    lean: true,
+                    session
+                });
 
-           
-            await Promise.all(updatePromises);
+                // Update cache within transaction
+                await UserSearchCache.updateOne(
+                    { userId: userId.toString() },
+                    { $set: { lastLoginAt: lastLoginAtTime } },
+                    { session }
+                );
+            });
 
             return "Last login time updated successfully";
 
@@ -760,17 +767,27 @@ module.exports.mutations = {
     },
     switchNotifcation: async ({ input }, context) => {
         try {
-            const { userInfo, userId } = AuthUser(context);
+            const { userId } = AuthUser(context);
             const { isEmailNotification, isPushNotification } = input;
-            const user = await User.findOne({ _id: userId });
-            if (!user) throw CustomError(ErrorName.USER_NOT_FOUND, "User not found");
-            if (typeof isEmailNotification === 'boolean') {
-                user.isEmailNotification = isEmailNotification;
+
+            // Build update object dynamically (only update provided fields)
+            const updateFields = {};
+            if (typeof isEmailNotification === "boolean") {
+                updateFields.isEmailNotification = isEmailNotification;
             }
-            if (typeof isPushNotification === 'boolean') {
-                user.isPushNotification = isPushNotification;
+            if (typeof isPushNotification === "boolean") {
+                updateFields.isPushNotification = isPushNotification;
             }
-            await user.save();
+
+            const user = await User.findOneAndUpdate(
+                { _id: userId },
+                { $set: updateFields },
+                { new: true } // return updated doc
+            );
+
+            if (!user) {
+                throw CustomError(ErrorName.USER_NOT_FOUND, "User not found");
+            }
 
             return {
                 status: true,
@@ -781,7 +798,11 @@ module.exports.mutations = {
                 }
             };
         } catch (error) {
-            throw CustomError(ErrorName.FAILED_TO_SWITCH_NOTIFICATION, error.message);
+            throw CustomError(
+                ErrorName.FAILED_TO_SWITCH_NOTIFICATION,
+                error.message
+            );
         }
     }
+
 };

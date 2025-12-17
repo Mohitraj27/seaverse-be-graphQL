@@ -1,13 +1,38 @@
 const { CronHelper } = require("../../tools");
 const { fork } = require("child_process");
 const path = require("path");
+const { Subscriber } = require("../saas/subscriber/subscriber_model");
+const aws_helper = require("../../util/aws_helper");
 
 const scheduleSystemStatsReport = () => {
     // Schedule to run every day at 10:30 AM
-    CronHelper.schedule("30 10 * * *", () => {
+    CronHelper.schedule("30 10 * * *", async () => {
         console.log("Starting scheduled system stats report generation...");
 
+        if (process.env.NODE_ENV !== 'production') {
+            const envValue = process.env.NODE_ENV || "undefined";
+            console.log(`Skipping report generation. Environment is not production (Current: ${envValue}). Sending alert email...`);
+
+            aws_helper.sendEmail({
+                receiverEmail: "ashwin@squadramedia.com",
+                subject: "Automated Email Not Working - Environment Alert",
+                htmlContent: `<p>The automated email scheduler is not running because the environment is not production.</p>
+                              <p>Current NODE_ENV: <strong>${envValue}</strong></p>`
+            }).catch(err => console.error("Failed to send alert email:", err));
+
+            return;
+        }
+
         try {
+            // Fetch a valid subscriber ID (e.g., the first active one)
+            const subscriber = await Subscriber.findOne({ isActive: true }).select('_id');
+            const subscriberId = subscriber ? subscriber._id : null;
+
+            if (!subscriberId) {
+                console.error("No active subscriber found. Cannot generate system stats report.");
+                return;
+            }
+
             const child = fork(path.resolve(__dirname, 'system_stats_generator.js'), [], { execArgv: ["--expose-gc"] });
 
             child.on('error', (err) => {
@@ -30,16 +55,9 @@ const scheduleSystemStatsReport = () => {
                 }
             });
 
-            // Send initial payload if needed, though system_stats_generator seems to need one.
-            // Looking at system_stats_generator.js, it waits for a message to start.
-            // We need to send a dummy payload to trigger it.
-            // The generator expects: { input, subscriberId, userId, userInfo }
-            // Since this is a system task, we might need to mock these or adjust the generator to handle system calls.
-            // For now, passing null/system values.
-
             const payload = {
                 input: {},
-                subscriberId: null, // Or a system subscriber ID if available
+                subscriberId: subscriberId,
                 userId: null,       // System user ID
                 userInfo: { firstName: "System", lastName: "Scheduler", _id: "SYSTEM" }
             };

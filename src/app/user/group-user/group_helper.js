@@ -11,6 +11,7 @@ const { ObjectId } = require("../../../tools");
 const { CustomError, ErrorName, AuthUser, Role, UploadHelper, groupTypes } = require("../../../util");
 const { getAutoSyncUsers, getCustomGroupUsers, fetchUserFromAutoSyncedGroups } = require("../../training-registrations/training_registration_helper");
 const { decrypt } = require("../../../util/encryption_helper");
+const { UserSearchCache } = require("../user_search_cache/user_search_cache_model");
 const mergedGroupDetails = (allGroups, groupDetails) => {
 
     const groupDetailsMap = new Map(groupDetails.map(group => [group._id, group]));
@@ -1046,6 +1047,284 @@ module.exports = {
             ];
         }
         return allGroups;
+    },
+    getAutoSyncedGroupsOnlyFromCache: async subscriberId => {
+        try {
+            // Designation Groups - optimized
+            const empDesignationGroups = await UserSearchCache.aggregate([
+                {
+                    $match: {
+                        isDeleted: false,
+                        empDesignation: { $ne: null, $exists: true },
+                        designation: { $ne: null },
+                        firstName: { $ne: null },
+                        email: { $ne: null },
+                        isSignupAdminAprroved: true
+                    }
+                },
+                {
+                    $group: {
+                        _id: "$empDesignation",
+                        groupName: { $first: "$designation" },
+                        memberCount: { $sum: 1 }
+                    }
+                },
+                {
+                    $project: {
+                        _id: 1,
+                        groupName: { $concat: ["All ", "$groupName"] },
+                        memberCount: 1,
+                        groupType: { $literal: "designation" },
+                        description: {
+                            $concat: [
+                                "All the members in =",
+                                "$groupName",
+                                "= group which is based on designation."
+                            ]
+                        }
+                    }
+                }
+            ]);
+
+            // Role Groups - optimized (users with subRoles are considered ADMIN)
+            const roleGroups = await UserSearchCache.aggregate([
+                {
+                    $match: {
+                        isDeleted: false,
+                        firstName: { $ne: null },
+                        email: { $ne: null },
+                        isSignupAdminAprroved: true
+                    }
+                },
+                {
+                    $addFields: {
+                        effectiveRole: {
+                            $cond: {
+                                if: {
+                                    $and: [
+                                        { $isArray: "$subRoles" },
+                                        { $gt: [{ $size: "$subRoles" }, 0] }
+                                    ]
+                                },
+                                then: "ADMIN",
+                                else: "$role"
+                            }
+                        }
+                    }
+                },
+                {
+                    $match: {
+                        effectiveRole: { $in: ["ADMIN", "LEARNER"] }
+                    }
+                },
+                {
+                    $group: {
+                        _id: "$effectiveRole",
+                        memberCount: { $sum: 1 }
+                    }
+                },
+                {
+                    $project: {
+                        _id: 1,
+                        groupName: { $concat: ["All ", "$_id"] },
+                        memberCount: 1,
+                        groupType: { $literal: "role" },
+                        description: {
+                            $concat: [
+                                "All the members in =",
+                                "$_id",
+                                "= group which is based on role."
+                            ]
+                        }
+                    }
+                }
+            ]);
+
+            // Vessel Groups - optimized
+            const vesselGroups = await UserSearchCache.aggregate([
+                {
+                    $match: {
+                        isDeleted: false,
+                        currentVessel: { $ne: null, $exists: true },
+                        vesselName: { $ne: null },
+                        vesselIsDeleted: { $ne: true },
+                        firstName: { $ne: null },
+                        email: { $ne: null },
+                        isSignupAdminAprroved: true
+                    }
+                },
+                {
+                    $group: {
+                        _id: "$currentVessel",
+                        groupName: { $first: "$vesselName" },
+                        memberCount: { $sum: 1 }
+                    }
+                },
+                {
+                    $project: {
+                        _id: 1,
+                        groupName: 1,
+                        memberCount: 1,
+                        groupType: { $literal: "vessel" },
+                        description: {
+                            $concat: [
+                                "All the members in =",
+                                "$groupName",
+                                "= group which is based on vessel."
+                            ]
+                        }
+                    }
+                }
+            ]);
+
+            // Vessel Status Groups - optimized
+            const vesselStatusGroups = await UserSearchCache.aggregate([
+                {
+                    $match: {
+                        isDeleted: false,
+                        vesselStatus: { $in: ["ONBOARDED", "ONSHORE", "ASSIGNED"] },
+                        firstName: { $ne: null },
+                        email: { $ne: null },
+                        isSignupAdminAprroved: true
+                    }
+                },
+                {
+                    $group: {
+                        _id: "$vesselStatus",
+                        memberCount: { $sum: 1 }
+                    }
+                },
+                {
+                    $project: {
+                        _id: 1,
+                        groupName: "$_id",
+                        memberCount: 1,
+                        groupType: { $literal: "vesselStatus" },
+                        description: {
+                            $concat: [
+                                "All the members in =",
+                                "$_id",
+                                "= group based on vessel status."
+                            ]
+                        }
+                    }
+                }
+            ]);
+
+            // Vessel Type Groups - optimized
+            const vesselTypeGroups = await UserSearchCache.aggregate([
+                {
+                    $match: {
+                        isDeleted: false,
+                        tyepOfVesselId: { $ne: null, $exists: true },
+                        typeOfVesselName: { $ne: null },
+                        firstName: { $ne: null },
+                        email: { $ne: null },
+                        isSignupAdminAprroved: true
+                    }
+                },
+                {
+                    $group: {
+                        _id: "$tyepOfVesselId",
+                        groupName: { $first: "$typeOfVesselName" },
+                        memberCount: { $sum: 1 }
+                    }
+                },
+                {
+                    $project: {
+                        _id: 1,
+                        groupName: 1,
+                        memberCount: 1,
+                        groupType: { $literal: "vesselType" },
+                        description: {
+                            $concat: [
+                                "All the =",
+                                "$groupName",
+                                "= members based on vessel type."
+                            ]
+                        }
+                    }
+                }
+            ]);
+
+            // Owner Groups - needs Vessel collection but uses cache for user filtering
+            const ownerGroupsRaw = await Vessel.aggregate([
+                {
+                    $match: {
+                        ownerName: { $ne: null, $ne: "" },
+                        isDeleted: false
+                    }
+                },
+                {
+                    $group: {
+                        _id: "$ownerName",
+                        groupName: { $first: "$ownerName" },
+                        vesselIds: { $push: "$_id" }
+                    }
+                },
+                {
+                    $lookup: {
+                        from: "user_search_cache",
+                        let: { vesselIds: "$vesselIds" },
+                        pipeline: [
+                            {
+                                $match: {
+                                    $expr: {
+                                        $in: ["$currentVessel", "$$vesselIds"]
+                                    },
+                                    isDeleted: false,
+                                    firstName: { $ne: null },
+                                    email: { $ne: null },
+                                    isSignupAdminAprroved: true,
+                                    vesselIsDeleted: { $ne: true }
+                                }
+                            }
+                        ],
+                        as: "members"
+                    }
+                },
+                {
+                    $project: {
+                        _id: "$_id",
+                        groupName: "$groupName",
+                        memberCount: { $size: "$members" },
+                        groupType: { $literal: "owner" },
+                        description: {
+                            $concat: [
+                                "All the members in =",
+                                "$groupName",
+                                "= group which is based on owner name."
+                            ]
+                        }
+                    }
+                }
+            ]);
+
+            // Decrypt owner names
+            const ownerGroups = ownerGroupsRaw.map(group => {
+                const decryptedName = decrypt(group.groupName);
+                return {
+                    ...group,
+                    groupName: decryptedName,
+                    description: `All the members in =${decryptedName}= group which is based on owner name.`
+                };
+            });
+
+            // Combine all groups (including owner groups)
+            const allGroups = [
+                ...empDesignationGroups,
+                ...roleGroups,
+                ...vesselGroups,
+                ...vesselStatusGroups,
+                ...vesselTypeGroups,
+                ...ownerGroups
+            ];
+
+            return allGroups;
+        } catch (error) {
+            console.error("Error in getAutoSyncedGroupsOnlyFromCache:", error);
+            throw error;
+        }
     },
     getAutoSyncedGroups: async subscriberId => {
 
